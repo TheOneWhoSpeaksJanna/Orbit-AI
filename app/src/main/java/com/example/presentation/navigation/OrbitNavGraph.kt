@@ -12,12 +12,22 @@ import com.example.presentation.screens.TermuxScreen
 
 @Composable
 fun OrbitNavGraph(
-    navController: NavHostController = rememberNavController()
+    navController: NavHostController = rememberNavController(),
+    startDestination: String = Routes.DASHBOARD
 ) {
     NavHost(
         navController = navController,
-        startDestination = Routes.DASHBOARD
+        startDestination = startDestination
     ) {
+        composable(Routes.SETUP) {
+            com.example.presentation.screens.SetupWizardScreen(
+                onFinishSetup = {
+                    navController.navigate(Routes.DASHBOARD) {
+                        popUpTo(Routes.SETUP) { inclusive = true }
+                    }
+                }
+            )
+        }
         composable(Routes.DASHBOARD) {
             DashboardScreen(
                 onNavigateToSession = { sessionId ->

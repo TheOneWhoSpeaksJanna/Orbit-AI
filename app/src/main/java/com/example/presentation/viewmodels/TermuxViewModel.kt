@@ -33,6 +33,20 @@ class TermuxViewModel(
         }
     }
 
+    fun executePrivilegedCommand(command: String) {
+        viewModelScope.launch {
+            val output = appContainer.shizukuExecutor.executePrivilegedCommand(command)
+            val result = TermuxLog(
+                id = java.util.UUID.randomUUID().toString(),
+                command = "sudo $command",
+                output = output,
+                exitCode = 0, // Since we don't return exit code from shizukuExecutor easily, mock 0
+                timestamp = System.currentTimeMillis()
+            )
+            repository.insertTermuxLog(result)
+        }
+    }
+
     companion object {
         val Factory: ViewModelProvider.Factory = object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")

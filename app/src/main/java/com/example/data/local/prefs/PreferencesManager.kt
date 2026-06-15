@@ -1,6 +1,7 @@
 package com.example.data.local.prefs
 
 import android.content.Context
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
@@ -14,6 +15,9 @@ class PreferencesManager(private val context: Context) {
     companion object {
         val GEMINI_API_KEY = stringPreferencesKey("gemini_api_key")
         val THEME_MODE = stringPreferencesKey("theme_mode")
+        val IS_ONBOARDING_COMPLETE = booleanPreferencesKey("is_onboarding_complete")
+        val SHIZUKU_ENABLED = booleanPreferencesKey("shizuku_enabled")
+        val SELECTED_AGENT = stringPreferencesKey("selected_agent")
     }
 
     val geminiApiKey: Flow<String?> = context.dataStore.data.map { prefs ->
@@ -22,6 +26,18 @@ class PreferencesManager(private val context: Context) {
 
     val themeMode: Flow<String?> = context.dataStore.data.map { prefs ->
         prefs[THEME_MODE]
+    }
+
+    val isOnboardingComplete: Flow<Boolean> = context.dataStore.data.map { prefs ->
+        prefs[IS_ONBOARDING_COMPLETE] ?: false
+    }
+
+    val shizukuEnabled: Flow<Boolean> = context.dataStore.data.map { prefs ->
+        prefs[SHIZUKU_ENABLED] ?: false
+    }
+
+    val selectedAgent: Flow<String?> = context.dataStore.data.map { prefs ->
+        prefs[SELECTED_AGENT]
     }
 
     suspend fun setGeminiApiKey(key: String) {
@@ -33,6 +49,24 @@ class PreferencesManager(private val context: Context) {
     suspend fun setThemeMode(mode: String) {
         context.dataStore.edit { prefs ->
             prefs[THEME_MODE] = mode
+        }
+    }
+
+    suspend fun setOnboardingComplete(complete: Boolean) {
+        context.dataStore.edit { prefs ->
+            prefs[IS_ONBOARDING_COMPLETE] = complete
+        }
+    }
+
+    suspend fun setShizukuEnabled(enabled: Boolean) {
+        context.dataStore.edit { prefs ->
+            prefs[SHIZUKU_ENABLED] = enabled
+        }
+    }
+
+    suspend fun setSelectedAgent(agentId: String) {
+        context.dataStore.edit { prefs ->
+            prefs[SELECTED_AGENT] = agentId
         }
     }
 }

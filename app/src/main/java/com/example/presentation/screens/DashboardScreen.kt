@@ -33,6 +33,8 @@ fun DashboardScreen(
 ) {
     val projects by viewModel.projects.collectAsState()
     val sessions by viewModel.sessions.collectAsState()
+    val activeAgent by viewModel.activeAgent.collectAsState()
+    val shizukuEnabled by viewModel.shizukuEnabled.collectAsState()
 
     Scaffold(
         topBar = {
@@ -64,6 +66,32 @@ fun DashboardScreen(
                 .padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
+            item {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    Card(
+                        modifier = Modifier.weight(1f),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Text("Agent", style = MaterialTheme.typography.labelMedium)
+                            Text(activeAgent ?: "Hermes", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+                        }
+                    }
+                    Card(
+                        modifier = Modifier.weight(1f),
+                        colors = CardDefaults.cardColors(containerColor = if (shizukuEnabled) MaterialTheme.colorScheme.tertiaryContainer else MaterialTheme.colorScheme.surfaceVariant)
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Text("Root Access", style = MaterialTheme.typography.labelMedium)
+                            Text(if (shizukuEnabled) "Active" else "Limited", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+                        }
+                    }
+                }
+            }
+
             item {
                 Text(
                     text = "Recent Sessions",

@@ -16,7 +16,8 @@ import kotlinx.coroutines.launch
 import java.util.UUID
 
 class DashboardViewModel(
-    private val repository: OrbitRepository
+    private val repository: OrbitRepository,
+    private val appContainer: com.example.core.di.AppContainer
 ) : ViewModel() {
 
     val projects: StateFlow<List<Project>> = repository.getAllProjects()
@@ -31,6 +32,20 @@ class DashboardViewModel(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000),
             initialValue = emptyList()
+        )
+
+    val activeAgent = appContainer.prefsManager.selectedAgent
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = "Hermes"
+        )
+    
+    val shizukuEnabled = appContainer.prefsManager.shizukuEnabled
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = false
         )
 
     fun createNewProject(name: String, description: String) {
@@ -51,7 +66,7 @@ class DashboardViewModel(
             @Suppress("UNCHECKED_CAST")
             override fun <T : ViewModel> create(modelClass: Class<T>, extras: CreationExtras): T {
                 val application = checkNotNull(extras[APPLICATION_KEY]) as OrbitApplication
-                return DashboardViewModel(application.container.repository) as T
+                return DashboardViewModel(application.container.repository, application.container) as T
             }
         }
     }

@@ -30,6 +30,7 @@ fun TermuxScreen(
     val logs by viewModel.logs.collectAsState()
     var commandText by remember { mutableStateOf("") }
     var showConfirmation by remember { mutableStateOf(false) }
+    var executeAsShizuku by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -102,8 +103,25 @@ fun TermuxScreen(
                         shape = RoundedCornerShape(8.dp)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
+                    IconButton(
+                        onClick = { 
+                            if (commandText.isNotBlank()) {
+                                executeAsShizuku = true
+                                showConfirmation = true 
+                            }
+                        },
+                        modifier = Modifier.background(MaterialTheme.colorScheme.errorContainer, RoundedCornerShape(8.dp))
+                    ) {
+                        Text("Sudo", color = MaterialTheme.colorScheme.onErrorContainer, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
                     FloatingActionButton(
-                        onClick = { if (commandText.isNotBlank()) showConfirmation = true },
+                        onClick = { 
+                            if (commandText.isNotBlank()) {
+                                executeAsShizuku = false
+                                showConfirmation = true 
+                            }
+                        },
                         containerColor = MaterialTheme.colorScheme.secondary
                     ) {
                         Icon(Icons.Default.PlayArrow, contentDescription = "Execute")
@@ -114,16 +132,31 @@ fun TermuxScreen(
     }
 
     if (showConfirmation) {
+        val isPrivileged = executeAsShizuku
         AlertDialog(
             onDismissRequest = { showConfirmation = false },
-            title = { Text("Execute Command?") },
-            text = { Text("Are you sure you want to run this command locally?\n\n$ $commandText\n\nExecution happens directly on the device.") },
+            title = { Text(if (isPrivileged) "Execute Privileged Command?" else "Execute Command?") },
+            text = { 
+                Text(
+                    "Are you sure you want to run this command locally?\n\n$ $commandText\n\n" + 
+                    (if (isPrivileged) "WARNING: This will execute via Shizuku with elevated privileges. Destructive actions can occur." else "Execution happens securely inside the local wrapper.")
+                )
+            },
             confirmButton = {
-                Button(onClick = {
-                    viewModel.executeCommand(commandText)
-                    commandText = ""
-                    showConfirmation = false
-                }) {
+                Button(
+                    onClick = {
+                        if (isPrivileged) {
+                            viewModel.executePrivilegedCommand(commandText)
+                        } else {
+                            viewModel.executeCommand(commandText)
+                        }
+                        commandText = ""
+                        showConfirmation = false
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (isPrivileged) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
+                    )
+                ) {
                     Text("Execute")
                 }
             },

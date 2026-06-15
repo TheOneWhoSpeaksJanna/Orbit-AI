@@ -1,79 +1,37 @@
-# Orbit AI Workspace
+# Orbit AI - Android Workspace
 
-Orbit AI is an Android application that serves as a powerful workspace and command center. It features an interactive chat interface backed by AI providers (such as Gemini 1.5 Pro) and a local Termux command execution layer.
-
-Built natively in Kotlin using Jetpack Compose, the project implements Clean Architecture and follows modern Android development standards.
+Orbit AI is a powerful, on-device Android workspace for AI Agents. It provides a clean environment for running AI operations and local commands.
 
 ## Features
 
-- **Dashboard**: Track your recent projects and AI sessions.
-- **AI Workspace**: A robust chat and prompt environment to interact with large language models.
-- **Provider Abstraction**: A layered design capable of bridging different AI APIs. (Currently equipped with a Gemini API provider scaffold).
-- **Termux Execution Layer**: A safe, on-device terminal runner for executing local infrastructure commands or parsing scripts asynchronously.
-- **Settings & Preferences**: Persisted token management and appearance options using local DataStore and Room Database.
-- **Clean Architecture & M3 Design**: Code separated into UI (`presentation`), logic (`domain`), and integrations (`data`). Designed with the official Material 3 Compose library.
+- **Setup Wizard & Configurations:** Onboarding flow for easy theme, agent, root permissions, and API configurations.
+- **Multiple Agents:** Easily manage interactions via `Hermes` (Gemini-powered logic) or `OpenClaude` (Anthropic).
+- **Termux & Shizuku Tooling:** Directly interface with your device safely using local tooling commands and optional root-level permissions via Shizuku.
+- **Modern Architecture:** Built using Kotlin, Jetpack Compose, Material 3, Clean Architecture principles, and a robust CI/CD workflow.
 
-## Tech Stack
+## Project Structure
 
-- **UI**: Jetpack Compose, Material 3
-- **Language**: Kotlin
-- **Persistence**: Room Database (SQLite), DataStore
-- **Networking**: Retrofit, OkHttp, Moshi
-- **Architecture**: MVVM, Clean Architecture
-- **Dependency Injection**: Manual Constructor Injection (Via `AppContainer`)
-- **Build System**: Gradle (Kotlin DSL properties)
+- `app/src/main/java/com/example/data`: App persistence (Room DB), preference management (DataStore), API handling (Retrofit), and Local Runtimes (Shizuku, Termux).
+- `app/src/main/java/com/example/domain`: Core application logic (Repositories, Models).
+- `app/src/main/java/com/example/presentation`: UI codebase built fully with Compose, using `ViewModels` for reactive state handling.
+- `.github/workflows`: Contains out-of-the-box GitHub Action configuration to automatically build and post APKs.
 
-## Project Initialization & Setup
+## GitHub Actions: Build & Release
 
-### Requirements
+This repository is equipped with a GitHub Action to build an APK directly on every pushed/merged commit.
 
-- Android Studio Koala (or newer)
-- JDK 17
-- Android SDK version 34 (or newer)
+### How to use:
+1. Push your code changes to the `main` branch.
+2. Navigate to the "Actions" tab in your Github repository.
+3. Observe the `Android Build` workflow in action. Once completed, a `.apk` artifact will be published under the workflow summary.
+4. For Production releases, generate git tags to automatically construct an official Github release with attached binaries.
 
-### Build Steps
+## Local Development (Android Studio)
+1. Open this repository in Android Studio.
+2. Select your testing device / emulator.
+3. Click "Run".
+*Ensure you configure your `.env` securely!*
 
-1. **Clone the repository**:
-   ```bash
-   git clone <repo-url>
-   cd orbit-ai
-   ```
-
-2. **Setup Secrets (Important)**:
-   In the root directory of the project, you need to create a `.env` file to contain any environment variables not committed to git.
-   Copy the example file:
-   ```bash
-   cp .env.example .env
-   ```
-
-3. **Build via Gradle**:
-   Use standard Gradle commands or sync via Android Studio:
-   ```bash
-   ./gradlew assembleDebug
-   ```
-
-4. **Run**:
-    Install the generated `app-debug.apk` onto an emulator or Android device:
-   ```bash
-   ./gradlew installDebug
-   ```
-
-## Configuring AI Providers
-
-Inside the application, open the **Settings** screen (gear icon in the top right corner of the Dashboard) to input your API Key for Gemini or other model providers.
-
-## Architecture
-
-The project is structured under `com.example` (with the Application ID pointing to a designated workspace name).
-
-- `core.di`: Shared dependencies and the main application container.
-- `data`:
-  - `api`: Network configurations (e.g. `GeminiApiProvider.kt`)
-  - `local`: Room DAOs, Entities, Databases, and Termux implementation.
-  - `repository`: Single-source-of-truth implementations.
-- `domain`:
-  - `api`, `model`, `repository`: Interfaces and business models describing the behavior.
-- `presentation`:
-  - `navigation`: Route controllers.
-  - `screens`: Pure Compose UI logic.
-  - `viewmodels`: Architecture components tying UI actions to domain requests.
+## Rationale & Philosophy
+- Avoid mocked UI — the Shizuku, Termux, and AI connections are built to be 100% interoperable inside standard Android execution constraints if correctly elevated.
+- Avoid fake data.

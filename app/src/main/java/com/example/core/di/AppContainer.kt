@@ -5,6 +5,7 @@ import androidx.room.Room
 import com.example.data.api.GeminiApiProvider
 import com.example.data.local.OrbitDatabase
 import com.example.data.local.prefs.PreferencesManager
+import com.example.data.local.shizuku.ShizukuExecutor
 import com.example.data.local.termux.TermuxExecutor
 import com.example.data.repository.OrbitRepositoryImpl
 import com.example.domain.api.AiProvider
@@ -15,6 +16,7 @@ interface AppContainer {
     val prefsManager: PreferencesManager
     val aiProvider: AiProvider
     val termuxExecutor: TermuxExecutor
+    val shizukuExecutor: ShizukuExecutor
 }
 
 class DefaultAppContainer(private val context: Context) : AppContainer {
@@ -37,5 +39,9 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
 
     override val termuxExecutor: TermuxExecutor by lazy {
         TermuxExecutor()
+    }
+
+    override val shizukuExecutor: ShizukuExecutor by lazy {
+        ShizukuExecutor()
     }
 }
