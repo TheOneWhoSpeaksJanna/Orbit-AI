@@ -15,9 +15,14 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import android.content.pm.PackageManager
+import androidx.compose.ui.platform.LocalContext
+import rikka.shizuku.Shizuku
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.presentation.viewmodels.DashboardViewModel
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -35,6 +40,22 @@ fun DashboardScreen(
     val sessions by viewModel.sessions.collectAsState()
     val activeAgent by viewModel.activeAgent.collectAsState()
     val shizukuEnabled by viewModel.shizukuEnabled.collectAsState()
+    val activeProvider by viewModel.activeProvider.collectAsState()
+    
+    val context = LocalContext.current
+    var isShizukuActive by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        val isInstalled = try {
+            context.packageManager.getPackageInfo("moe.shizuku.privileged.api", 0)
+            true
+        } catch (e: PackageManager.NameNotFoundException) {
+            false
+        }
+        if (isInstalled && Shizuku.pingBinder()) {
+            isShizukuActive = Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -78,15 +99,16 @@ fun DashboardScreen(
                         Column(modifier = Modifier.padding(16.dp)) {
                             Text("Agent", style = MaterialTheme.typography.labelMedium)
                             Text(activeAgent ?: "Hermes", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+                            Text(activeProvider ?: "Unknown", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f))
                         }
                     }
                     Card(
                         modifier = Modifier.weight(1f),
-                        colors = CardDefaults.cardColors(containerColor = if (shizukuEnabled) MaterialTheme.colorScheme.tertiaryContainer else MaterialTheme.colorScheme.surfaceVariant)
+                        colors = CardDefaults.cardColors(containerColor = if (isShizukuActive) MaterialTheme.colorScheme.tertiaryContainer else MaterialTheme.colorScheme.surfaceVariant)
                     ) {
                         Column(modifier = Modifier.padding(16.dp)) {
-                            Text("Root Access", style = MaterialTheme.typography.labelMedium)
-                            Text(if (shizukuEnabled) "Active" else "Limited", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+                            Text("Shizuku Status", style = MaterialTheme.typography.labelMedium)
+                            Text(if (isShizukuActive) "Active" else "Unavailable", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
                         }
                     }
                 }

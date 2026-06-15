@@ -1,5 +1,6 @@
 package com.example.presentation.screens
 
+import android.content.pm.PackageManager
 import androidx.compose.animation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -13,11 +14,14 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.presentation.viewmodels.SetupViewModel
+import rikka.shizuku.Shizuku
 
 @OptIn(ExperimentalAnimationApi::class)
 @Composable
@@ -40,7 +44,7 @@ fun SetupWizardScreen(
                     }
                 }
                 Spacer(modifier = Modifier.weight(1f))
-                if (currentStep < 5) {
+                if (currentStep < 6) {
                     Button(onClick = { viewModel.nextStep() }) {
                         Text("Next")
                         Spacer(Modifier.width(4.dp))
@@ -77,10 +81,11 @@ fun SetupWizardScreen(
                 when (step) {
                     0 -> WelcomeStep()
                     1 -> ThemeSelectionStep(viewModel)
-                    2 -> ShizukuStep(viewModel)
-                    3 -> AgentSelectionStep(viewModel)
-                    4 -> ProviderSetupStep(viewModel)
-                    5 -> RuntimeSetupStep() // Bundled Runtime & Final Summary
+                    2 -> AgentSelectionStep(viewModel)
+                    3 -> ProviderSelectionStep(viewModel)
+                    4 -> ApiModelConfigStep(viewModel)
+                    5 -> ShizukuStep(viewModel)
+                    6 -> RuntimeSetupStep() // Bundled Runtime & Final Summary
                 }
             }
         }
@@ -101,7 +106,7 @@ fun WelcomeStep() {
         Text(
             "Your powerful on-device agent workspace. Let's get everything configured securely.",
             style = MaterialTheme.typography.bodyLarge,
-            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+            textAlign = TextAlign.Center
         )
     }
 }
@@ -137,7 +142,7 @@ fun ThemeSelectionStep(viewModel: SetupViewModel) {
                 ) {
                     RadioButton(
                         selected = (text == theme),
-                        onClick = null // null recommended for accessibility with parent select
+                        onClick = null 
                     )
                     Text(
                         text = text,
@@ -151,50 +156,9 @@ fun ThemeSelectionStep(viewModel: SetupViewModel) {
 }
 
 @Composable
-fun ShizukuStep(viewModel: SetupViewModel) {
-    val shizukuEnabled by viewModel.shizukuEnabled.collectAsState()
-    
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(24.dp)
-            .verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.Center
-    ) {
-        Text("Elevated Permissions (Optional)", style = MaterialTheme.typography.headlineMedium)
-        Spacer(modifier = Modifier.height(16.dp))
-        Text(
-            "Orbit AI can use Shizuku to perform system-level actions (like securely managing apps). This does not claim root access unless your device is rooted.",
-            style = MaterialTheme.typography.bodyMedium
-        )
-        Spacer(modifier = Modifier.height(24.dp))
-        
-        Card(
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text("Enable Shizuku Integration", style = MaterialTheme.typography.titleMedium)
-                    Text("Requires Shizuku app to be running", style = MaterialTheme.typography.labelMedium)
-                }
-                Switch(
-                    checked = shizukuEnabled,
-                    onCheckedChange = { viewModel.setShizukuEnabled(it) }
-                )
-            }
-        }
-    }
-}
-
-@Composable
 fun AgentSelectionStep(viewModel: SetupViewModel) {
     val selectedAgent by viewModel.selectedAgent.collectAsState()
-    val agents = listOf("Hermes", "OpenClaude")
+    val agents = listOf("Hermes")
     
     Column(
         modifier = Modifier
@@ -203,7 +167,7 @@ fun AgentSelectionStep(viewModel: SetupViewModel) {
             .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.Center
     ) {
-        Text("Select Default Agent", style = MaterialTheme.typography.headlineMedium)
+        Text("Select Agent", style = MaterialTheme.typography.headlineMedium)
         Spacer(modifier = Modifier.height(16.dp))
         
         Column(Modifier.selectableGroup()) {
@@ -228,7 +192,7 @@ fun AgentSelectionStep(viewModel: SetupViewModel) {
                         )
                         Column(modifier = Modifier.padding(start = 16.dp)) {
                             Text(text = agent, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                            val desc = if (agent == "Hermes") "General purpose coding and logic via Gemini API." else "Expert context handling via Anthropic."
+                            val desc = if (agent == "Hermes") "General purpose logic and tool execution." else "Expert context handling."
                             Text(text = desc, style = MaterialTheme.typography.bodySmall)
                         }
                     }
@@ -239,9 +203,56 @@ fun AgentSelectionStep(viewModel: SetupViewModel) {
 }
 
 @Composable
-fun ProviderSetupStep(viewModel: SetupViewModel) {
+fun ProviderSelectionStep(viewModel: SetupViewModel) {
+    val selectedProvider by viewModel.selectedProvider.collectAsState()
     val agent by viewModel.selectedAgent.collectAsState()
+    val providers = listOf("Claude", "OpenRouter", "OpenAI", "Gemini")
+    
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(24.dp)
+            .verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.Center
+    ) {
+        Text("Select Provider for $agent", style = MaterialTheme.typography.headlineMedium)
+        Spacer(modifier = Modifier.height(16.dp))
+        
+        Column(Modifier.selectableGroup()) {
+            providers.forEach { provider ->
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 8.dp)
+                        .selectable(
+                            selected = (provider == selectedProvider),
+                            onClick = { viewModel.setSelectedProvider(provider) }
+                        ),
+                    colors = CardDefaults.cardColors(
+                        containerColor = if (provider == selectedProvider) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface
+                    ),
+                    border = CardDefaults.outlinedCardBorder(provider == selectedProvider)
+                ) {
+                    Row(modifier = Modifier.padding(16.dp).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        RadioButton(
+                            selected = (provider == selectedProvider),
+                            onClick = null
+                        )
+                        Column(modifier = Modifier.padding(start = 16.dp)) {
+                            Text(text = provider, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun ApiModelConfigStep(viewModel: SetupViewModel) {
+    val provider by viewModel.selectedProvider.collectAsState()
     val apiKey by viewModel.apiKey.collectAsState()
+    val model by viewModel.selectedModel.collectAsState()
     val isTesting by viewModel.isTestingConnection.collectAsState()
     val success by viewModel.testConnectionSuccess.collectAsState()
     
@@ -252,7 +263,7 @@ fun ProviderSetupStep(viewModel: SetupViewModel) {
             .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.Center
     ) {
-        Text("Provider Setup: $agent", style = MaterialTheme.typography.headlineMedium)
+        Text("Configure $provider", style = MaterialTheme.typography.headlineMedium)
         Spacer(modifier = Modifier.height(16.dp))
         
         OutlinedTextField(
@@ -263,6 +274,15 @@ fun ProviderSetupStep(viewModel: SetupViewModel) {
             singleLine = true
         )
         Spacer(modifier = Modifier.height(16.dp))
+        
+        OutlinedTextField(
+            value = model,
+            onValueChange = { viewModel.setSelectedModel(it) },
+            label = { Text("Model Name (Optional)") },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true
+        )
+        Spacer(modifier = Modifier.height(24.dp))
         
         Button(
             onClick = { viewModel.testConnection() },
@@ -282,6 +302,91 @@ fun ProviderSetupStep(viewModel: SetupViewModel) {
                 Text("Connection successful!", color = MaterialTheme.colorScheme.primary)
             } else {
                 Text("Connection failed. Check your API key.", color = MaterialTheme.colorScheme.error)
+            }
+        }
+    }
+}
+
+@Composable
+fun ShizukuStep(viewModel: SetupViewModel) {
+    val shizukuEnabled by viewModel.shizukuEnabled.collectAsState()
+    val context = LocalContext.current
+    var shizukuStatus by remember { mutableStateOf("Checking...") }
+    var hasPermission by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        val isInstalled = try {
+            context.packageManager.getPackageInfo("moe.shizuku.privileged.api", 0)
+            true
+        } catch (e: PackageManager.NameNotFoundException) {
+            false
+        }
+        
+        if (isInstalled) {
+            if (Shizuku.pingBinder()) {
+                hasPermission = Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED
+                shizukuStatus = if (hasPermission) "Shizuku is running and permission granted." else "Shizuku running, but permission denied."
+            } else {
+                shizukuStatus = "Shizuku is installed but NOT running."
+            }
+        } else {
+            shizukuStatus = "Shizuku is not installed on this device."
+        }
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(24.dp)
+            .verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.Center
+    ) {
+        Text("Elevated Permissions", style = MaterialTheme.typography.headlineMedium)
+        Spacer(modifier = Modifier.height(16.dp))
+        Text(
+            "Orbit AI can use Shizuku to perform system-level actions (like securely managing apps). This does not claim root access unless your device is rooted.",
+            style = MaterialTheme.typography.bodyMedium
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+        Card(
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text("Status: $shizukuStatus", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
+                if (!hasPermission && Shizuku.pingBinder()) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Button(onClick = {
+                        try {
+                            Shizuku.requestPermission(1000)
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                        }
+                    }) {
+                        Text("Request Permission")
+                    }
+                }
+            }
+        }
+        Spacer(modifier = Modifier.height(24.dp))
+        
+        Card(
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("Enable Shizuku Integration", style = MaterialTheme.typography.titleMedium)
+                    Text("Requires Shizuku app to be running", style = MaterialTheme.typography.labelMedium)
+                }
+                Switch(
+                    checked = shizukuEnabled,
+                    onCheckedChange = { viewModel.setShizukuEnabled(it) },
+                    enabled = hasPermission
+                )
             }
         }
     }
@@ -316,7 +421,7 @@ fun RuntimeSetupStep() {
         Spacer(modifier = Modifier.height(32.dp))
         Text("Summary:", style = MaterialTheme.typography.titleMedium)
         Text("- UI configured", style = MaterialTheme.typography.bodyMedium)
-        Text("- AI Agent selected", style = MaterialTheme.typography.bodyMedium)
+        Text("- AI Agent and Provider selected", style = MaterialTheme.typography.bodyMedium)
         Text("- API keys active", style = MaterialTheme.typography.bodyMedium)
         Text("- Command runner ready", style = MaterialTheme.typography.bodyMedium)
         Spacer(modifier = Modifier.height(16.dp))

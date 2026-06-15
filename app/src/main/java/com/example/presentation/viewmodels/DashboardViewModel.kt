@@ -40,6 +40,13 @@ class DashboardViewModel(
             started = SharingStarted.WhileSubscribed(5000),
             initialValue = "Hermes"
         )
+        
+    val activeProvider = appContainer.prefsManager.selectedProvider
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = "Claude"
+        )
     
     val shizukuEnabled = appContainer.prefsManager.shizukuEnabled
         .stateIn(

@@ -18,6 +18,8 @@ class PreferencesManager(private val context: Context) {
         val IS_ONBOARDING_COMPLETE = booleanPreferencesKey("is_onboarding_complete")
         val SHIZUKU_ENABLED = booleanPreferencesKey("shizuku_enabled")
         val SELECTED_AGENT = stringPreferencesKey("selected_agent")
+        val SELECTED_PROVIDER = stringPreferencesKey("selected_provider")
+        val SELECTED_MODEL = stringPreferencesKey("selected_model")
     }
 
     val geminiApiKey: Flow<String?> = context.dataStore.data.map { prefs ->
@@ -38,6 +40,14 @@ class PreferencesManager(private val context: Context) {
 
     val selectedAgent: Flow<String?> = context.dataStore.data.map { prefs ->
         prefs[SELECTED_AGENT]
+    }
+
+    val selectedProvider: Flow<String?> = context.dataStore.data.map { prefs ->
+        prefs[SELECTED_PROVIDER]
+    }
+
+    val selectedModel: Flow<String?> = context.dataStore.data.map { prefs ->
+        prefs[SELECTED_MODEL]
     }
 
     suspend fun setGeminiApiKey(key: String) {
@@ -67,6 +77,18 @@ class PreferencesManager(private val context: Context) {
     suspend fun setSelectedAgent(agentId: String) {
         context.dataStore.edit { prefs ->
             prefs[SELECTED_AGENT] = agentId
+        }
+    }
+
+    suspend fun setSelectedProvider(provider: String) {
+        context.dataStore.edit { prefs ->
+            prefs[SELECTED_PROVIDER] = provider
+        }
+    }
+
+    suspend fun setSelectedModel(model: String) {
+        context.dataStore.edit { prefs ->
+            prefs[SELECTED_MODEL] = model
         }
     }
 }

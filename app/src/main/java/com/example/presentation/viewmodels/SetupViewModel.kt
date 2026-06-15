@@ -28,6 +28,12 @@ class SetupViewModel(
     private val _selectedAgent = MutableStateFlow("Hermes")
     val selectedAgent: StateFlow<String> = _selectedAgent.asStateFlow()
 
+    private val _selectedProvider = MutableStateFlow("Claude")
+    val selectedProvider: StateFlow<String> = _selectedProvider.asStateFlow()
+
+    private val _selectedModel = MutableStateFlow("")
+    val selectedModel: StateFlow<String> = _selectedModel.asStateFlow()
+
     private val _apiKey = MutableStateFlow("")
     val apiKey: StateFlow<String> = _apiKey.asStateFlow()
 
@@ -59,6 +65,14 @@ class SetupViewModel(
         _selectedAgent.value = agent
     }
 
+    fun setSelectedProvider(provider: String) {
+        _selectedProvider.value = provider
+    }
+
+    fun setSelectedModel(model: String) {
+        _selectedModel.value = model
+    }
+
     fun setApiKey(key: String) {
         _apiKey.value = key
     }
@@ -79,6 +93,8 @@ class SetupViewModel(
             prefsManager.setThemeMode(_theme.value)
             prefsManager.setShizukuEnabled(_shizukuEnabled.value)
             prefsManager.setSelectedAgent(_selectedAgent.value)
+            prefsManager.setSelectedProvider(_selectedProvider.value)
+            prefsManager.setSelectedModel(_selectedModel.value)
             prefsManager.setGeminiApiKey(_apiKey.value)
             prefsManager.setOnboardingComplete(true)
         }
