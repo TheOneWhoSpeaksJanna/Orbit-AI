@@ -36,9 +36,7 @@ data class AgentEntity(
     @PrimaryKey val id: String,
     val name: String,
     val description: String,
-    val systemPrompt: String,
-    val provider: String,
-    val modelIdentifier: String
+    val systemPrompt: String
 )
 
 @Entity(tableName = "termux_logs")
@@ -60,8 +58,8 @@ fun ChatSession.toEntity() = SessionEntity(id, projectId, title, createdAt, upda
 fun MessageEntity.toMessage() = Message(id, sessionId, MessageRole.valueOf(role), content, timestamp)
 fun Message.toEntity() = MessageEntity(id, sessionId, role.name, content, timestamp)
 
-fun AgentEntity.toAgent() = Agent(id, name, description, systemPrompt, provider, modelIdentifier)
-fun Agent.toEntity() = AgentEntity(id, name, description, systemPrompt, provider, modelIdentifier)
+fun AgentEntity.toAgent() = Agent(id, name, description, systemPrompt)
+fun Agent.toEntity() = AgentEntity(id, name, description, systemPrompt)
 
 fun TermuxLogEntity.toTermuxLog() = TermuxLog(id, command, output, exitCode, timestamp)
 fun TermuxLog.toEntity() = TermuxLogEntity(id, command, output, exitCode, timestamp)

@@ -63,7 +63,7 @@ fun DashboardScreen(
                 title = { Text("Orbit Workspace", fontWeight = FontWeight.Bold) },
                 actions = {
                     IconButton(onClick = onNavigateToTermux) {
-                        Icon(Icons.Default.Terminal, contentDescription = "Termux Tools")
+                        Icon(Icons.Default.Terminal, contentDescription = "Local Tools")
                     }
                     IconButton(onClick = onNavigateToSettings) {
                         Icon(Icons.Default.Settings, contentDescription = "Settings")

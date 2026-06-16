@@ -7,13 +7,18 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.CreationExtras
 import com.example.OrbitApplication
 import com.example.data.local.prefs.PreferencesManager
+import com.example.domain.model.Agent
+import com.example.domain.api.AiProvider
+import com.example.domain.repository.OrbitRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
 class SetupViewModel(
-    private val prefsManager: PreferencesManager
+    private val prefsManager: PreferencesManager,
+    private val repository: OrbitRepository,
+    private val aiProvider: AiProvider
 ) : ViewModel() {
 
     private val _currentStep = MutableStateFlow(0)
@@ -81,9 +86,14 @@ class SetupViewModel(
         viewModelScope.launch {
             _isTestingConnection.value = true
             _testConnectionSuccess.value = null
-            // Simulate network test
-            kotlinx.coroutines.delay(1500)
-            _testConnectionSuccess.value = _apiKey.value.isNotBlank()
+            
+            val success = aiProvider.testConnection(
+                provider = _selectedProvider.value,
+                apiKey = _apiKey.value,
+                model = _selectedModel.value
+            )
+            
+            _testConnectionSuccess.value = success
             _isTestingConnection.value = false
         }
     }
@@ -96,6 +106,24 @@ class SetupViewModel(
             prefsManager.setSelectedProvider(_selectedProvider.value)
             prefsManager.setSelectedModel(_selectedModel.value)
             prefsManager.setGeminiApiKey(_apiKey.value)
+            
+            // Create real Agent reference
+            val agentName = _selectedAgent.value
+            val sysPrompt = when (agentName) {
+                "Hermes" -> "You are Hermes, a local execution agent. You can execute shell commands locally. If the user asks you to run a command, output exactly [RUN: command] or [SUDO: command] to execute as root via Shizuku. Do not wrap in markdown, just the raw tag if you need to execute. If you just want to talk, respond normally."
+                "OpenClaude" -> "You are OpenClaude, an open-source Claude integration with full tool use."
+                "Claude Code" -> "You are Claude Code, a specialized coding agent with codebase awareness."
+                else -> "You are an expert AI assistant."
+            }
+            
+            val agent = Agent(
+                id = agentName.lowercase().replace(" ", "_"),
+                name = agentName,
+                description = "Agent provisioned during setup",
+                systemPrompt = sysPrompt
+            )
+            repository.insertAgent(agent)
+            
             prefsManager.setOnboardingComplete(true)
         }
     }
@@ -105,7 +133,11 @@ class SetupViewModel(
             @Suppress("UNCHECKED_CAST")
             override fun <T : ViewModel> create(modelClass: Class<T>, extras: CreationExtras): T {
                 val application = checkNotNull(extras[APPLICATION_KEY]) as OrbitApplication
-                return SetupViewModel(application.container.prefsManager) as T
+                return SetupViewModel(
+                    application.container.prefsManager, 
+                    application.container.repository,
+                    application.container.aiProvider
+                ) as T
             }
         }
     }

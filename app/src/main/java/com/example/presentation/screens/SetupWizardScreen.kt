@@ -158,7 +158,7 @@ fun ThemeSelectionStep(viewModel: SetupViewModel) {
 @Composable
 fun AgentSelectionStep(viewModel: SetupViewModel) {
     val selectedAgent by viewModel.selectedAgent.collectAsState()
-    val agents = listOf("Hermes")
+    val agents = listOf("Hermes", "OpenClaude", "Claude Code")
     
     Column(
         modifier = Modifier
@@ -192,7 +192,12 @@ fun AgentSelectionStep(viewModel: SetupViewModel) {
                         )
                         Column(modifier = Modifier.padding(start = 16.dp)) {
                             Text(text = agent, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                            val desc = if (agent == "Hermes") "General purpose logic and tool execution." else "Expert context handling."
+                            val desc = when (agent) {
+                                "Hermes" -> "General purpose logic and local orchestration."
+                                "OpenClaude" -> "Open-source Claude integration with full tool use."
+                                "Claude Code" -> "Specialized coding agent with codebase awareness."
+                                else -> "Expert context handling."
+                            }
                             Text(text = desc, style = MaterialTheme.typography.bodySmall)
                         }
                     }
@@ -413,9 +418,9 @@ fun RuntimeSetupStep() {
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
-                Text("Bootstrapping complete.", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSecondaryContainer)
+                Text("Native runtime active.", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSecondaryContainer)
                 Spacer(modifier = Modifier.height(4.dp))
-                Text("No external apps required. The python server bridge was prepared.", style = MaterialTheme.typography.bodySmall)
+                Text("No external apps like Termux are required. The internal command runner is ready.", style = MaterialTheme.typography.bodySmall)
             }
         }
         Spacer(modifier = Modifier.height(32.dp))

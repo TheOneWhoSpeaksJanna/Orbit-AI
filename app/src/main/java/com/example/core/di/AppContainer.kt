@@ -2,11 +2,9 @@ package com.example.core.di
 
 import android.content.Context
 import androidx.room.Room
-import com.example.data.api.GeminiApiProvider
 import com.example.data.local.OrbitDatabase
 import com.example.data.local.prefs.PreferencesManager
-import com.example.data.local.shizuku.ShizukuExecutor
-import com.example.data.local.termux.TermuxExecutor
+import com.example.data.local.runner.LocalCommandRunner
 import com.example.data.repository.OrbitRepositoryImpl
 import com.example.domain.api.AiProvider
 import com.example.domain.repository.OrbitRepository
@@ -15,8 +13,9 @@ interface AppContainer {
     val repository: OrbitRepository
     val prefsManager: PreferencesManager
     val aiProvider: AiProvider
-    val termuxExecutor: TermuxExecutor
-    val shizukuExecutor: ShizukuExecutor
+    val localCommandRunner: LocalCommandRunner
+    val runtimeManager: com.example.data.local.runtime.OrbitRuntimeManager
+    val packageInstaller: com.example.data.local.runtime.PackageInstaller
 }
 
 class DefaultAppContainer(private val context: Context) : AppContainer {
@@ -34,14 +33,21 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
     }
 
     override val aiProvider: AiProvider by lazy {
-        GeminiApiProvider()
+        com.example.data.api.providers.AiProviderSelector()
+    }
+    
+    override val runtimeManager: com.example.data.local.runtime.OrbitRuntimeManager by lazy {
+        com.example.data.local.runtime.OrbitRuntimeManager(context)
     }
 
-    override val termuxExecutor: TermuxExecutor by lazy {
-        TermuxExecutor()
+    override val packageInstaller: com.example.data.local.runtime.PackageInstaller by lazy {
+        com.example.data.local.runtime.PackageInstaller(
+            runtimeManager,
+            okhttp3.OkHttpClient.Builder().build()
+        )
     }
 
-    override val shizukuExecutor: ShizukuExecutor by lazy {
-        ShizukuExecutor()
+    override val localCommandRunner: LocalCommandRunner by lazy {
+        LocalCommandRunner(runtimeManager)
     }
 }

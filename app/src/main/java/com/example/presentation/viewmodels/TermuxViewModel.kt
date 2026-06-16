@@ -9,10 +9,22 @@ import com.example.OrbitApplication
 import com.example.core.di.AppContainer
 import com.example.domain.model.TermuxLog
 import com.example.domain.repository.OrbitRepository
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+
+data class DownloadProgress(
+    val title: String,
+    val progress: Float, // 0.0 to 1.0
+    val mbPerSecond: Float,
+    val timeRemainingSeconds: Int,
+    val isActive: Boolean
+)
 
 class TermuxViewModel(
     private val repository: OrbitRepository,
@@ -26,24 +38,78 @@ class TermuxViewModel(
             initialValue = emptyList()
         )
 
+    private val _downloadProgress = MutableStateFlow<DownloadProgress?>(null)
+    val downloadProgress: StateFlow<DownloadProgress?> = _downloadProgress.asStateFlow()
+
+    fun installTool(toolName: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val logId = java.util.UUID.randomUUID().toString()
+            var currentLogOutput = "Starting installation of $toolName via Orbit Package Manager...\n"
+            
+            repository.insertTermuxLog(
+                TermuxLog(
+                    id = logId,
+                    command = "orbit-pkg install $toolName",
+                    output = currentLogOutput,
+                    exitCode = -1,
+                    timestamp = System.currentTimeMillis()
+                )
+            )
+            
+            val success = appContainer.packageInstaller.installPackage(toolName) { progress, status ->
+                _downloadProgress.value = DownloadProgress(
+                    title = status,
+                    progress = progress,
+                    mbPerSecond = 0f,
+                    timeRemainingSeconds = 0,
+                    isActive = progress < 1f
+                )
+                
+                // Update log occasionally (to not spam the DB, but okay for a simple impl)
+            }
+            
+            val finalStatus = if (success) "Successfully installed $toolName." else "Failed to install $toolName."
+            currentLogOutput += finalStatus
+            
+            repository.insertTermuxLog(
+                TermuxLog(
+                    id = logId,
+                    command = "orbit-pkg install $toolName",
+                    output = currentLogOutput,
+                    exitCode = if (success) 0 else 1,
+                    timestamp = System.currentTimeMillis()
+                )
+            )
+            
+            _downloadProgress.value = null
+        }
+    }
+
     fun executeCommand(command: String) {
         viewModelScope.launch {
-            val result = appContainer.termuxExecutor.executeCommand(command)
-            repository.insertTermuxLog(result)
+            val executionResult = appContainer.localCommandRunner.executeCommand(command)
+            val log = TermuxLog(
+                id = java.util.UUID.randomUUID().toString(),
+                command = command,
+                output = executionResult.output,
+                exitCode = executionResult.exitCode,
+                timestamp = System.currentTimeMillis()
+            )
+            repository.insertTermuxLog(log)
         }
     }
 
     fun executePrivilegedCommand(command: String) {
         viewModelScope.launch {
-            val output = appContainer.shizukuExecutor.executePrivilegedCommand(command)
-            val result = TermuxLog(
+            val executionResult = appContainer.localCommandRunner.executePrivilegedCommand(command)
+            val log = TermuxLog(
                 id = java.util.UUID.randomUUID().toString(),
                 command = "sudo $command",
-                output = output,
-                exitCode = 0, // Since we don't return exit code from shizukuExecutor easily, mock 0
+                output = executionResult.output,
+                exitCode = executionResult.exitCode,
                 timestamp = System.currentTimeMillis()
             )
-            repository.insertTermuxLog(result)
+            repository.insertTermuxLog(log)
         }
     }
 
