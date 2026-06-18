@@ -114,3 +114,49 @@ dependencies {
   "ksp"(libs.androidx.room.compiler)
   "ksp"(libs.moshi.kotlin.codegen)
 }
+
+val kspFiles by configurations.creating {
+  extendsFrom(configurations.ksp.get())
+  isCanBeResolved = true
+  isCanBeConsumed = false
+}
+
+val extractSqliteNative by tasks.registering {
+  val inputFiles = objects.fileCollection().from(kspFiles)
+  inputs.files(inputFiles)
+
+  outputs.upToDateWhen { false }
+
+  doLast {
+    val sqliteJar = inputFiles.files.firstOrNull {
+      it.name.startsWith("sqlite-jdbc") && it.name.endsWith(".jar")
+    } ?: return@doLast
+
+    val outputDir = layout.buildDirectory.dir("generated/sqlite-native").get().asFile
+    val androidDir = outputDir.resolve("org/sqlite/native/Linux-Android/aarch64")
+    delete(androidDir)
+    androidDir.mkdirs()
+
+    copy {
+      from(zipTree(sqliteJar)) {
+        include("org/sqlite/native/Linux-Android/aarch64/libsqlitejdbc.so")
+      }
+      into(outputDir)
+    }
+
+    val soFile = androidDir.resolve("libsqlitejdbc.so")
+    if (soFile.exists()) {
+      System.setProperty("org.sqlite.lib.path", androidDir.absolutePath)
+      System.setProperty("org.sqlite.lib.name", "libsqlitejdbc.so")
+      logger.lifecycle("sqlite-jdbc Android native lib extracted to ${androidDir.absolutePath}")
+    } else {
+      logger.warn("Android aarch64 native lib NOT found in sqlite-jdbc jar")
+    }
+  }
+}
+
+tasks.matching { it.name.startsWith("ksp") }.configureEach {
+  dependsOn(extractSqliteNative)
+}
+
+

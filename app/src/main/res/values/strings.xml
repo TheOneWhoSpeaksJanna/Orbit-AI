@@ -1,3 +1,89 @@
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Orbit AI</string>
+
+    <!-- Common -->
+    <string name="back">Back</string>
+    <string name="next">Next</string>
+    <string name="cancel">Cancel</string>
+    <string name="settings">Settings</string>
+
+    <!-- ChatScreen -->
+    <string name="chat_workspace">Chat Workspace</string>
+    <string name="type_prompt">Type a prompt…</string>
+    <string name="send">Send</string>
+
+    <!-- DashboardScreen -->
+    <string name="orbit_workspace">Orbit Workspace</string>
+    <string name="local_tools">Local Tools</string>
+    <string name="new_session">New Session</string>
+    <string name="agent">Agent</string>
+    <string name="unknown">Unknown</string>
+    <string name="shizuku_status">Shizuku Status</string>
+    <string name="active">Active</string>
+    <string name="unavailable">Unavailable</string>
+    <string name="recent_sessions">Recent Sessions</string>
+    <string name="no_sessions">No sessions yet. Start a new session!</string>
+    <string name="updated_format">Updated: %1$s</string>
+
+    <!-- SettingsScreen -->
+    <string name="ai_provider_config">AI Provider Configuration</string>
+    <string name="api_key_description">Your API key is stored securely on your device. You need this to interact with external AI providers.</string>
+    <string name="api_key">API Key</string>
+    <string name="appearance">Appearance</string>
+    <string name="theme_mode">Theme Mode</string>
+
+    <!-- SetupWizard -->
+    <string name="finish_setup">Finish Setup</string>
+    <string name="orbit_ai_title">Orbit AI</string>
+    <string name="orbit_ai_subtitle">Your powerful on-device agent workspace. Let\'s get everything configured securely.</string>
+    <string name="select_agent">Select Agent</string>
+    <string name="select_provider_for">Select Provider for %1$s</string>
+    <string name="configure_for">Configure %1$s</string>
+    <string name="model_name_optional">Model Name (Optional)</string>
+    <string name="test_connection">Test Connection</string>
+    <string name="connection_successful">Connection successful!</string>
+    <string name="connection_failed">Connection failed. Check your API key.</string>
+    <string name="elevated_permissions">Elevated Permissions</string>
+    <string name="shizuku_description">Orbit AI can use Shizuku to perform system-level actions (like securely managing apps). This does not claim root access unless your device is rooted.</string>
+    <string name="request_permission">Request Permission</string>
+    <string name="enable_shizuku">Enable Shizuku Integration</string>
+    <string name="shizuku_required">Requires Shizuku app to be running</string>
+    <string name="shizuku_status_running">Shizuku is running and permission granted.</string>
+    <string name="shizuku_status_no_permission">Shizuku running, but permission denied.</string>
+    <string name="shizuku_status_not_running">Shizuku is installed but NOT running.</string>
+    <string name="shizuku_status_not_installed">Shizuku is not installed on this device.</string>
+    <string name="shizuku_status_checking">Checking…</string>
+    <string name="shizuku_status_format">Status: %1$s</string>
+    <string name="local_runtime_setup">Local Runtime Setup</string>
+    <string name="runtime_description">Orbit AI uses a companion service to execute local shell commands natively on your device.</string>
+    <string name="runtime_active">Native runtime active.</string>
+    <string name="runtime_ready">No external apps like Termux are required. The internal command runner is ready.</string>
+    <string name="summary">Summary:</string>
+    <string name="summary_ui_configured">- UI configured</string>
+    <string name="summary_agent_selected">- AI Agent and Provider selected</string>
+    <string name="summary_api_keys_active">- API keys active</string>
+    <string name="summary_command_ready">- Command runner ready</string>
+    <string name="ready_enter_workspace">You are ready to enter the workspace.</string>
+
+    <!-- Agent descriptions -->
+    <string name="agent_hermes">General purpose logic and local orchestration.</string>
+    <string name="agent_openclaude">Open-source Claude integration with full tool use.</string>
+    <string name="agent_claude_code">Specialized coding agent with codebase awareness.</string>
+    <string name="agent_default">Expert context handling.</string>
+
+    <!-- TermuxScreen -->
+    <string name="app_workspace">App Workspace &amp; Execution</string>
+    <string name="install_tool">Install %1$s</string>
+    <string name="type_shell_command">Type a shell command…</string>
+    <string name="sudo">Sudo</string>
+    <string name="execute">Execute</string>
+    <string name="execute_privileged">Execute Privileged Command?</string>
+    <string name="execute_normal">Execute Command?</string>
+    <string name="confirm_execute">Are you sure you want to run this command locally?\n\n%1$s\n\n</string>
+    <string name="warning_privileged">WARNING: This will execute via Shizuku with elevated privileges. Destructive actions can occur.</string>
+    <string name="warning_normal">Execution happens directly on your device natively.</string>
+    <string name="speed_format">%1$.1f MB/s</string>
+    <string name="time_remaining">%1$d s remaining</string>
+    <string name="termux_explanation">Orbit AI uses a companion service to execute local shell commands natively on your device.</string>
 </resources>

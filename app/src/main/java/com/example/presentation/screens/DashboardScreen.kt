@@ -14,6 +14,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import android.content.pm.PackageManager
 import androidx.compose.ui.platform.LocalContext
@@ -60,13 +61,13 @@ fun DashboardScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Orbit Workspace", fontWeight = FontWeight.Bold) },
+                title = { Text(stringResource(R.string.orbit_workspace), fontWeight = FontWeight.Bold) },
                 actions = {
                     IconButton(onClick = onNavigateToTermux) {
-                        Icon(Icons.Default.Terminal, contentDescription = "Local Tools")
+                        Icon(Icons.Default.Terminal, contentDescription = stringResource(R.string.local_tools))
                     }
                     IconButton(onClick = onNavigateToSettings) {
-                        Icon(Icons.Default.Settings, contentDescription = "Settings")
+                        Icon(Icons.Default.Settings, contentDescription = stringResource(R.string.settings))
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -76,7 +77,7 @@ fun DashboardScreen(
         },
         floatingActionButton = {
             FloatingActionButton(onClick = onNavigateToNewSession) {
-                Icon(Icons.Default.Add, contentDescription = "New Session")
+                Icon(Icons.Default.Add, contentDescription = stringResource(R.string.new_session))
             }
         }
     ) { padding ->
@@ -97,9 +98,9 @@ fun DashboardScreen(
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
                     ) {
                         Column(modifier = Modifier.padding(16.dp)) {
-                            Text("Agent", style = MaterialTheme.typography.labelMedium)
+                            Text(stringResource(R.string.agent), style = MaterialTheme.typography.labelMedium)
                             Text(activeAgent ?: "Hermes", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
-                            Text(activeProvider ?: "Unknown", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f))
+                            Text(activeProvider ?: stringResource(R.string.unknown), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f))
                         }
                     }
                     Card(
@@ -107,8 +108,8 @@ fun DashboardScreen(
                         colors = CardDefaults.cardColors(containerColor = if (isShizukuActive) MaterialTheme.colorScheme.tertiaryContainer else MaterialTheme.colorScheme.surfaceVariant)
                     ) {
                         Column(modifier = Modifier.padding(16.dp)) {
-                            Text("Shizuku Status", style = MaterialTheme.typography.labelMedium)
-                            Text(if (isShizukuActive) "Active" else "Unavailable", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+                            Text(stringResource(R.string.shizuku_status), style = MaterialTheme.typography.labelMedium)
+                            Text(if (isShizukuActive) stringResource(R.string.active) else stringResource(R.string.unavailable), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
                         }
                     }
                 }
@@ -116,7 +117,7 @@ fun DashboardScreen(
 
             item {
                 Text(
-                    text = "Recent Sessions",
+                    text = stringResource(R.string.recent_sessions),
                     style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.padding(top = 16.dp, bottom = 8.dp)
@@ -133,7 +134,7 @@ fun DashboardScreen(
                             modifier = Modifier.padding(32.dp).fillMaxWidth(),
                             contentAlignment = Alignment.Center
                         ) {
-                            Text("No sessions yet. Start a new session!", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(stringResource(R.string.no_sessions), color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
                 }
@@ -150,7 +151,7 @@ fun DashboardScreen(
                             Text(text = session.title, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
                             Spacer(modifier = Modifier.height(4.dp))
                             val dateStr = SimpleDateFormat("MMM dd, HH:mm", Locale.getDefault()).format(Date(session.updatedAt))
-                            Text(text = "Updated: $dateStr", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(text = stringResource(R.string.updated_format, dateStr), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
                 }

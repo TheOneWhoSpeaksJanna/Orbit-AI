@@ -40,10 +40,10 @@ fun TermuxScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("App Workspace & Execution", fontWeight = FontWeight.Bold) },
+                title = { Text(stringResource(R.string.app_workspace), fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -68,7 +68,7 @@ fun TermuxScreen(
                 listOf("git", "python", "nodejs", "curl", "wget").forEach { tool ->
                     SuggestionChip(
                         onClick = { viewModel.installTool(tool) },
-                        label = { Text("Install $tool", fontSize = 12.sp) },
+                        label = { Text(stringResource(R.string.install_tool, tool), fontSize = 12.sp) },
                         icon = { Icon(Icons.Default.Build, contentDescription = null, modifier = Modifier.size(14.dp)) },
                         colors = SuggestionChipDefaults.suggestionChipColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
                     )
@@ -97,8 +97,8 @@ fun TermuxScreen(
                         )
                         Spacer(modifier = Modifier.height(8.dp))
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Text(String.format("%.1f MB/s", progress!!.mbPerSecond), style = MaterialTheme.typography.bodySmall)
-                            Text("${progress!!.timeRemainingSeconds}s remaining", style = MaterialTheme.typography.bodySmall)
+                            Text(stringResource(R.string.speed_format, progress!!.mbPerSecond), style = MaterialTheme.typography.bodySmall)
+                            Text(stringResource(R.string.time_remaining, progress!!.timeRemainingSeconds), style = MaterialTheme.typography.bodySmall)
                         }
                     }
                 }
@@ -110,7 +110,7 @@ fun TermuxScreen(
                     .fillMaxWidth()
                     .padding(horizontal = 12.dp, vertical = 8.dp)
                     .clip(RoundedCornerShape(12.dp))
-                    .background(Color(0xFF0A0E1A)) // Dark Orbit Theme for terminal
+                    .background(MaterialTheme.colorScheme.surface)
                     .padding(12.dp),
                 reverseLayout = true
             ) {
@@ -118,7 +118,7 @@ fun TermuxScreen(
                     Column(modifier = Modifier.padding(vertical = 6.dp).fillMaxWidth()) {
                         Text(
                             text = "orbit> ${log.command}",
-                            color = Color(0xFF00F2FE),
+                            color = MaterialTheme.colorScheme.primary,
                             fontFamily = FontFamily.Monospace,
                             fontWeight = FontWeight.Bold,
                             fontSize = 13.sp
@@ -126,13 +126,13 @@ fun TermuxScreen(
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
                             text = log.output,
-                            color = if (log.exitCode == 0) Color(0xFFE2E8F0) else Color(0xFFFCA5A5),
+                            color = if (log.exitCode == 0) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.error,
                             fontFamily = FontFamily.Monospace,
                             fontSize = 13.sp,
                             lineHeight = 18.sp
                         )
                         Spacer(modifier = Modifier.height(4.dp))
-                        Divider(color = Color(0xFF1E293B), thickness = 1.dp)
+                        Divider(color = MaterialTheme.colorScheme.outlineVariant, thickness = 1.dp)
                     }
                 }
             }
@@ -151,7 +151,7 @@ fun TermuxScreen(
                     OutlinedTextField(
                         value = commandText,
                         onValueChange = { commandText = it },
-                        label = { Text("Type a shell command...") },
+                        label = { Text(stringResource(R.string.type_shell_command)) },
                         modifier = Modifier.weight(1f),
                         colors = TextFieldDefaults.colors(
                             focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
@@ -171,7 +171,7 @@ fun TermuxScreen(
                         },
                         modifier = Modifier.background(MaterialTheme.colorScheme.errorContainer, RoundedCornerShape(8.dp))
                     ) {
-                        Text("Sudo", color = MaterialTheme.colorScheme.onErrorContainer, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        Text(stringResource(R.string.sudo), color = MaterialTheme.colorScheme.onErrorContainer, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                     }
                     Spacer(modifier = Modifier.width(8.dp))
                     FloatingActionButton(
@@ -183,7 +183,7 @@ fun TermuxScreen(
                         },
                         containerColor = MaterialTheme.colorScheme.secondary
                     ) {
-                        Icon(Icons.Default.PlayArrow, contentDescription = "Execute")
+                        Icon(Icons.Default.PlayArrow, contentDescription = stringResource(R.string.execute))
                     }
                 }
             }
@@ -194,11 +194,11 @@ fun TermuxScreen(
         val isPrivileged = executeAsShizuku
         AlertDialog(
             onDismissRequest = { showConfirmation = false },
-            title = { Text(if (isPrivileged) "Execute Privileged Command?" else "Execute Command?") },
+            title = { Text(if (isPrivileged) stringResource(R.string.execute_privileged) else stringResource(R.string.execute_normal)) },
             text = { 
                 Text(
-                    "Are you sure you want to run this command locally?\n\n$ $commandText\n\n" + 
-                    (if (isPrivileged) "WARNING: This will execute via Shizuku with elevated privileges. Destructive actions can occur." else "Execution happens directly on your device natively.")
+                    stringResource(R.string.confirm_execute, commandText) + "\n\n" + 
+                    (if (isPrivileged) stringResource(R.string.warning_privileged) else stringResource(R.string.warning_normal))
                 )
             },
             confirmButton = {
@@ -216,12 +216,12 @@ fun TermuxScreen(
                         containerColor = if (isPrivileged) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
                     )
                 ) {
-                    Text("Execute")
+                    Text(stringResource(R.string.execute))
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showConfirmation = false }) {
-                    Text("Cancel")
+                    Text(stringResource(R.string.cancel))
                 }
             }
         )

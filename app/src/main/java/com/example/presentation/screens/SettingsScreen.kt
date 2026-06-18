@@ -8,6 +8,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -25,10 +26,10 @@ fun SettingsScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Settings", fontWeight = FontWeight.Bold) },
+                title = { Text(stringResource(R.string.settings), fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -50,10 +51,10 @@ fun SettingsScreen(
                 shape = MaterialTheme.shapes.extraLarge
             ) {
                 Column(modifier = Modifier.padding(20.dp).fillMaxWidth()) {
-                    Text("AI Provider Configuration", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                    Text(stringResource(R.string.ai_provider_config), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        "Your API key is stored securely on your device. You need this to interact with external AI providers.",
+                        stringResource(R.string.api_key_description),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -61,7 +62,7 @@ fun SettingsScreen(
                     OutlinedTextField(
                         value = apiKey,
                         onValueChange = { viewModel.updateApiKey(it) },
-                        label = { Text("API Key") },
+                        label = { Text(stringResource(R.string.api_key)) },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
                         shape = MaterialTheme.shapes.medium
@@ -74,7 +75,7 @@ fun SettingsScreen(
                 shape = MaterialTheme.shapes.extraLarge
             ) {
                 Column(modifier = Modifier.padding(20.dp).fillMaxWidth()) {
-                    Text("Appearance", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                    Text(stringResource(R.string.appearance), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
                     Spacer(modifier = Modifier.height(16.dp))
                     
                     var expanded by remember { mutableStateOf(false) }
@@ -86,7 +87,7 @@ fun SettingsScreen(
                             value = themeMode,
                             onValueChange = {},
                             readOnly = true,
-                            label = { Text("Theme Mode") },
+                            label = { Text(stringResource(R.string.theme_mode)) },
                             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
                             modifier = Modifier.menuAnchor().fillMaxWidth(),
                             shape = MaterialTheme.shapes.medium

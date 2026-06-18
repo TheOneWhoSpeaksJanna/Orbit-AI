@@ -1,7 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<resources>
-    <color name="ic_orbit_bg">#0A0E1A</color>
-    <color name="ic_orbit_core">#00F2FE</color>
-    <color name="ic_orbit_glow">#4FACFE</color>
-    <color name="ic_orbit_ring">#1E2942</color>
-</resources>
