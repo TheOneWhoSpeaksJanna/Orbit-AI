@@ -16,40 +16,82 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 
-private val DarkColorScheme = darkColorScheme(
-    primary = AccentPrimary,
-    secondary = AccentSecondary,
-    tertiary = Slate300,
-    background = Slate900,
-    surface = Slate800,
-    onPrimary = Slate900,
-    onSecondary = Slate900,
-    onTertiary = Slate900,
-    onBackground = Slate100,
-    onSurface = Slate100,
-    error = ErrorRed
+private val LunelDarkScheme = darkColorScheme(
+    primary = LunelAccent,
+    onPrimary = Color.White,
+    primaryContainer = LunelAccent.copy(alpha = 0.12f),
+    onPrimaryContainer = LunelAccent,
+    secondary = LunelAccentMuted,
+    onSecondary = Color.White,
+    secondaryContainer = LunelAccentMuted.copy(alpha = 0.12f),
+    onSecondaryContainer = LunelAccentMuted,
+    tertiary = LunelSuccess,
+    onTertiary = LunelDarkBgBase,
+    tertiaryContainer = LunelSuccess.copy(alpha = 0.12f),
+    onTertiaryContainer = LunelSuccess,
+    background = LunelDarkBgBase,
+    onBackground = LunelFgDefault,
+    surface = LunelDarkBgRaised,
+    onSurface = LunelFgDefault,
+    surfaceVariant = LunelDarkBgElevated,
+    onSurfaceVariant = LunelFgMuted,
+    outline = LunelFgSubtle.copy(alpha = 0.5f),
+    outlineVariant = LunelFgSubtle.copy(alpha = 0.25f),
+    error = LunelError,
+    onError = LunelDarkBgBase,
+    errorContainer = LunelError.copy(alpha = 0.12f),
+    onErrorContainer = LunelError,
+    inverseSurface = LunelFgDefault,
+    inverseOnSurface = LunelDarkBgBase,
+    inversePrimary = LunelAccent.copy(alpha = 0.8f),
+    surfaceTint = LunelAccent
 )
 
-private val LightColorScheme = lightColorScheme(
-    primary = AccentPrimary,
-    secondary = AccentSecondary,
-    tertiary = Slate700,
-    background = Slate100,
-    surface = Color.White,
+private val LunelLightScheme = lightColorScheme(
+    primary = LunelAccent,
     onPrimary = Color.White,
+    primaryContainer = LunelAccent.copy(alpha = 0.12f),
+    onPrimaryContainer = LunelAccent,
+    secondary = LunelAccentMuted,
     onSecondary = Color.White,
+    secondaryContainer = LunelAccentMuted.copy(alpha = 0.12f),
+    onSecondaryContainer = LunelAccentMuted,
+    tertiary = LunelSuccess,
     onTertiary = Color.White,
-    onBackground = Slate900,
-    onSurface = Slate900,
-    error = ErrorRed
+    tertiaryContainer = LunelSuccess.copy(alpha = 0.12f),
+    onTertiaryContainer = Color(0xFF065F46),
+    background = LunelLightBgBase,
+    onBackground = LunelLightFgDefault,
+    surface = LunelLightBgRaised,
+    onSurface = LunelLightFgDefault,
+    surfaceVariant = LunelLightBgElevated,
+    onSurfaceVariant = LunelLightFgMuted,
+    outline = LunelLightFgSubtle.copy(alpha = 0.5f),
+    outlineVariant = LunelLightFgSubtle.copy(alpha = 0.25f),
+    error = LunelError,
+    onError = Color.White,
+    errorContainer = LunelError.copy(alpha = 0.12f),
+    onErrorContainer = Color(0xFF93000A),
+    inverseSurface = LunelDarkBgBase,
+    inverseOnSurface = LunelFgDefault,
+    inversePrimary = LunelAccent.copy(alpha = 0.8f),
+    surfaceTint = LunelAccent
 )
 
 @Composable
 fun OrbitTheme(
-    darkTheme: Boolean = true, // By default dark theme
+    darkTheme: Boolean = true,
+    dynamicColor: Boolean = false,
     content: @Composable () -> Unit
 ) {
-    val colorScheme = if (darkTheme) DarkColorScheme else LightColorScheme
+    val colorScheme = when {
+        dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
+            val context = LocalContext.current
+            if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+        }
+        darkTheme -> LunelDarkScheme
+        else -> LunelLightScheme
+    }
 
     val view = LocalView.current
     if (!view.isInEditMode) {
