@@ -1,9 +1,10 @@
 package com.example.data.api.providers
 
+import com.example.domain.api.AiEvent
 import com.example.domain.api.AiProvider
 import com.example.domain.api.AiResult
+import com.example.domain.api.ProviderMetadata
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.flow
 
 class AiProviderSelector : AiProvider {
     
@@ -20,8 +21,8 @@ class AiProviderSelector : AiProvider {
         return providers[name] ?: providers["Gemini"]!!
     }
 
-    override fun generateContentStream(prompt: String, apiKey: String, provider: String, model: String): Flow<AiResult> {
-        return getProvider(provider).generateContentStream(prompt, apiKey, provider, model)
+    override fun generateContentStream(sessionId: String?, prompt: String, apiKey: String, provider: String, model: String): Flow<AiEvent> {
+        return getProvider(provider).generateContentStream(sessionId, prompt, apiKey, provider, model)
     }
 
     override suspend fun generateContent(prompt: String, apiKey: String, provider: String, model: String): AiResult {
@@ -31,4 +32,20 @@ class AiProviderSelector : AiProvider {
     override suspend fun testConnection(provider: String, apiKey: String, model: String): Boolean {
         return getProvider(provider).testConnection(provider, apiKey, model)
     }
+
+    override suspend fun createSession(sessionId: String, systemPrompt: String?) {
+        getProvider(metadata.name).createSession(sessionId, systemPrompt)
+    }
+
+    override suspend fun deleteSession(sessionId: String) {
+        getProvider(metadata.name).deleteSession(sessionId)
+    }
+
+    override val metadata: ProviderMetadata = ProviderMetadata(
+        name = "All",
+        displayName = "All Providers",
+        models = emptyList(),
+        supportsStreaming = true,
+        requiresApiKey = true
+    )
 }

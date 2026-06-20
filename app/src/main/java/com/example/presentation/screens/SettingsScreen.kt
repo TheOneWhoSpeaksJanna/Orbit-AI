@@ -3,14 +3,20 @@ package com.example.presentation.screens
 import com.example.R
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.presentation.viewmodels.SettingsViewModel
@@ -21,8 +27,16 @@ fun SettingsScreen(
     onNavigateBack: () -> Unit,
     viewModel: SettingsViewModel = viewModel(factory = SettingsViewModel.Factory)
 ) {
-    val apiKey by viewModel.apiKey.collectAsState()
+    val geminiApiKey by viewModel.geminiApiKey.collectAsState()
+    val openAiApiKey by viewModel.openAiApiKey.collectAsState()
+    val claudeApiKey by viewModel.claudeApiKey.collectAsState()
+    val openRouterApiKey by viewModel.openRouterApiKey.collectAsState()
     val themeMode by viewModel.themeMode.collectAsState()
+
+    var geminiVisible by remember { mutableStateOf(false) }
+    var openAiVisible by remember { mutableStateOf(false) }
+    var claudeVisible by remember { mutableStateOf(false) }
+    var openRouterVisible by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -60,17 +74,40 @@ fun SettingsScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Spacer(modifier = Modifier.height(16.dp))
-                    OutlinedTextField(
-                        value = apiKey,
-                        onValueChange = { viewModel.updateApiKey(it) },
-                        label = { Text(stringResource(R.string.api_key)) },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true,
-                        shape = MaterialTheme.shapes.medium
+                    ApiKeyField(
+                        value = geminiApiKey,
+                        onValueChange = { viewModel.updateGeminiApiKey(it) },
+                        label = stringResource(R.string.api_key_gemini),
+                        visible = geminiVisible,
+                        onToggleVisibility = { geminiVisible = !geminiVisible }
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    ApiKeyField(
+                        value = openAiApiKey,
+                        onValueChange = { viewModel.updateOpenAiApiKey(it) },
+                        label = stringResource(R.string.api_key_openai),
+                        visible = openAiVisible,
+                        onToggleVisibility = { openAiVisible = !openAiVisible }
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    ApiKeyField(
+                        value = claudeApiKey,
+                        onValueChange = { viewModel.updateClaudeApiKey(it) },
+                        label = stringResource(R.string.api_key_claude),
+                        visible = claudeVisible,
+                        onToggleVisibility = { claudeVisible = !claudeVisible }
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    ApiKeyField(
+                        value = openRouterApiKey,
+                        onValueChange = { viewModel.updateOpenRouterApiKey(it) },
+                        label = stringResource(R.string.api_key_openrouter),
+                        visible = openRouterVisible,
+                        onToggleVisibility = { openRouterVisible = !openRouterVisible }
                     )
                 }
             }
-            
+
             Card(
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
                 shape = MaterialTheme.shapes.extraLarge
@@ -78,7 +115,7 @@ fun SettingsScreen(
                 Column(modifier = Modifier.padding(20.dp).fillMaxWidth()) {
                     Text(stringResource(R.string.appearance), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
                     Spacer(modifier = Modifier.height(16.dp))
-                    
+
                     var expanded by remember { mutableStateOf(false) }
                     ExposedDropdownMenuBox(
                         expanded = expanded,
@@ -112,4 +149,32 @@ fun SettingsScreen(
             }
         }
     }
+}
+
+@Composable
+private fun ApiKeyField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    label: String,
+    visible: Boolean,
+    onToggleVisibility: () -> Unit
+) {
+    OutlinedTextField(
+        value = value,
+        onValueChange = onValueChange,
+        label = { Text(label) },
+        modifier = Modifier.fillMaxWidth(),
+        singleLine = true,
+        shape = MaterialTheme.shapes.medium,
+        visualTransformation = if (visible) VisualTransformation.None else PasswordVisualTransformation(),
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+        trailingIcon = {
+            IconButton(onClick = onToggleVisibility) {
+                Icon(
+                    imageVector = if (visible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                    contentDescription = if (visible) stringResource(R.string.hide) else stringResource(R.string.show)
+                )
+            }
+        }
+    )
 }

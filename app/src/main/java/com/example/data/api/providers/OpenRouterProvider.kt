@@ -1,7 +1,9 @@
 package com.example.data.api.providers
 
+import com.example.domain.api.AiEvent
 import com.example.domain.api.AiProvider
 import com.example.domain.api.AiResult
+import com.example.domain.api.ProviderMetadata
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
@@ -18,8 +20,12 @@ class OpenRouterProvider : AiProvider {
     private val httpClient = OkHttpClient.Builder().build()
     private val jsonMediaType = "application/json; charset=utf-8".toMediaType()
 
-    override fun generateContentStream(prompt: String, apiKey: String, provider: String, model: String): Flow<AiResult> = flow {
-        emit(generateContent(prompt, apiKey, provider, model))
+    override fun generateContentStream(sessionId: String?, prompt: String, apiKey: String, provider: String, model: String): Flow<AiEvent> = flow {
+        val result = generateContent(prompt, apiKey, provider, model)
+        when (result) {
+            is AiResult.Success -> emit(AiEvent.Done(result.text))
+            is AiResult.Error -> emit(AiEvent.Error(result.message))
+        }
     }
 
     override suspend fun generateContent(prompt: String, apiKey: String, provider: String, model: String): AiResult {
@@ -67,6 +73,18 @@ class OpenRouterProvider : AiProvider {
             }
         }
     }
+
+    override suspend fun createSession(sessionId: String, systemPrompt: String?) { }
+    override suspend fun deleteSession(sessionId: String) { }
+
+    override val metadata: ProviderMetadata = ProviderMetadata(
+        name = "OpenRouter",
+        displayName = "OpenRouter",
+        models = listOf("anthropic/claude-3-opus", "openai/gpt-4o", "google/gemini-1.5-pro"),
+        supportsStreaming = true,
+        requiresApiKey = true,
+        defaultModel = "anthropic/claude-3-opus"
+    )
 
     override suspend fun testConnection(provider: String, apiKey: String, model: String): Boolean {
         return withContext(Dispatchers.IO) {

@@ -7,42 +7,68 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.CreationExtras
 import com.example.OrbitApplication
 import com.example.data.local.prefs.PreferencesManager
-import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.launch
 
 class SettingsViewModel(
     private val prefsManager: PreferencesManager
 ) : ViewModel() {
 
-    val apiKey: StateFlow<String> = prefsManager.geminiApiKey
-        .map { it ?: "" }
-        .stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5000),
-            initialValue = ""
-        )
+    private val _geminiApiKey = MutableStateFlow("")
+    val geminiApiKey: StateFlow<String> = _geminiApiKey.asStateFlow()
 
-    val themeMode: StateFlow<String> = prefsManager.themeMode
-        .map { it ?: "System" }
-        .stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5000),
-            initialValue = "System"
-        )
+    private val _openAiApiKey = MutableStateFlow("")
+    val openAiApiKey: StateFlow<String> = _openAiApiKey.asStateFlow()
 
-    fun updateApiKey(key: String) {
+    private val _claudeApiKey = MutableStateFlow("")
+    val claudeApiKey: StateFlow<String> = _claudeApiKey.asStateFlow()
+
+    private val _openRouterApiKey = MutableStateFlow("")
+    val openRouterApiKey: StateFlow<String> = _openRouterApiKey.asStateFlow()
+
+    private val _themeMode = MutableStateFlow("system")
+    val themeMode: StateFlow<String> = _themeMode.asStateFlow()
+
+    init {
+        loadApiKeys()
+    }
+
+    private fun loadApiKeys() {
         viewModelScope.launch {
-            prefsManager.setGeminiApiKey(key)
+            _geminiApiKey.value = prefsManager.getApiKeyForProvider("Gemini") ?: ""
+            _openAiApiKey.value = prefsManager.getApiKeyForProvider("OpenAI") ?: ""
+            _claudeApiKey.value = prefsManager.getApiKeyForProvider("Claude") ?: ""
+            _openRouterApiKey.value = prefsManager.getApiKeyForProvider("OpenRouter") ?: ""
+            _themeMode.value = prefsManager.themeMode.firstOrNull() ?: "system"
         }
     }
 
+    fun updateGeminiApiKey(key: String) {
+        _geminiApiKey.value = key
+        viewModelScope.launch { prefsManager.setApiKeyForProvider("Gemini", key) }
+    }
+
+    fun updateOpenAiApiKey(key: String) {
+        _openAiApiKey.value = key
+        viewModelScope.launch { prefsManager.setApiKeyForProvider("OpenAI", key) }
+    }
+
+    fun updateClaudeApiKey(key: String) {
+        _claudeApiKey.value = key
+        viewModelScope.launch { prefsManager.setApiKeyForProvider("Claude", key) }
+    }
+
+    fun updateOpenRouterApiKey(key: String) {
+        _openRouterApiKey.value = key
+        viewModelScope.launch { prefsManager.setApiKeyForProvider("OpenRouter", key) }
+    }
+
     fun updateThemeMode(mode: String) {
-        viewModelScope.launch {
-            prefsManager.setThemeMode(mode)
-        }
+        _themeMode.value = mode
+        viewModelScope.launch { prefsManager.setThemeMode(mode) }
     }
 
     companion object {
@@ -50,7 +76,9 @@ class SettingsViewModel(
             @Suppress("UNCHECKED_CAST")
             override fun <T : ViewModel> create(modelClass: Class<T>, extras: CreationExtras): T {
                 val application = checkNotNull(extras[APPLICATION_KEY]) as OrbitApplication
-                return SettingsViewModel(application.container.prefsManager) as T
+                return SettingsViewModel(
+                    application.container.prefsManager
+                ) as T
             }
         }
     }

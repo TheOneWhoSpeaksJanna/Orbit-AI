@@ -1,7 +1,9 @@
 package com.example.data.api.providers
 
+import com.example.domain.api.AiEvent
 import com.example.domain.api.AiProvider
 import com.example.domain.api.AiResult
+import com.example.domain.api.ProviderMetadata
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
@@ -18,8 +20,12 @@ class ClaudeProvider : AiProvider {
     private val httpClient = OkHttpClient.Builder().build()
     private val jsonMediaType = "application/json; charset=utf-8".toMediaType()
 
-    override fun generateContentStream(prompt: String, apiKey: String, provider: String, model: String): Flow<AiResult> = flow {
-        emit(generateContent(prompt, apiKey, provider, model))
+    override fun generateContentStream(sessionId: String?, prompt: String, apiKey: String, provider: String, model: String): Flow<AiEvent> = flow {
+        val result = generateContent(prompt, apiKey, provider, model)
+        when (result) {
+            is AiResult.Success -> emit(AiEvent.Done(result.text))
+            is AiResult.Error -> emit(AiEvent.Error(result.message))
+        }
     }
 
     override suspend fun generateContent(prompt: String, apiKey: String, provider: String, model: String): AiResult {
@@ -70,6 +76,18 @@ class ClaudeProvider : AiProvider {
             }
         }
     }
+
+    override suspend fun createSession(sessionId: String, systemPrompt: String?) { }
+    override suspend fun deleteSession(sessionId: String) { }
+
+    override val metadata: ProviderMetadata = ProviderMetadata(
+        name = "Claude",
+        displayName = "Anthropic Claude",
+        models = listOf("claude-3-opus-20240229", "claude-3-sonnet-20240229", "claude-3-haiku-20240307"),
+        supportsStreaming = true,
+        requiresApiKey = true,
+        defaultModel = "claude-3-opus-20240229"
+    )
 
     override suspend fun testConnection(provider: String, apiKey: String, model: String): Boolean {
         return withContext(Dispatchers.IO) {
