@@ -29,7 +29,7 @@ import com.omniclaw.presentation.viewmodels.SetupStep
 import com.omniclaw.presentation.viewmodels.SetupViewModel
 import rikka.shizuku.Shizuku
 
-@OptIn(ExperimentalAnimationApi::class)
+@OptIn(ExperimentalAnimationApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun SetupWizardScreen(
     onFinishSetup: () -> Unit,
