@@ -7,33 +7,33 @@
 
     <!-- Inner Orbital Ring -->
     <path
-        android:strokeColor="@color/ic_orbit_ring"
+        android:strokeColor="@color/ic_omniclaw_ring"
         android:strokeWidth="1.5"
         android:pathData="M54,54m-18,0a18,18 0 1,1 36,0a18,18 0 1,1 -36,0" />
 
     <!-- Outer Orbital Ring -->
     <path
-        android:strokeColor="@color/ic_orbit_ring"
+        android:strokeColor="@color/ic_omniclaw_ring"
         android:strokeWidth="1.5"
         android:pathData="M54,54m-28,0a28,28 0 1,1 56,0a28,28 0 1,1 -56,0" />
 
     <!-- Central AI Core -->
     <path
-        android:fillColor="@color/ic_orbit_core"
+        android:fillColor="@color/ic_omniclaw_core"
         android:pathData="M54,54m-8,0a8,8 0 1,1 16,0a8,8 0 1,1 -16,0" />
 
     <!-- Node 1 -->
     <path
-        android:fillColor="@color/ic_orbit_glow"
+        android:fillColor="@color/ic_omniclaw_glow"
         android:pathData="M66.73,41.27m-3.5,0a3.5,3.5 0 1,1 7,0a3.5,3.5 0 1,1 -7,0" />
 
     <!-- Node 2 -->
     <path
-        android:fillColor="@color/ic_orbit_core"
+        android:fillColor="@color/ic_omniclaw_core"
         android:pathData="M26,54m-4,0a4,4 0 1,1 8,0a4,4 0 1,1 -8,0" />
 
     <!-- Node 3 -->
     <path
-        android:fillColor="@color/ic_orbit_glow"
+        android:fillColor="@color/ic_omniclaw_glow"
         android:pathData="M73.8,73.8m-3,0a3,3 0 1,1 6,0a3,3 0 1,1 -6,0" />
 </vector>

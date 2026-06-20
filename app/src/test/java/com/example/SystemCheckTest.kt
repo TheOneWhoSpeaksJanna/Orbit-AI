@@ -1,4 +1,4 @@
-package com.example
+package com.omniclaw
 
 import org.junit.Test
 import java.io.File

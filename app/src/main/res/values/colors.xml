@@ -1,9 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <color name="omniclaw_bg_dark">#FF0E121B</color>
+    <color name="omniclaw_surface">#FF1A1F2E</color>
+    <color name="omniclaw_accent">#FF38BDF8</color>
+    <color name="omniclaw_text">#FFE8ECF4</color>
+
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
-    <color name="ic_orbit_bg">#FF0A0E1A</color>
-    <color name="ic_orbit_ring">#FF4A9EFF</color>
-    <color name="ic_orbit_core">#FF6BB8FF</color>
-    <color name="ic_orbit_glow">#FF80D0FF</color>
+    <color name="ic_omniclaw_bg">#FF0A0E1A</color>
+    <color name="ic_omniclaw_ring">#FF4A9EFF</color>
+    <color name="ic_omniclaw_core">#FF6BB8FF</color>
+    <color name="ic_omniclaw_glow">#FF80D0FF</color>
 </resources>
