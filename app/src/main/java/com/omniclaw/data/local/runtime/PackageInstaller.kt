@@ -1,6 +1,6 @@
 package com.omniclaw.data.local.runtime
 
-import com.omniclaw.domain.model.OmniClawPackage
+import com.omniclaw.domain.models.OmniClawPackage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient

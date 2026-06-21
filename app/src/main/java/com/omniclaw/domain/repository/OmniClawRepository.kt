@@ -1,6 +1,6 @@
 package com.omniclaw.domain.repository
 
-import com.omniclaw.domain.model.*
+import com.omniclaw.domain.models.*
 import kotlinx.coroutines.flow.Flow
 
 interface OmniClawRepository {

@@ -2,7 +2,7 @@ package com.omniclaw.data.local.entity
 
 import androidx.room.Entity
 import androidx.room.PrimaryKey
-import com.omniclaw.domain.model.*
+import com.omniclaw.domain.models.*
 
 @Entity(tableName = "projects")
 data class ProjectEntity(

@@ -7,9 +7,9 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.omniclaw.presentation.navigation.AppShell
-import com.omniclaw.presentation.screens.SetupWizardScreen
-import com.omniclaw.presentation.viewmodels.MainViewModel
+import com.omniclaw.ui.navigation.AppShell
+import com.omniclaw.ui.screens.SetupWizardScreen
+import com.omniclaw.ui.viewmodels.MainViewModel
 import com.omniclaw.ui.theme.OmniClawTheme
 
 class MainActivity : ComponentActivity() {

@@ -2,7 +2,7 @@ package com.omniclaw.data.repository
 
 import com.omniclaw.data.local.dao.OmniClawDao
 import com.omniclaw.data.local.entity.*
-import com.omniclaw.domain.model.*
+import com.omniclaw.domain.models.*
 import com.omniclaw.domain.repository.OmniClawRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
