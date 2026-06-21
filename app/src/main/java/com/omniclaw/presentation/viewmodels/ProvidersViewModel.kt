@@ -62,7 +62,7 @@ class ProvidersViewModel(
     private fun loadApiKeyStatus() {
         viewModelScope.launch {
             val updated = _providers.value.map { provider ->
-                val key = prefsManager.getApiKey(provider.name)
+                val key = prefsManager.getApiKeyForProvider(provider.name)
                 provider.copy(apiKeyConfigured = !key.isNullOrBlank())
             }
             _providers.value = updated
@@ -71,7 +71,7 @@ class ProvidersViewModel(
 
     fun verifyConnection(providerName: String) {
         viewModelScope.launch {
-            val key = prefsManager.getApiKey(providerName)
+            val key = prefsManager.getApiKeyForProvider(providerName)
 
             if (key.isNullOrBlank()) {
                 updateProviderState(providerName, ConnectionState.Unauthorized("No API key configured"))
