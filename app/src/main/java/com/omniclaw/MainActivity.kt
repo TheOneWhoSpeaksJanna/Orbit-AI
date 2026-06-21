@@ -4,27 +4,30 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.activity.viewModels
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import com.omniclaw.presentation.navigation.OmniClawNavGraph
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.omniclaw.presentation.navigation.AppShell
+import com.omniclaw.presentation.screens.SetupWizardScreen
 import com.omniclaw.presentation.viewmodels.MainViewModel
 import com.omniclaw.ui.theme.OmniClawTheme
 
 class MainActivity : ComponentActivity() {
-
-  private val viewModel: MainViewModel by viewModels { MainViewModel.Factory }
-
-  override fun onCreate(savedInstanceState: Bundle?) {
-    super.onCreate(savedInstanceState)
-    enableEdgeToEdge()
-    setContent {
-      OmniClawTheme {
-        val startDestination by viewModel.startDestination.collectAsState()
-        startDestination?.let { destination ->
-            OmniClawNavGraph(startDestination = destination)
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        enableEdgeToEdge()
+        setContent {
+            OmniClawTheme {
+                val viewModel: MainViewModel = viewModel()
+                val destination by viewModel.startDestination.collectAsState()
+                destination?.let { dest ->
+                    if (dest == "setup") {
+                        SetupWizardScreen(onFinishSetup = { })
+                    } else {
+                        AppShell()
+                    }
+                }
+            }
         }
-      }
     }
-  }
 }
