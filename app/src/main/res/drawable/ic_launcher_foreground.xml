@@ -5,35 +5,47 @@
     android:viewportWidth="108"
     android:viewportHeight="108">
 
-    <!-- Inner Orbital Ring -->
+    <!-- Outer orbital ring — primary accent -->
     <path
         android:strokeColor="@color/ic_omniclaw_ring"
-        android:strokeWidth="1.5"
+        android:strokeWidth="2"
+        android:pathData="M54,54m-30,0a30,30 0 1,1 60,0a30,30 0 1,1 -60,0" />
+
+    <!-- Inner orbital ring — thinner, nested -->
+    <path
+        android:strokeColor="@color/ic_omniclaw_ring"
+        android:strokeWidth="1.2"
         android:pathData="M54,54m-18,0a18,18 0 1,1 36,0a18,18 0 1,1 -36,0" />
 
-    <!-- Outer Orbital Ring -->
+    <!-- Central AI core — filled glow -->
+    <path
+        android:fillColor="@color/ic_omniclaw_core"
+        android:pathData="M54,54m-9,0a9,9 0 1,1 18,0a9,9 0 1,1 -18,0" />
+
+    <!-- Core inner highlight -->
+    <path
+        android:fillColor="@color/ic_omniclaw_glow"
+        android:pathData="M54,54m-4,0a4,4 0 1,1 8,0a4,4 0 1,1 -8,0" />
+
+    <!-- Orbital node — top-right trajectory -->
+    <path
+        android:fillColor="@color/ic_omniclaw_glow"
+        android:pathData="M76.5,36m-4,0a4,4 0 1,1 8,0a4,4 0 1,1 -8,0" />
+
+    <!-- Orbital node — bottom trajectory -->
+    <path
+        android:fillColor="@color/ic_omniclaw_core"
+        android:pathData="M31.5,72m-4.5,0a4.5,4.5 0 1,1 9,0a4.5,4.5 0 1,1 -9,0" />
+
+    <!-- Orbital node — left trajectory -->
+    <path
+        android:fillColor="@color/ic_omniclaw_glow"
+        android:pathData="M24,54m-3,0a3,3 0 1,1 6,0a3,3 0 1,1 -6,0" />
+
+    <!-- Connecting arc — trailing path -->
     <path
         android:strokeColor="@color/ic_omniclaw_ring"
-        android:strokeWidth="1.5"
-        android:pathData="M54,54m-28,0a28,28 0 1,1 56,0a28,28 0 1,1 -56,0" />
-
-    <!-- Central AI Core -->
-    <path
-        android:fillColor="@color/ic_omniclaw_core"
-        android:pathData="M54,54m-8,0a8,8 0 1,1 16,0a8,8 0 1,1 -16,0" />
-
-    <!-- Node 1 -->
-    <path
-        android:fillColor="@color/ic_omniclaw_glow"
-        android:pathData="M66.73,41.27m-3.5,0a3.5,3.5 0 1,1 7,0a3.5,3.5 0 1,1 -7,0" />
-
-    <!-- Node 2 -->
-    <path
-        android:fillColor="@color/ic_omniclaw_core"
-        android:pathData="M26,54m-4,0a4,4 0 1,1 8,0a4,4 0 1,1 -8,0" />
-
-    <!-- Node 3 -->
-    <path
-        android:fillColor="@color/ic_omniclaw_glow"
-        android:pathData="M73.8,73.8m-3,0a3,3 0 1,1 6,0a3,3 0 1,1 -6,0" />
+        android:strokeWidth="1"
+        android:strokeAlpha="0.5"
+        android:pathData="M80,64 Q70,80 54,84" />
 </vector>

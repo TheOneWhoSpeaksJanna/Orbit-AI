@@ -1,13 +1,32 @@
 package com.omniclaw.presentation.dashboard
 
+import androidx.compose.animation.core.*
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import kotlinx.coroutines.delay
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.omniclaw.presentation.components.AnimatedGlassCard
+import com.omniclaw.ui.theme.OmniClawAccentSecondary
+import com.omniclaw.ui.theme.OmniClawObsidianBase
+import com.omniclaw.ui.theme.OmniClawGlassBorder
+import com.omniclaw.ui.theme.OmniClawTextSecondary
+
+private data class DashboardTile(
+    val title: String,
+    val subtitle: String,
+    val accentColor: androidx.compose.ui.graphics.Color,
+    val onClick: () -> Unit
+)
 
 @Composable
 fun DashboardScreen(
@@ -15,113 +34,144 @@ fun DashboardScreen(
     onNavigateToTermux: () -> Unit,
     onNavigateToSettings: () -> Unit
 ) {
+    // Staggered entry animation
+    val infiniteTransition = rememberInfiniteTransition(label = "dashboardGlow")
+    val glowAlpha by infiniteTransition.animateFloat(
+        initialValue = 0.6f,
+        targetValue = 1.0f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(2000, easing = EaseInOutCubic),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "HeaderGlow"
+    )
+
+    val tiles = remember {
+        listOf(
+            DashboardTile(
+                title = "AI Orchestration Terminal",
+                subtitle = "Access unified conversational language engine providers and continuous background streams.",
+                accentColor = MaterialTheme.colorScheme.primary,
+                onClick = onNavigateToChat
+            ),
+            DashboardTile(
+                title = "Alpine Shell Instance",
+                subtitle = "Execute localized subsystem environment scripts, compile modules, and review system execution tasks.",
+                accentColor = OmniClawAccentSecondary,
+                onClick = onNavigateToTermux
+            ),
+            DashboardTile(
+                title = "System Framework Settings",
+                subtitle = "Configure custom provider models, authentication keys, and toggle core appearance options.",
+                accentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                onClick = onNavigateToSettings
+            )
+        )
+    }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .padding(horizontal = 16.dp)
+            .background(OmniClawObsidianBase)
     ) {
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(top = 24.dp, bottom = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+            contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 32.dp, bottom = 32.dp),
+            verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
             item {
-                Column(modifier = Modifier.padding(bottom = 8.dp)) {
+                Column(modifier = Modifier.padding(bottom = 12.dp)) {
                     Text(
                         text = "Orbit Control Center",
                         style = MaterialTheme.typography.headlineLarge,
-                        color = MaterialTheme.colorScheme.onBackground
+                        color = MaterialTheme.colorScheme.onBackground,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.graphicsLayer { alpha = glowAlpha }
                     )
+                    Spacer(modifier = Modifier.height(4.dp))
                     Text(
                         text = "System active and synchronized",
                         style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = OmniClawTextSecondary
                     )
                 }
             }
 
-            item {
-                AnimatedGlassCard(
-                    onClick = onNavigateToChat,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(140.dp)
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(20.dp),
-                        verticalArrangement = Arrangement.Center
-                    ) {
-                        Text(
-                            text = "AI Orchestration Terminal",
-                            style = MaterialTheme.typography.titleLarge,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = "Access unified conversational language engine providers and continuous background streams.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
+            itemsIndexed(tiles) { index, tile ->
+                StaggeredGlassTile(
+                    index = index,
+                    tile = tile
+                )
             }
 
             item {
-                AnimatedGlassCard(
-                    onClick = onNavigateToTermux,
+                Spacer(modifier = Modifier.height(8.dp))
+                Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(140.dp)
+                        .padding(horizontal = 40.dp),
+                    contentAlignment = Alignment.Center
                 ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(20.dp),
-                        verticalArrangement = Arrangement.Center
-                    ) {
-                        Text(
-                            text = "Alpine Shell Instance",
-                            style = MaterialTheme.typography.titleLarge,
-                            color = MaterialTheme.colorScheme.secondary
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = "Execute localized subsystem environment scripts, compile modules, and review system execution tasks.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
+                    Text(
+                        text = "Orbit v1.0 · Runtime Nominal",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = OmniClawTextSecondary.copy(alpha = 0.5f)
+                    )
                 }
             }
+        }
+    }
+}
 
-            item {
-                AnimatedGlassCard(
-                    onClick = onNavigateToSettings,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(110.dp)
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(20.dp),
-                        verticalArrangement = Arrangement.Center
-                    ) {
-                        Text(
-                            text = "System Framework Settings",
-                            style = MaterialTheme.typography.titleMedium,
-                            color = MaterialTheme.colorScheme.onBackground
-                        )
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Text(
-                            text = "Configure custom provider models, authentication keys, and toggle core appearance options.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
+@Composable
+private fun StaggeredGlassTile(
+    index: Int,
+    tile: DashboardTile
+) {
+    var visible by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        delay(index * 80L)
+        visible = true
+    }
+
+    val offsetFraction by animateFloatAsState(
+        targetValue = if (visible) 1f else 0f,
+        animationSpec = spring(dampingRatio = 0.7f, stiffness = 200f),
+        label = "StaggerEntry${index}"
+    )
+
+    Box(
+        modifier = Modifier
+            .alpha(offsetFraction)
+            .graphicsLayer {
+                translationY = (1f - offsetFraction) * 40f
+            }
+    ) {
+        AnimatedGlassCard(
+            onClick = tile.onClick,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(148.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(22.dp),
+                verticalArrangement = Arrangement.Center
+            ) {
+                Text(
+                    text = tile.title,
+                    style = MaterialTheme.typography.titleLarge,
+                    color = tile.accentColor,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = tile.subtitle,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = OmniClawTextSecondary,
+                    lineHeight = MaterialTheme.typography.bodyMedium.lineHeight
+                )
             }
         }
     }

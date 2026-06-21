@@ -1,14 +1,15 @@
 package com.omniclaw.presentation.screens
 
-import com.omniclaw.R
 import android.content.pm.PackageManager
 import androidx.compose.animation.*
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.selection.selectable
-import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -18,15 +19,18 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.omniclaw.R
+import com.omniclaw.presentation.components.AnimatedGlassCard
 import com.omniclaw.presentation.viewmodels.SetupStep
 import com.omniclaw.presentation.viewmodels.SetupViewModel
+import com.omniclaw.ui.theme.*
 import rikka.shizuku.Shizuku
 
 @OptIn(ExperimentalAnimationApi::class, ExperimentalMaterial3Api::class)
@@ -36,10 +40,10 @@ fun SetupWizardScreen(
     viewModel: SetupViewModel = viewModel(factory = SetupViewModel.Factory)
 ) {
     val currentStep by viewModel.currentStep.collectAsState()
-
     val currentStepDef = SetupStep.entries[currentStep]
 
     Scaffold(
+        containerColor = OmniClawObsidianBase,
         topBar = {
             CenterAlignedTopAppBar(
                 title = {
@@ -54,12 +58,16 @@ fun SetupWizardScreen(
                             style = MaterialTheme.typography.titleSmall
                         )
                     }
-                }
+                },
+                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                    containerColor = OmniClawObsidianBase
+                )
             )
         },
         bottomBar = {
             BottomAppBar(
-                containerColor = MaterialTheme.colorScheme.surface
+                containerColor = OmniClawObsidianSurface,
+                tonalElevation = 0.dp
             ) {
                 if (currentStep > 0) {
                     TextButton(onClick = { viewModel.previousStep() }) {
@@ -93,19 +101,25 @@ fun SetupWizardScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
+                .background(OmniClawObsidianBase)
         ) {
             Box(modifier = Modifier.weight(1f)) {
                 AnimatedContent(
                     targetState = currentStep,
                     transitionSpec = {
-                        if (targetState > initialState) {
-                            slideInHorizontally { width -> width } + fadeIn() togetherWith
-                                    slideOutHorizontally { width -> -width } + fadeOut()
-                        } else {
-                            slideInHorizontally { width -> -width } + fadeIn() togetherWith
-                                    slideOutHorizontally { width -> width } + fadeOut()
-                        }
-                    }, label = "SetupWizardTransition"
+                        val slideDir = if (targetState > initialState) 1 else -1
+                        (slideInHorizontally(
+                            animationSpec = tween(400),
+                            initialOffsetX = { fullWidth -> slideDir * fullWidth }
+                        ) + fadeIn(animationSpec = tween(300)))
+                            .togetherWith(
+                                slideOutHorizontally(
+                                    animationSpec = tween(400),
+                                    targetOffsetX = { fullWidth -> -slideDir * fullWidth }
+                                ) + fadeOut(animationSpec = tween(300))
+                            )
+                    },
+                    label = "SetupWizardTransition"
                 ) { step ->
                     when (step) {
                         0 -> WelcomeStep()
@@ -117,7 +131,7 @@ fun SetupWizardScreen(
                     }
                 }
             }
-            PageIndicator(
+            GlassPageIndicator(
                 totalSteps = SetupStep.entries.size,
                 currentStep = currentStep
             )
@@ -130,16 +144,22 @@ fun WelcomeStep() {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(24.dp),
+            .padding(32.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        Text(stringResource(R.string.omniclaw_ai_title), style = MaterialTheme.typography.displayMedium, color = MaterialTheme.colorScheme.primary)
-        Spacer(modifier = Modifier.height(16.dp))
+        Text(
+            stringResource(R.string.omniclaw_ai_title),
+            style = MaterialTheme.typography.displayMedium,
+            color = MaterialTheme.colorScheme.primary,
+            fontWeight = FontWeight.Bold
+        )
+        Spacer(modifier = Modifier.height(20.dp))
         Text(
             stringResource(R.string.omniclaw_ai_subtitle),
             style = MaterialTheme.typography.bodyLarge,
-            textAlign = TextAlign.Center
+            textAlign = TextAlign.Center,
+            color = OmniClawTextSecondary
         )
     }
 }
@@ -148,7 +168,7 @@ fun WelcomeStep() {
 fun ThemeSelectionStep(viewModel: SetupViewModel) {
     val theme by viewModel.theme.collectAsState()
     val themes = listOf("System", "Dark", "Light")
-    
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -156,32 +176,45 @@ fun ThemeSelectionStep(viewModel: SetupViewModel) {
             .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.Center
     ) {
-        Text(stringResource(R.string.appearance), style = MaterialTheme.typography.headlineMedium)
+        Text(
+            stringResource(R.string.appearance),
+            style = MaterialTheme.typography.headlineMedium,
+            color = MaterialTheme.colorScheme.onBackground,
+            fontWeight = FontWeight.Bold
+        )
         Spacer(modifier = Modifier.height(24.dp))
-        
-        Column(Modifier.selectableGroup()) {
-            themes.forEach { text ->
+
+        themes.forEach { text ->
+            val isSelected = text == theme
+            Spacer(modifier = Modifier.height(12.dp))
+            AnimatedGlassCard(
+                onClick = { viewModel.setTheme(text) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(72.dp)
+            ) {
                 Row(
-                    Modifier
-                        .fillMaxWidth()
-                        .height(56.dp)
-                        .selectable(
-                            selected = (text == theme),
-                            onClick = { viewModel.setTheme(text) },
-                            role = Role.RadioButton
-                        )
-                        .padding(horizontal = 16.dp),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = 20.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    RadioButton(
-                        selected = (text == theme),
-                        onClick = null 
-                    )
                     Text(
                         text = text,
-                        style = MaterialTheme.typography.bodyLarge,
-                        modifier = Modifier.padding(start = 16.dp)
+                        style = MaterialTheme.typography.titleMedium,
+                        color = if (isSelected) MaterialTheme.colorScheme.primary
+                        else MaterialTheme.colorScheme.onBackground,
+                        fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal
                     )
+                    Spacer(modifier = Modifier.weight(1f))
+                    if (isSelected) {
+                        Box(
+                            modifier = Modifier
+                                .size(12.dp)
+                                .clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.primary)
+                        )
+                    }
                 }
             }
         }
@@ -192,7 +225,7 @@ fun ThemeSelectionStep(viewModel: SetupViewModel) {
 fun AgentSelectionStep(viewModel: SetupViewModel) {
     val selectedAgent by viewModel.selectedAgent.collectAsState()
     val agents = listOf("Hermes", "OpenClaude", "Claude Code")
-    
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -200,40 +233,59 @@ fun AgentSelectionStep(viewModel: SetupViewModel) {
             .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.Center
     ) {
-        Text(stringResource(R.string.select_agent), style = MaterialTheme.typography.headlineMedium)
-        Spacer(modifier = Modifier.height(16.dp))
-        
-        Column(Modifier.selectableGroup()) {
-            agents.forEach { agent ->
-                Card(
+        Text(
+            stringResource(R.string.select_agent),
+            style = MaterialTheme.typography.headlineMedium,
+            color = MaterialTheme.colorScheme.onBackground,
+            fontWeight = FontWeight.Bold
+        )
+        Spacer(modifier = Modifier.height(20.dp))
+
+        agents.forEach { agent ->
+            val isSelected = agent == selectedAgent
+            Spacer(modifier = Modifier.height(12.dp))
+            AnimatedGlassCard(
+                onClick = { viewModel.setSelectedAgent(agent) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(100.dp)
+            ) {
+                Column(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 8.dp)
-                        .selectable(
-                            selected = (agent == selectedAgent),
-                            onClick = { viewModel.setSelectedAgent(agent) }
-                        ),
-                    colors = CardDefaults.cardColors(
-                        containerColor = if (agent == selectedAgent) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface
-                    ),
-                    border = CardDefaults.outlinedCardBorder(agent == selectedAgent)
+                        .fillMaxSize()
+                        .padding(horizontal = 20.dp, vertical = 16.dp),
+                    verticalArrangement = Arrangement.Center
                 ) {
-                    Row(modifier = Modifier.padding(16.dp).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        RadioButton(
-                            selected = (agent == selectedAgent),
-                            onClick = null
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = agent,
+                            style = MaterialTheme.typography.titleMedium,
+                            color = if (isSelected) MaterialTheme.colorScheme.primary
+                            else MaterialTheme.colorScheme.onBackground,
+                            fontWeight = FontWeight.SemiBold
                         )
-                        Column(modifier = Modifier.padding(start = 16.dp)) {
-                            Text(text = agent, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                            val desc = when (agent) {
-                                "Hermes" -> stringResource(R.string.agent_hermes)
-                                "OpenClaude" -> stringResource(R.string.agent_openclaude)
-                                "Claude Code" -> stringResource(R.string.agent_claude_code)
-                                else -> stringResource(R.string.agent_default)
-                            }
-                            Text(text = desc, style = MaterialTheme.typography.bodySmall)
+                        Spacer(modifier = Modifier.weight(1f))
+                        if (isSelected) {
+                            Box(
+                                modifier = Modifier
+                                    .size(10.dp)
+                                    .clip(CircleShape)
+                                    .background(MaterialTheme.colorScheme.primary)
+                            )
                         }
                     }
+                    Spacer(modifier = Modifier.height(4.dp))
+                    val desc = when (agent) {
+                        "Hermes" -> stringResource(R.string.agent_hermes)
+                        "OpenClaude" -> stringResource(R.string.agent_openclaude)
+                        "Claude Code" -> stringResource(R.string.agent_claude_code)
+                        else -> stringResource(R.string.agent_default)
+                    }
+                    Text(
+                        text = desc,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = OmniClawTextSecondary
+                    )
                 }
             }
         }
@@ -248,7 +300,7 @@ fun ProviderSelectionStep(viewModel: SetupViewModel) {
     val isTesting by viewModel.isTestingConnection.collectAsState()
     val success by viewModel.testConnectionSuccess.collectAsState()
     val providers = listOf("Claude", "OpenRouter", "OpenAI", "Gemini")
-    
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -256,69 +308,93 @@ fun ProviderSelectionStep(viewModel: SetupViewModel) {
             .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.Center
     ) {
-        Text(stringResource(R.string.select_provider_for, agent), style = MaterialTheme.typography.headlineMedium)
+        Text(
+            stringResource(R.string.select_provider_for, agent),
+            style = MaterialTheme.typography.headlineMedium,
+            color = MaterialTheme.colorScheme.onBackground,
+            fontWeight = FontWeight.Bold
+        )
         Spacer(modifier = Modifier.height(16.dp))
-        
-        Column(Modifier.selectableGroup()) {
-            providers.forEach { provider ->
-                Card(
+
+        providers.forEach { provider ->
+            val isSelected = provider == selectedProvider
+            Spacer(modifier = Modifier.height(10.dp))
+            AnimatedGlassCard(
+                onClick = { viewModel.setSelectedProvider(provider) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp)
+            ) {
+                Row(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 8.dp)
-                        .selectable(
-                            selected = (provider == selectedProvider),
-                            onClick = { viewModel.setSelectedProvider(provider) }
-                        ),
-                    colors = CardDefaults.cardColors(
-                        containerColor = if (provider == selectedProvider) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface
-                    ),
-                    border = CardDefaults.outlinedCardBorder(provider == selectedProvider)
+                        .fillMaxSize()
+                        .padding(horizontal = 20.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row(modifier = Modifier.padding(16.dp).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        RadioButton(
-                            selected = (provider == selectedProvider),
-                            onClick = null
+                    Text(
+                        text = provider,
+                        style = MaterialTheme.typography.titleMedium,
+                        color = if (isSelected) MaterialTheme.colorScheme.primary
+                        else MaterialTheme.colorScheme.onBackground
+                    )
+                    Spacer(modifier = Modifier.weight(1f))
+                    if (isSelected) {
+                        Box(
+                            modifier = Modifier
+                                .size(10.dp)
+                                .clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.primary)
                         )
-                        Column(modifier = Modifier.padding(start = 16.dp)) {
-                            Text(text = provider, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                        }
                     }
                 }
             }
         }
-        
-        Spacer(modifier = Modifier.height(24.dp))
-        Text(stringResource(R.string.api_key), style = MaterialTheme.typography.titleMedium)
+
+        Spacer(modifier = Modifier.height(28.dp))
+        Text(
+            stringResource(R.string.api_key),
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.onBackground
+        )
         Spacer(modifier = Modifier.height(8.dp))
-        
+
         OutlinedTextField(
             value = apiKey,
             onValueChange = { viewModel.setApiKey(it) },
             label = { Text(stringResource(R.string.api_key)) },
             modifier = Modifier.fillMaxWidth(),
-            singleLine = true
+            singleLine = true,
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = MaterialTheme.colorScheme.primary,
+                unfocusedBorderColor = OmniClawGlassBorder
+            )
         )
         Spacer(modifier = Modifier.height(16.dp))
-        
+
         Button(
             onClick = { viewModel.testConnection() },
             modifier = Modifier.fillMaxWidth(),
             enabled = !isTesting
         ) {
             if (isTesting) {
-                CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
+                CircularProgressIndicator(
+                    modifier = Modifier.size(24.dp),
+                    strokeWidth = 2.dp,
+                    color = MaterialTheme.colorScheme.onPrimary
+                )
             } else {
                 Text(stringResource(R.string.test_connection))
             }
         }
-        
+
         if (success != null) {
             Spacer(modifier = Modifier.height(8.dp))
-            if (success == true) {
-                Text(stringResource(R.string.connection_successful), color = MaterialTheme.colorScheme.primary)
-            } else {
-                Text(stringResource(R.string.connection_failed), color = MaterialTheme.colorScheme.error)
-            }
+            Text(
+                if (success == true) stringResource(R.string.connection_successful)
+                else stringResource(R.string.connection_failed),
+                color = if (success == true) OmniClawSuccess else OmniClawError,
+                style = MaterialTheme.typography.bodyMedium
+            )
         }
     }
 }
@@ -337,11 +413,12 @@ fun ShizukuStep(viewModel: SetupViewModel) {
         } catch (e: PackageManager.NameNotFoundException) {
             false
         }
-        
+
         if (isInstalled) {
             if (Shizuku.pingBinder()) {
                 hasPermission = Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED
-                shizukuStatus = if (hasPermission) context.getString(R.string.shizuku_status_running) else context.getString(R.string.shizuku_status_no_permission)
+                shizukuStatus = if (hasPermission) context.getString(R.string.shizuku_status_running)
+                else context.getString(R.string.shizuku_status_no_permission)
             } else {
                 shizukuStatus = context.getString(R.string.shizuku_status_not_running)
             }
@@ -357,36 +434,48 @@ fun ShizukuStep(viewModel: SetupViewModel) {
             .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.Center
     ) {
-        Text(stringResource(R.string.elevated_permissions), style = MaterialTheme.typography.headlineMedium)
+        Text(
+            stringResource(R.string.elevated_permissions),
+            style = MaterialTheme.typography.headlineMedium,
+            color = MaterialTheme.colorScheme.onBackground,
+            fontWeight = FontWeight.Bold
+        )
         Spacer(modifier = Modifier.height(16.dp))
         Text(
             stringResource(R.string.shizuku_description),
-            style = MaterialTheme.typography.bodyMedium
+            style = MaterialTheme.typography.bodyMedium,
+            color = OmniClawTextSecondary
         )
         Spacer(modifier = Modifier.height(16.dp))
-        Card(
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+
+        AnimatedGlassCard(
+            onClick = {},
+            modifier = Modifier.fillMaxWidth()
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
-                Text(stringResource(R.string.shizuku_status_format, shizukuStatus), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
+                Text(
+                    stringResource(R.string.shizuku_status_format, shizukuStatus),
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onBackground
+                )
                 if (!hasPermission && Shizuku.pingBinder()) {
                     Spacer(modifier = Modifier.height(8.dp))
                     Button(onClick = {
-                        try {
-                            Shizuku.requestPermission(1000)
-                        } catch (e: Exception) {
-                            e.printStackTrace()
-                        }
+                        try { Shizuku.requestPermission(1000) }
+                        catch (e: Exception) { e.printStackTrace() }
                     }) {
                         Text(stringResource(R.string.request_permission))
                     }
                 }
             }
         }
-        Spacer(modifier = Modifier.height(24.dp))
-        
-        Card(
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+
+        Spacer(modifier = Modifier.height(20.dp))
+
+        AnimatedGlassCard(
+            onClick = {},
+            modifier = Modifier.fillMaxWidth()
         ) {
             Row(
                 modifier = Modifier
@@ -395,8 +484,16 @@ fun ShizukuStep(viewModel: SetupViewModel) {
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column(modifier = Modifier.weight(1f)) {
-                    Text(stringResource(R.string.enable_shizuku), style = MaterialTheme.typography.titleMedium)
-                    Text(stringResource(R.string.shizuku_required), style = MaterialTheme.typography.labelMedium)
+                    Text(
+                        stringResource(R.string.enable_shizuku),
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onBackground
+                    )
+                    Text(
+                        stringResource(R.string.shizuku_required),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = OmniClawTextSecondary
+                    )
                 }
                 Switch(
                     checked = shizukuEnabled,
@@ -409,68 +506,131 @@ fun ShizukuStep(viewModel: SetupViewModel) {
 }
 
 @Composable
-private fun PageIndicator(totalSteps: Int, currentStep: Int) {
+fun SummaryStep() {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(32.dp)
+            .verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.Center
+    ) {
+        Text(
+            stringResource(R.string.step_summary),
+            style = MaterialTheme.typography.headlineMedium,
+            color = MaterialTheme.colorScheme.onBackground,
+            fontWeight = FontWeight.Bold
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            stringResource(R.string.runtime_description),
+            style = MaterialTheme.typography.bodyMedium,
+            color = OmniClawTextSecondary
+        )
+        Spacer(modifier = Modifier.height(24.dp))
+
+        AnimatedGlassCard(
+            onClick = {},
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(modifier = Modifier.padding(20.dp)) {
+                Text(
+                    stringResource(R.string.runtime_active),
+                    fontWeight = FontWeight.Bold,
+                    color = OmniClawSuccess
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    stringResource(R.string.runtime_ready),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = OmniClawTextSecondary
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(32.dp))
+        Text(
+            stringResource(R.string.summary),
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.onBackground,
+            fontWeight = FontWeight.SemiBold
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(
+                stringResource(R.string.summary_ui_configured),
+                style = MaterialTheme.typography.bodyMedium,
+                color = OmniClawTextSecondary
+            )
+            Text(
+                stringResource(R.string.summary_agent_selected),
+                style = MaterialTheme.typography.bodyMedium,
+                color = OmniClawTextSecondary
+            )
+            Text(
+                stringResource(R.string.summary_api_keys_active),
+                style = MaterialTheme.typography.bodyMedium,
+                color = OmniClawTextSecondary
+            )
+            Text(
+                stringResource(R.string.summary_command_ready),
+                style = MaterialTheme.typography.bodyMedium,
+                color = OmniClawTextSecondary
+            )
+        }
+        Spacer(modifier = Modifier.height(16.dp))
+        Text(
+            stringResource(R.string.ready_enter_workspace),
+            style = MaterialTheme.typography.bodyLarge,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.primary
+        )
+    }
+}
+
+@Composable
+private fun GlassPageIndicator(totalSteps: Int, currentStep: Int) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 16.dp),
+            .background(OmniClawObsidianBase)
+            .padding(vertical = 20.dp),
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically
     ) {
         repeat(totalSteps) { index ->
             val isActive = index == currentStep
             val isCompleted = index < currentStep
-            val color = when {
+
+            // Animated dot
+            val animatedSize by animateFloatAsState(
+                targetValue = if (isActive) 12f else 8f,
+                animationSpec = spring(dampingRatio = 0.5f),
+                label = "DotSize"
+            )
+            val animatedAlpha by animateFloatAsState(
+                targetValue = when {
+                    isActive -> 1f
+                    isCompleted -> 0.6f
+                    else -> 0.25f
+                },
+                animationSpec = tween(300),
+                label = "DotAlpha"
+            )
+
+            val dotColor = when {
                 isActive -> MaterialTheme.colorScheme.primary
                 isCompleted -> MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
-                else -> MaterialTheme.colorScheme.surfaceVariant
+                else -> OmniClawGlassBorder
             }
-            val size = if (isActive) 10.dp else 8.dp
+
             Box(
                 modifier = Modifier
                     .padding(horizontal = 4.dp)
-                    .size(size)
+                    .size(animatedSize.dp)
+                    .graphicsLayer { alpha = animatedAlpha }
                     .clip(CircleShape)
-                    .background(color)
+                    .background(dotColor)
             )
         }
-    }
-}
-
-@Composable
-fun SummaryStep() {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(24.dp)
-            .verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.Center
-    ) {
-        Text(stringResource(R.string.step_summary), style = MaterialTheme.typography.headlineMedium)
-        Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    stringResource(R.string.runtime_description),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-        Spacer(modifier = Modifier.height(24.dp))
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
-        ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Text(stringResource(R.string.runtime_active), fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSecondaryContainer)
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(stringResource(R.string.runtime_ready), style = MaterialTheme.typography.bodySmall)
-            }
-        }
-        Spacer(modifier = Modifier.height(32.dp))
-        Text(stringResource(R.string.summary), style = MaterialTheme.typography.titleMedium)
-        Text(stringResource(R.string.summary_ui_configured), style = MaterialTheme.typography.bodyMedium)
-        Text(stringResource(R.string.summary_agent_selected), style = MaterialTheme.typography.bodyMedium)
-        Text(stringResource(R.string.summary_api_keys_active), style = MaterialTheme.typography.bodyMedium)
-        Text(stringResource(R.string.summary_command_ready), style = MaterialTheme.typography.bodyMedium)
-        Spacer(modifier = Modifier.height(16.dp))
-        Text(stringResource(R.string.ready_enter_workspace), style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold)
     }
 }

@@ -25,5 +25,15 @@ val OmniClawSuccess = Color(0xFF34D399)
 val OmniClawWarning = Color(0xFFF59E0B)
 val OmniClawError = Color(0xFFF87171)
 
+// Glassmorphism layers — stacked for depth
 val OmniClawGlassBorder = Color(0xFF2E3440)
+val OmniClawGlassBorderLight = Color(0xFFD1D5DB)
 val OmniClawGlassOverlay = Color(0x1AFFFFFF)
+val OmniClawGlassOverlayDeep = Color(0x0DFFFFFF)
+val OmniClawGlassOverlayPressed = Color(0x26FFFFFF)
+val OmniClawGlassShadow = Color(0x40000000)
+
+// Obsidian base variants
+val OmniClawObsidianBase = Color(0xFF07090E)
+val OmniClawObsidianSurface = Color(0xFF0E121B)
+val OmniClawObsidianElevated = Color(0xFF161B26)
