@@ -47,8 +47,6 @@ fun AnimatedGlassCard(
             .graphicsLayer {
                 scaleX = animatedScale
                 scaleY = animatedScale
-                shadowAlpha = 0.4f
-                translationZ = animatedElevation
                 clip = true
             }
             .clip(RoundedCornerShape(radius.dp))

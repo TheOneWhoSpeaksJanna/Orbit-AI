@@ -46,12 +46,15 @@ fun DashboardScreen(
         label = "HeaderGlow"
     )
 
+    val primaryColor = MaterialTheme.colorScheme.primary
+    val surfaceVariantColor = MaterialTheme.colorScheme.onSurfaceVariant
+
     val tiles = remember {
         listOf(
             DashboardTile(
                 title = "AI Orchestration Terminal",
                 subtitle = "Access unified conversational language engine providers and continuous background streams.",
-                accentColor = MaterialTheme.colorScheme.primary,
+                accentColor = primaryColor,
                 onClick = onNavigateToChat
             ),
             DashboardTile(
@@ -63,7 +66,7 @@ fun DashboardScreen(
             DashboardTile(
                 title = "System Framework Settings",
                 subtitle = "Configure custom provider models, authentication keys, and toggle core appearance options.",
-                accentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                accentColor = surfaceVariantColor,
                 onClick = onNavigateToSettings
             )
         )
