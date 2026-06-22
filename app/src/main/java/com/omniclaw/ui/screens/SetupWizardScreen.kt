@@ -33,6 +33,7 @@ import com.omniclaw.ui.viewmodels.SetupViewModel
 import com.omniclaw.ui.theme.*
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import rikka.shizuku.Shizuku
 
 @OptIn(ExperimentalAnimationApi::class, ExperimentalMaterial3Api::class)
 @Composable
