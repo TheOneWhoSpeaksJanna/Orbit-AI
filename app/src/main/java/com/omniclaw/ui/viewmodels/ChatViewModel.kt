@@ -169,8 +169,8 @@ class ChatViewModel(
                 }
 
                 if (modelText.contains("[RUN: ") || modelText.contains("[SUDO: ")) {
-                    val runMatch = "\\[RUN: (.+?)]".toRegex().find(modelText)
-                    val sudoMatch = "\\[SUDO: (.+?)]".toRegex().find(modelText)
+                    val runMatch = RUN_COMMAND_REGEX.find(modelText)
+                    val sudoMatch = SUDO_COMMAND_REGEX.find(modelText)
 
                     val actionModelMsg = Message(
                         id = UUID.randomUUID().toString(),
@@ -241,6 +241,9 @@ class ChatViewModel(
     }
 
     companion object {
+        private val RUN_COMMAND_REGEX = "\\[RUN: (.+?)]".toRegex()
+        private val SUDO_COMMAND_REGEX = "\\[SUDO: (.+?)]".toRegex()
+
         val Factory: ViewModelProvider.Factory = object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
             override fun <T : ViewModel> create(modelClass: Class<T>, extras: CreationExtras): T {

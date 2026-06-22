@@ -6,17 +6,16 @@ import com.omniclaw.domain.api.AiResult
 import com.omniclaw.domain.api.ProviderMetadata
 import com.omniclaw.domain.models.DetailedModelInfo
 import kotlinx.coroutines.flow.Flow
+import okhttp3.OkHttpClient
 
-class AiProviderSelector : AiProvider {
-    
-    private val providers = mutableMapOf<String, AiProvider>()
+class AiProviderSelector(okHttpClient: OkHttpClient) : AiProvider {
 
-    init {
-        providers["Gemini"] = GeminiProvider()
-        providers["OpenAI"] = OpenAIProvider()
-        providers["Claude"] = ClaudeProvider()
-        providers["OpenRouter"] = OpenRouterProvider()
-    }
+    private val providers: Map<String, AiProvider> = mapOf(
+        "Gemini" to GeminiProvider(okHttpClient),
+        "OpenAI" to OpenAIProvider(okHttpClient),
+        "Claude" to ClaudeProvider(okHttpClient),
+        "OpenRouter" to OpenRouterProvider(okHttpClient)
+    )
 
     private fun getProvider(name: String): AiProvider {
         return providers[name] ?: providers["Gemini"]!!

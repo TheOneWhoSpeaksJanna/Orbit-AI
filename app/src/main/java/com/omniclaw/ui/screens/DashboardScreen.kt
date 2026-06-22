@@ -31,6 +31,8 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
+private val DATE_SESSION_FORMAT = SimpleDateFormat("MMM dd, HH:mm", Locale.getDefault())
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DashboardScreen(
@@ -220,7 +222,7 @@ fun DashboardScreen(
                     EmptySessionsPlaceholder(onNewSession = onNavigateToNewSession)
                 }
             } else {
-                items(sessions) { session ->
+                items(sessions, key = { it.id }) { session ->
                     SessionCard(
                         title = session.title,
                         updatedAt = session.updatedAt,
@@ -368,8 +370,7 @@ private fun SessionCard(
                     overflow = TextOverflow.Ellipsis
                 )
                 Spacer(Modifier.height(2.dp))
-                val dateStr = SimpleDateFormat("MMM dd, HH:mm", Locale.getDefault())
-                    .format(Date(updatedAt))
+                val dateStr = DATE_SESSION_FORMAT.format(Date(updatedAt))
                 Text(
                     text = dateStr,
                     style = MaterialTheme.typography.bodySmall,

@@ -1,21 +1,58 @@
-# Add project specific ProGuard rules here.
-# You can control the set of applied configuration files using the
-# proguardFiles setting in build.gradle.
-#
-# For more details, see
-#   http://developer.android.com/guide/developing/tools/proguard.html
+# --- Kotlin ---
+-keepattributes *Annotation*, InnerClasses
+-dontnote kotlinx.serialization.AnnotationsKt
 
-# If your project uses WebView with JS, uncomment the following
-# and specify the fully qualified class name to the JavaScript interface
-# class:
-#-keepclassmembers class fqcn.of.javascript.interface.for.webview {
-#   public *;
-#}
+-keepclassmembers class **$WhenMappings {
+    <fields>;
+}
 
-# Uncomment this to preserve the line number information for
-# debugging stack traces.
-#-keepattributes SourceFile,LineNumberTable
+# --- Moshi ---
+-keep class com.omniclaw.data.api.** { *; }
+-keepclassmembers class * {
+    @com.squareup.moshi.FromJson <methods>;
+    @com.squareup.moshi.ToJson <methods>;
+}
+-keep @com.squareup.moshi.JsonClass class * { *; }
+-keepclassmembers @com.squareup.moshi.JsonClass class * {
+    *** Companion;
+    @com.squareup.moshi.Json @kotlin.jvm.JvmField *;
+}
 
-# If you keep the line number information, uncomment this to
-# hide the original source file name.
-#-renamesourcefileattribute SourceFile
+# --- Retrofit ---
+-keep,allowobfuscation interface com.omniclaw.data.api.**.*Service
+-keep,allowobfuscation interface * {
+    @retrofit2.http.* <methods>;
+}
+-dontwarn retrofit2.KotlinExtensions
+-dontwarn retrofit2.KotlinExtensions$*
+
+# --- OkHttp ---
+-dontwarn okhttp3.**
+-dontwarn okio.**
+-keepnames class okhttp3.internal.publicsuffix.PublicSuffixDatabase
+
+# --- Room ---
+-keep class * extends androidx.room.RoomDatabase
+-keep @androidx.room.Entity class * { *; }
+-keep @androidx.room.Dao interface * { *; }
+-dontwarn androidx.room.paging.**
+
+# --- Kotlin Coroutines ---
+-keepnames class kotlinx.coroutines.internal.MainDispatcherFactory {}
+-keepnames class kotlinx.coroutines.CoroutineExceptionHandler {}
+-keepclassmembers class kotlinx.coroutines.** {
+    volatile <fields>;
+}
+
+# --- Shizuku ---
+-keep class dev.rikka.shizuku.** { *; }
+-keep interface dev.rikka.shizuku.** { *; }
+
+# --- Model / Entity classes (keep for serialization and DB) ---
+-keep class com.omniclaw.data.local.entity.** { *; }
+-keep class com.omniclaw.domain.models.** { *; }
+
+# --- Compose ---
+-keepclassmembers class * {
+    @androidx.compose.runtime.Composable <methods>;
+}

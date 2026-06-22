@@ -151,7 +151,7 @@ fun ChatScreen(
                         WelcomePlaceholder()
                     }
                 }
-                items(messages) { message ->
+                items(messages, key = { it.id }) { message ->
                     MessageBubble(
                         content = message.content,
                         isUser = message.role == MessageRole.USER

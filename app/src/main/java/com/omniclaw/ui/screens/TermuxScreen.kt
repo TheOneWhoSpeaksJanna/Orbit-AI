@@ -163,7 +163,7 @@ fun TermuxScreen(
                     .padding(horizontal = 8.dp),
                 reverseLayout = true
             ) {
-                items(logs.reversed()) { log ->
+                items(logs.reversed(), key = { it.id }) { log ->
                     Card(
                         modifier = Modifier
                             .fillMaxWidth()

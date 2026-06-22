@@ -15,14 +15,10 @@ import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONArray
 import org.json.JSONObject
-import java.util.concurrent.TimeUnit
 
-class OpenRouterProvider : AiProvider {
+class OpenRouterProvider(okHttpClient: OkHttpClient) : AiProvider {
 
-    private val httpClient = OkHttpClient.Builder()
-        .connectTimeout(15, TimeUnit.SECONDS)
-        .readTimeout(30, TimeUnit.SECONDS)
-        .build()
+    private val httpClient = okHttpClient
     private val jsonMediaType = "application/json; charset=utf-8".toMediaType()
 
     private var cachedModels: List<DetailedModelInfo>? = null

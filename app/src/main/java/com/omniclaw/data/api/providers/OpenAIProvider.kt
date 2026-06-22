@@ -15,9 +15,9 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONArray
 import org.json.JSONObject
 
-class OpenAIProvider : AiProvider {
+class OpenAIProvider(okHttpClient: OkHttpClient) : AiProvider {
 
-    private val httpClient = OkHttpClient.Builder().build()
+    private val httpClient = okHttpClient
     private val jsonMediaType = "application/json; charset=utf-8".toMediaType()
 
     override fun generateContentStream(sessionId: String?, prompt: String, apiKey: String, provider: String, model: String): Flow<AiEvent> = flow {

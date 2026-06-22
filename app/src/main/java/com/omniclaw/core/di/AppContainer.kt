@@ -17,7 +17,9 @@ import com.omniclaw.domain.api.AgentDownloader
 import com.omniclaw.domain.api.AiProvider
 import com.omniclaw.domain.repository.OmniClawRepository
 import com.omniclaw.domain.repository.OpenCodeRepository
+import okhttp3.OkHttpClient
 import java.io.File
+import java.util.concurrent.TimeUnit
 
 interface AppContainer {
     val repository: OmniClawRepository
@@ -31,11 +33,13 @@ interface AppContainer {
     val toolCallRecorder: ToolCallRecorder
     val openCodeRepository: OpenCodeRepository
     val agentDownloader: AgentDownloader
+    val okHttpClient: OkHttpClient
 }
 
 class DefaultAppContainer(private val context: Context) : AppContainer {
     private val database: OmniClawDatabase by lazy {
         Room.databaseBuilder(context, OmniClawDatabase::class.java, "omniclaw_database")
+            .fallbackToDestructiveMigration()
             .build()
     }
 
@@ -51,10 +55,19 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
         UpdateManager(context, prefsManager)
     }
 
-    override val aiProvider: AiProvider by lazy {
-        com.omniclaw.data.api.providers.AiProviderSelector()
+    override val okHttpClient: OkHttpClient by lazy {
+        OkHttpClient.Builder()
+            .connectTimeout(30, TimeUnit.SECONDS)
+            .readTimeout(60, TimeUnit.SECONDS)
+            .writeTimeout(60, TimeUnit.SECONDS)
+            .connectionPool(okhttp3.ConnectionPool(5, 30, TimeUnit.SECONDS))
+            .build()
     }
-    
+
+    override val aiProvider: AiProvider by lazy {
+        com.omniclaw.data.api.providers.AiProviderSelector(okHttpClient)
+    }
+
     override val runtimeManager: com.omniclaw.data.local.runtime.OmniClawRuntimeManager by lazy {
         com.omniclaw.data.local.runtime.OmniClawRuntimeManager(context)
     }
@@ -62,7 +75,7 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
     override val packageInstaller: com.omniclaw.data.local.runtime.PackageInstaller by lazy {
         com.omniclaw.data.local.runtime.PackageInstaller(
             runtimeManager,
-            okhttp3.OkHttpClient.Builder().build()
+            okHttpClient
         )
     }
 

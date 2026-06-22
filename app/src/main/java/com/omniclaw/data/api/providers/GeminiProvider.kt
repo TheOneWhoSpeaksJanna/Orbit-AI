@@ -20,11 +20,11 @@ import retrofit2.Retrofit
 import retrofit2.converter.moshi.MoshiConverterFactory
 import com.squareup.moshi.Moshi
 
-class GeminiProvider : AiProvider {
+class GeminiProvider(okHttpClient: OkHttpClient) : AiProvider {
 
     private val moshi = Moshi.Builder().build()
     private val jsonMediaType = "application/json; charset=utf-8".toMediaType()
-    private val httpClient = OkHttpClient.Builder().build()
+    private val httpClient = okHttpClient
 
     private val retrofit = Retrofit.Builder()
         .baseUrl("https://generativelanguage.googleapis.com/")

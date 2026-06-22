@@ -1,6 +1,7 @@
 package com.omniclaw.data.local.entity
 
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.PrimaryKey
 import com.omniclaw.domain.models.*
 
@@ -13,7 +14,10 @@ data class ProjectEntity(
     val updatedAt: Long
 )
 
-@Entity(tableName = "sessions")
+@Entity(
+    tableName = "sessions",
+    indices = [Index("projectId")]
+)
 data class SessionEntity(
     @PrimaryKey val id: String,
     val projectId: String?,
@@ -22,7 +26,10 @@ data class SessionEntity(
     val updatedAt: Long
 )
 
-@Entity(tableName = "messages")
+@Entity(
+    tableName = "messages",
+    indices = [Index("sessionId")]
+)
 data class MessageEntity(
     @PrimaryKey val id: String,
     val sessionId: String,

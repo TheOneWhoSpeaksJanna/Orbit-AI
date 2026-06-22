@@ -46,6 +46,8 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
+private val DATE_HISTORY_FORMAT = SimpleDateFormat("MMM dd, yyyy · HH:mm", Locale.getDefault())
+
 @Composable
 fun HistoryScreen(
     onOpenSession: (String) -> Unit,
@@ -105,8 +107,7 @@ fun HistoryScreen(
             ) {
                 items(sessions, key = { it.id }) { session ->
                     val formattedTime = remember(session.updatedAt) {
-                        SimpleDateFormat("MMM dd, yyyy · HH:mm", Locale.getDefault())
-                            .format(Date(session.updatedAt))
+                        DATE_HISTORY_FORMAT.format(Date(session.updatedAt))
                     }
                     SessionHistoryCard(
                         title = session.title,

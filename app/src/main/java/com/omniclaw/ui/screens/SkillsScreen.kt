@@ -93,7 +93,7 @@ fun SkillsScreen(
             Spacer(modifier = Modifier.height(8.dp))
         }
 
-        items(agents) { agent ->
+        items(agents, key = { it.id }) { agent ->
             CapabilityCard(
                 name = agent.name,
                 description = agent.systemPrompt?.take(80) ?: "General-purpose agent",
