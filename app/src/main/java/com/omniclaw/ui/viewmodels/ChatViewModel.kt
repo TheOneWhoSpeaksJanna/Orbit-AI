@@ -17,9 +17,12 @@ import com.omniclaw.domain.models.MessageRole
 import com.omniclaw.domain.models.TermuxLog
 import com.omniclaw.domain.repository.OmniClawRepository
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.firstOrNull
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.util.UUID
 
@@ -38,6 +41,26 @@ class ChatViewModel(
 
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
+
+    private val _availableModels = MutableStateFlow<List<String>>(emptyList())
+    val availableModels: StateFlow<List<String>> = _availableModels.asStateFlow()
+
+    val selectedModel: StateFlow<String> = prefsManager.selectedModel
+        .map { it ?: "" }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, "")
+
+    fun loadModelsForCurrentProvider() {
+        viewModelScope.launch {
+            val provider = prefsManager.selectedProvider.firstOrNull() ?: "Gemini"
+            _availableModels.value = aiProvider.getModels(provider)
+        }
+    }
+
+    fun setSelectedModel(model: String) {
+        viewModelScope.launch {
+            prefsManager.setSelectedModel(model)
+        }
+    }
 
     fun loadSession(sessionId: String) {
         viewModelScope.launch {

@@ -125,6 +125,8 @@ class GeminiProvider : AiProvider {
     override suspend fun createSession(sessionId: String, systemPrompt: String?) { }
     override suspend fun deleteSession(sessionId: String) { }
 
+    override fun getModels(providerName: String): List<String> = metadata.models
+
     override val metadata: ProviderMetadata = ProviderMetadata(
         name = "Gemini",
         displayName = "Google Gemini",

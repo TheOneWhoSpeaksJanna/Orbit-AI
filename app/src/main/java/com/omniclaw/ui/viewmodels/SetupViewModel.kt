@@ -9,13 +9,18 @@ import androidx.lifecycle.viewmodel.CreationExtras
 import com.omniclaw.OmniClawApplication
 import com.omniclaw.R
 import com.omniclaw.data.local.prefs.PreferencesManager
+import com.omniclaw.data.local.runner.LocalCommandRunner
+import com.omniclaw.data.local.runtime.OmniClawRuntimeManager
 import com.omniclaw.domain.models.Agent
 import com.omniclaw.domain.api.AiProvider
 import com.omniclaw.domain.repository.OmniClawRepository
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.io.File
 
 enum class SetupStep(@StringRes val labelResId: Int) {
     Welcome(R.string.step_welcome),
@@ -29,7 +34,9 @@ enum class SetupStep(@StringRes val labelResId: Int) {
 class SetupViewModel(
     private val prefsManager: PreferencesManager,
     private val repository: OmniClawRepository,
-    private val aiProvider: AiProvider
+    private val aiProvider: AiProvider,
+    private val localCommandRunner: LocalCommandRunner,
+    private val runtimeManager: OmniClawRuntimeManager
 ) : ViewModel() {
 
     private val _currentStep = MutableStateFlow(0)
@@ -59,6 +66,19 @@ class SetupViewModel(
     private val _testConnectionSuccess = MutableStateFlow<Boolean?>(null)
     val testConnectionSuccess: StateFlow<Boolean?> = _testConnectionSuccess.asStateFlow()
 
+    // OpenClaude install state
+    private val _isInstalling = MutableStateFlow(false)
+    val isInstalling: StateFlow<Boolean> = _isInstalling.asStateFlow()
+
+    private val _installProgress = MutableStateFlow(0f)
+    val installProgress: StateFlow<Float> = _installProgress.asStateFlow()
+
+    private val _installStatus = MutableStateFlow("")
+    val installStatus: StateFlow<String> = _installStatus.asStateFlow()
+
+    private val _isInstalled = MutableStateFlow(false)
+    val isInstalled: StateFlow<Boolean> = _isInstalled.asStateFlow()
+
     val canAdvance: Boolean
         get() {
             val step = SetupStep.entries[_currentStep.value]
@@ -78,7 +98,10 @@ class SetupViewModel(
         if (_currentStep.value > 0) _currentStep.value -= 1
     }
 
-    fun setTheme(mode: String) { _theme.value = mode }
+    fun setTheme(mode: String) {
+        _theme.value = mode
+        viewModelScope.launch { prefsManager.setThemeMode(mode) }
+    }
     fun setShizukuEnabled(enabled: Boolean) { _shizukuEnabled.value = enabled }
     fun setSelectedAgent(agent: String) { _selectedAgent.value = agent }
     fun setSelectedProvider(provider: String) { _selectedProvider.value = provider }
@@ -90,14 +113,138 @@ class SetupViewModel(
             _isTestingConnection.value = true
             _testConnectionSuccess.value = null
 
+            val model = _selectedModel.value.ifBlank {
+                aiProvider.getModels(_selectedProvider.value).firstOrNull() ?: ""
+            }
+
             val success = aiProvider.testConnection(
                 provider = _selectedProvider.value,
                 apiKey = _apiKey.value,
-                model = _selectedModel.value
+                model = model
             )
 
             _testConnectionSuccess.value = success
             _isTestingConnection.value = false
+        }
+    }
+
+    fun installOpenClaude() {
+        val targetDir = File(runtimeManager.agentsDir, "openclaude")
+        val binDir = runtimeManager.binDir
+        val wrapperFile = File(binDir, "openclaude")
+
+        viewModelScope.launch {
+            _isInstalling.value = true
+            _installProgress.value = 0f
+            _installStatus.value = "Starting installation..."
+            _isInstalled.value = false
+
+            try {
+                // Step 1: Check prerequisites
+                _installStatus.value = "Checking prerequisites..."
+                withContext(Dispatchers.IO) {
+                    // Try to detect node and npm via PATH
+                    localCommandRunner.executeCommandStreamed(
+                        "command -v node || echo MISSING_NODE",
+                        onOutput = { }
+                    )
+                    localCommandRunner.executeCommandStreamed(
+                        "command -v npm || echo MISSING_NPM",
+                        onOutput = { }
+                    )
+                }
+
+                // Step 2: Clone the repository
+                _installProgress.value = 0.1f
+                _installStatus.value = "Cloning OpenClaude repository..."
+
+                // Remove existing directory if present
+                if (targetDir.exists()) {
+                    targetDir.deleteRecursively()
+                }
+
+                val cloneOutput = StringBuilder()
+                val cloneResult = withContext(Dispatchers.IO) {
+                    localCommandRunner.executeCommandStreamed(
+                        "git clone --depth 1 https://github.com/lizhi-cs/openclaude.git ${targetDir.absolutePath} 2>&1",
+                        onOutput = { line ->
+                            cloneOutput.appendLine(line)
+                            _installStatus.value = line.take(80)
+                        }
+                    )
+                }
+
+                if (cloneResult.exitCode != 0) {
+                    throw Exception("Git clone failed: ${cloneOutput.toString().take(200)}")
+                }
+
+                _installProgress.value = 0.4f
+                _installStatus.value = "Installing dependencies..."
+
+                // Step 3: Install npm dependencies
+                val npmOutput = StringBuilder()
+                val npmResult = withContext(Dispatchers.IO) {
+                    localCommandRunner.executeCommandStreamed(
+                        "cd ${targetDir.absolutePath} && npm install 2>&1",
+                        onOutput = { line ->
+                            npmOutput.appendLine(line)
+                            if (line.contains("added", ignoreCase = true) || line.contains("saved", ignoreCase = true)) {
+                                _installStatus.value = line.take(80)
+                            }
+                        }
+                    )
+                }
+
+                if (npmResult.exitCode != 0) {
+                    throw Exception("npm install failed: ${npmOutput.toString().take(200)}")
+                }
+
+                _installProgress.value = 0.7f
+                _installStatus.value = "Building OpenClaude..."
+
+                // Step 4: Build
+                val buildOutput = StringBuilder()
+                val buildResult = withContext(Dispatchers.IO) {
+                    localCommandRunner.executeCommandStreamed(
+                        "cd ${targetDir.absolutePath} && npm run build 2>&1",
+                        onOutput = { line ->
+                            buildOutput.appendLine(line)
+                            if (line.contains("success", ignoreCase = true) || line.contains("built", ignoreCase = true)) {
+                                _installStatus.value = line.take(80)
+                            }
+                        }
+                    )
+                }
+
+                if (buildResult.exitCode != 0) {
+                    throw Exception("Build failed: ${buildOutput.toString().take(200)}")
+                }
+
+                _installProgress.value = 0.9f
+                _installStatus.value = "Creating run script..."
+
+                // Step 5: Create wrapper script
+                val wrapperScript = """
+                    #!/data/data/com.termux/files/usr/bin/bash
+                    exec node ${targetDir.absolutePath}/dist/cli.js "\$@"
+                """.trimIndent()
+
+                withContext(Dispatchers.IO) {
+                    wrapperFile.parentFile?.mkdirs()
+                    wrapperFile.writeText(wrapperScript)
+                    wrapperFile.setExecutable(true)
+                }
+
+                _installProgress.value = 1f
+                _installStatus.value = "OpenClaude installed successfully!"
+                _isInstalled.value = true
+
+            } catch (e: Exception) {
+                _installStatus.value = "Installation failed: ${e.message}"
+                _isInstalled.value = false
+            } finally {
+                _isInstalling.value = false
+            }
         }
     }
 
@@ -144,7 +291,9 @@ class SetupViewModel(
                 return SetupViewModel(
                     application.container.prefsManager,
                     application.container.repository,
-                    application.container.aiProvider
+                    application.container.aiProvider,
+                    application.container.localCommandRunner,
+                    application.container.runtimeManager
                 ) as T
             }
         }

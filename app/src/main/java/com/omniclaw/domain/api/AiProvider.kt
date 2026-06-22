@@ -24,6 +24,8 @@ interface AiProvider {
     suspend fun deleteSession(sessionId: String)
 
     val metadata: ProviderMetadata
+
+    fun getModels(providerName: String): List<String>
 }
 
 sealed class AiResult {

@@ -41,6 +41,8 @@ class AiProviderSelector : AiProvider {
         providers.values.forEach { it.deleteSession(sessionId) }
     }
 
+    override fun getModels(providerName: String): List<String> = getProvider(providerName).getModels(providerName)
+
     override val metadata: ProviderMetadata = ProviderMetadata(
         name = "All",
         displayName = "All Providers",

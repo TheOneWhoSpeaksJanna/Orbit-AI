@@ -30,7 +30,6 @@ import com.omniclaw.R
 import com.omniclaw.ui.components.AnimatedGlassCard
 import com.omniclaw.ui.viewmodels.SetupStep
 import com.omniclaw.ui.viewmodels.SetupViewModel
-import com.omniclaw.ui.theme.*
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import rikka.shizuku.Shizuku
@@ -46,7 +45,7 @@ fun SetupWizardScreen(
     val scope = rememberCoroutineScope()
 
     Scaffold(
-        containerColor = OmniClawObsidianBase,
+        containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             CenterAlignedTopAppBar(
                 title = {
@@ -63,13 +62,13 @@ fun SetupWizardScreen(
                     }
                 },
                 colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-                    containerColor = OmniClawObsidianBase
+                    containerColor = MaterialTheme.colorScheme.surface
                 )
             )
         },
         bottomBar = {
             BottomAppBar(
-                containerColor = OmniClawObsidianSurface,
+                containerColor = MaterialTheme.colorScheme.surface,
                 tonalElevation = 0.dp
             ) {
                 if (currentStep > 0) {
@@ -108,23 +107,15 @@ fun SetupWizardScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .background(OmniClawObsidianBase)
+                .background(MaterialTheme.colorScheme.background)
         ) {
             Box(modifier = Modifier.weight(1f)) {
                 AnimatedContent(
                     targetState = currentStep,
                     transitionSpec = {
-                        val slideDir = if (targetState > initialState) 1 else -1
-                        (slideInHorizontally(
-                            animationSpec = tween(400),
-                            initialOffsetX = { fullWidth -> slideDir * fullWidth }
-                        ) + fadeIn(animationSpec = tween(300)))
-                            .togetherWith(
-                                slideOutHorizontally(
-                                    animationSpec = tween(400),
-                                    targetOffsetX = { fullWidth -> -slideDir * fullWidth }
-                                ) + fadeOut(animationSpec = tween(300))
-                            )
+                        fadeIn(animationSpec = tween(200)).togetherWith(
+                            fadeOut(animationSpec = tween(150))
+                        )
                     },
                     label = "SetupWizardTransition"
                 ) { step ->
@@ -166,7 +157,7 @@ fun WelcomeStep() {
             stringResource(R.string.omniclaw_ai_subtitle),
             style = MaterialTheme.typography.bodyLarge,
             textAlign = TextAlign.Center,
-            color = OmniClawTextSecondary
+            color = MaterialTheme.colorScheme.onSurfaceVariant
         )
     }
 }
@@ -231,6 +222,10 @@ fun ThemeSelectionStep(viewModel: SetupViewModel) {
 @Composable
 fun AgentSelectionStep(viewModel: SetupViewModel) {
     val selectedAgent by viewModel.selectedAgent.collectAsState()
+    val isInstalling by viewModel.isInstalling.collectAsState()
+    val installProgress by viewModel.installProgress.collectAsState()
+    val installStatus by viewModel.installStatus.collectAsState()
+    val isInstalled by viewModel.isInstalled.collectAsState()
     val agents = listOf("Hermes", "OpenClaude", "Claude Code")
 
     Column(
@@ -291,7 +286,74 @@ fun AgentSelectionStep(viewModel: SetupViewModel) {
                     Text(
                         text = desc,
                         style = MaterialTheme.typography.bodySmall,
-                        color = OmniClawTextSecondary
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        }
+
+        // OpenClaude install section
+        if (selectedAgent == "OpenClaude") {
+            Spacer(modifier = Modifier.height(24.dp))
+            when {
+                isInstalling -> {
+                    LinearProgressIndicator(
+                        progress = { installProgress },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(6.dp)
+                            .clip(RoundedCornerShape(3.dp)),
+                        color = MaterialTheme.colorScheme.primary,
+                        trackColor = MaterialTheme.colorScheme.surfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = installStatus,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                isInstalled -> {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = "OpenClaude Installed",
+                            style = MaterialTheme.typography.titleSmall,
+                            color = MaterialTheme.colorScheme.primary,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Box(
+                            modifier = Modifier
+                                .size(8.dp)
+                                .clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.primary)
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "Ready to use with this device.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                else -> {
+                    Button(
+                        onClick = { viewModel.installOpenClaude() },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.primary
+                        )
+                    ) {
+                        Text(
+                            "Install OpenClaude",
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "Downloads and installs OpenClaude CLI on this device",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
@@ -373,7 +435,7 @@ fun ProviderSelectionStep(viewModel: SetupViewModel) {
             singleLine = true,
             colors = OutlinedTextFieldDefaults.colors(
                 focusedBorderColor = MaterialTheme.colorScheme.primary,
-                unfocusedBorderColor = OmniClawGlassBorder
+                unfocusedBorderColor = MaterialTheme.colorScheme.outline
             )
         )
         Spacer(modifier = Modifier.height(16.dp))
@@ -399,7 +461,7 @@ fun ProviderSelectionStep(viewModel: SetupViewModel) {
             Text(
                 if (success == true) stringResource(R.string.connection_successful)
                 else stringResource(R.string.connection_failed),
-                color = if (success == true) OmniClawSuccess else OmniClawError,
+                color = if (success == true) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
                 style = MaterialTheme.typography.bodyMedium
             )
         }
@@ -451,7 +513,7 @@ fun ShizukuStep(viewModel: SetupViewModel) {
         Text(
             stringResource(R.string.shizuku_description),
             style = MaterialTheme.typography.bodyMedium,
-            color = OmniClawTextSecondary
+            color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         Spacer(modifier = Modifier.height(16.dp))
 
@@ -499,7 +561,7 @@ fun ShizukuStep(viewModel: SetupViewModel) {
                     Text(
                         stringResource(R.string.shizuku_required),
                         style = MaterialTheme.typography.labelMedium,
-                        color = OmniClawTextSecondary
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
                 Switch(
@@ -531,7 +593,7 @@ fun SummaryStep() {
         Text(
             stringResource(R.string.runtime_description),
             style = MaterialTheme.typography.bodyMedium,
-            color = OmniClawTextSecondary
+            color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         Spacer(modifier = Modifier.height(24.dp))
 
@@ -543,13 +605,13 @@ fun SummaryStep() {
                 Text(
                     stringResource(R.string.runtime_active),
                     fontWeight = FontWeight.Bold,
-                    color = OmniClawSuccess
+                    color = MaterialTheme.colorScheme.primary
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     stringResource(R.string.runtime_ready),
                     style = MaterialTheme.typography.bodySmall,
-                    color = OmniClawTextSecondary
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         }
@@ -566,22 +628,22 @@ fun SummaryStep() {
             Text(
                 stringResource(R.string.summary_ui_configured),
                 style = MaterialTheme.typography.bodyMedium,
-                color = OmniClawTextSecondary
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Text(
                 stringResource(R.string.summary_agent_selected),
                 style = MaterialTheme.typography.bodyMedium,
-                color = OmniClawTextSecondary
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Text(
                 stringResource(R.string.summary_api_keys_active),
                 style = MaterialTheme.typography.bodyMedium,
-                color = OmniClawTextSecondary
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Text(
                 stringResource(R.string.summary_command_ready),
                 style = MaterialTheme.typography.bodyMedium,
-                color = OmniClawTextSecondary
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
         Spacer(modifier = Modifier.height(16.dp))
@@ -599,7 +661,7 @@ private fun GlassPageIndicator(totalSteps: Int, currentStep: Int) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(OmniClawObsidianBase)
+            .background(MaterialTheme.colorScheme.background)
             .padding(vertical = 20.dp),
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically
@@ -627,7 +689,7 @@ private fun GlassPageIndicator(totalSteps: Int, currentStep: Int) {
             val dotColor = when {
                 isActive -> MaterialTheme.colorScheme.primary
                 isCompleted -> MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
-                else -> OmniClawGlassBorder
+                else -> MaterialTheme.colorScheme.outline
             }
 
             Box(

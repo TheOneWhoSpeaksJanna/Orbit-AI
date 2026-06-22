@@ -20,6 +20,8 @@ class OpenRouterProvider : AiProvider {
     private val httpClient = OkHttpClient.Builder().build()
     private val jsonMediaType = "application/json; charset=utf-8".toMediaType()
 
+    override fun getModels(providerName: String): List<String> = metadata.models
+
     override fun generateContentStream(sessionId: String?, prompt: String, apiKey: String, provider: String, model: String): Flow<AiEvent> = flow {
         val result = generateContent(prompt, apiKey, provider, model)
         when (result) {

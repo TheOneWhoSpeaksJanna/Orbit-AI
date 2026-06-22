@@ -7,6 +7,10 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.CreationExtras
 import com.omniclaw.OmniClawApplication
 import com.omniclaw.data.local.prefs.PreferencesManager
+import com.omniclaw.data.local.updater.UpdateManager
+import com.omniclaw.data.local.updater.UpdateState
+import com.omniclaw.data.local.updater.UpdateInfo
+import com.omniclaw.BuildConfig
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -14,7 +18,8 @@ import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.launch
 
 class SettingsViewModel(
-    private val prefsManager: PreferencesManager
+    private val prefsManager: PreferencesManager,
+    private val updateManager: UpdateManager
 ) : ViewModel() {
 
     private val _geminiApiKey = MutableStateFlow("")
@@ -71,13 +76,30 @@ class SettingsViewModel(
         viewModelScope.launch { prefsManager.setThemeMode(mode) }
     }
 
+    // Update management
+    val appVersion: String = BuildConfig.VERSION_NAME
+    val updateState: StateFlow<UpdateState> = updateManager.updateState
+
+    fun checkForUpdates() {
+        viewModelScope.launch { updateManager.checkForUpdates() }
+    }
+
+    fun downloadUpdate(info: UpdateInfo) {
+        viewModelScope.launch { updateManager.downloadUpdate(info) }
+    }
+
+    fun installUpdate(filePath: String) {
+        updateManager.installApk(filePath)
+    }
+
     companion object {
         val Factory: ViewModelProvider.Factory = object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
             override fun <T : ViewModel> create(modelClass: Class<T>, extras: CreationExtras): T {
                 val application = checkNotNull(extras[APPLICATION_KEY]) as OmniClawApplication
                 return SettingsViewModel(
-                    application.container.prefsManager
+                    application.container.prefsManager,
+                    application.container.updateManager
                 ) as T
             }
         }

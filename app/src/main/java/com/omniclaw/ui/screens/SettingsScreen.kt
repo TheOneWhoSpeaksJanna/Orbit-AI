@@ -11,7 +11,9 @@ import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -32,6 +34,8 @@ fun SettingsScreen(
     val claudeApiKey by viewModel.claudeApiKey.collectAsState()
     val openRouterApiKey by viewModel.openRouterApiKey.collectAsState()
     val themeMode by viewModel.themeMode.collectAsState()
+    val updateState by viewModel.updateState.collectAsState()
+    val appVersion = viewModel.appVersion
 
     var geminiVisible by remember { mutableStateOf(false) }
     var openAiVisible by remember { mutableStateOf(false) }
@@ -142,6 +146,126 @@ fun SettingsScreen(
                                         expanded = false
                                     }
                                 )
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Updates section
+            Card(
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                shape = MaterialTheme.shapes.extraLarge
+            ) {
+                Column(modifier = Modifier.padding(20.dp).fillMaxWidth()) {
+                    Text("Updates", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        "Version $appVersion",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    when (val state = updateState) {
+                        is UpdateState.Idle -> {
+                            Button(
+                                onClick = { viewModel.checkForUpdates() },
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = MaterialTheme.shapes.medium
+                            ) {
+                                Text("Check for Updates")
+                            }
+                        }
+                        is UpdateState.Checking -> {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                                Spacer(Modifier.width(12.dp))
+                                Text("Checking for updates...", style = MaterialTheme.typography.bodySmall)
+                            }
+                        }
+                        is UpdateState.Available -> {
+                            Text(
+                                "Update v${state.info.latestVersion} available",
+                                style = MaterialTheme.typography.titleSmall,
+                                color = MaterialTheme.colorScheme.primary,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            if (state.info.releaseNotes.isNotBlank()) {
+                                Spacer(Modifier.height(4.dp))
+                                Text(
+                                    state.info.releaseNotes.take(200),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 3
+                                )
+                            }
+                            Spacer(Modifier.height(12.dp))
+                            Button(
+                                onClick = { viewModel.downloadUpdate(state.info) },
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = MaterialTheme.shapes.medium
+                            ) {
+                                Text("Download Update")
+                            }
+                        }
+                        is UpdateState.UpToDate -> {
+                            Text(
+                                "You're up to date!",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Spacer(Modifier.height(8.dp))
+                            OutlinedButton(
+                                onClick = { viewModel.checkForUpdates() },
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = MaterialTheme.shapes.medium
+                            ) {
+                                Text("Check Again")
+                            }
+                        }
+                        is UpdateState.Downloading -> {
+                            LinearProgressIndicator(
+                                progress = { state.progress },
+                                modifier = Modifier.fillMaxWidth().height(6.dp).clip(MaterialTheme.shapes.small),
+                                color = MaterialTheme.colorScheme.primary,
+                                trackColor = MaterialTheme.colorScheme.surfaceVariant
+                            )
+                            Spacer(Modifier.height(8.dp))
+                            Text(
+                                "Downloading... ${(state.progress * 100).toInt()}%",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        is UpdateState.Downloaded -> {
+                            Text(
+                                "Download complete!",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            Spacer(Modifier.height(8.dp))
+                            Button(
+                                onClick = { viewModel.installUpdate(state.filePath) },
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = MaterialTheme.shapes.medium
+                            ) {
+                                Text("Install Update")
+                            }
+                        }
+                        is UpdateState.Failed -> {
+                            Text(
+                                state.message,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.error
+                            )
+                            Spacer(Modifier.height(8.dp))
+                            OutlinedButton(
+                                onClick = { viewModel.checkForUpdates() },
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = MaterialTheme.shapes.medium
+                            ) {
+                                Text("Retry")
                             }
                         }
                     }
