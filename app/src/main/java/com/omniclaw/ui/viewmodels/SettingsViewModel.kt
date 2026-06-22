@@ -38,10 +38,10 @@ class SettingsViewModel(
 
     private fun loadApiKeys() {
         viewModelScope.launch {
-            _geminiApiKey.value = prefsManager.getApiKeyForProvider("Gemini") ?: ""
-            _openAiApiKey.value = prefsManager.getApiKeyForProvider("OpenAI") ?: ""
-            _claudeApiKey.value = prefsManager.getApiKeyForProvider("Claude") ?: ""
-            _openRouterApiKey.value = prefsManager.getApiKeyForProvider("OpenRouter") ?: ""
+            _geminiApiKey.value = prefsManager.getApiKeyForProvider("Gemini").firstOrNull() ?: ""
+            _openAiApiKey.value = prefsManager.getApiKeyForProvider("OpenAI").firstOrNull() ?: ""
+            _claudeApiKey.value = prefsManager.getApiKeyForProvider("Claude").firstOrNull() ?: ""
+            _openRouterApiKey.value = prefsManager.getApiKeyForProvider("OpenRouter").firstOrNull() ?: ""
             _themeMode.value = prefsManager.themeMode.firstOrNull() ?: "system"
         }
     }

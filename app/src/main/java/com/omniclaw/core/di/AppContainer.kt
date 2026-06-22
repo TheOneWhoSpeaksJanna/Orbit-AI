@@ -42,7 +42,7 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
     }
 
     override val prefsManager: PreferencesManager by lazy {
-        PreferencesManager(context, CredentialsStore(context))
+        PreferencesManager(context)
     }
 
     override val aiProvider: AiProvider by lazy {

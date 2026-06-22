@@ -11,6 +11,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
@@ -62,7 +63,7 @@ class ProvidersViewModel(
     private fun loadApiKeyStatus() {
         viewModelScope.launch {
             val updated = _providers.value.map { provider ->
-                val key = prefsManager.getApiKeyForProvider(provider.name)
+                val key = prefsManager.getApiKeyForProvider(provider.name).firstOrNull()
                 provider.copy(apiKeyConfigured = !key.isNullOrBlank())
             }
             _providers.value = updated
@@ -81,7 +82,8 @@ class ProvidersViewModel(
                 return@launch
             }
 
-            val key = prefsManager.getApiKeyForProvider(providerName)
+            val keyFlow = prefsManager.getApiKeyForProvider(providerName)
+            val key = keyFlow.firstOrNull()
 
             if (key.isNullOrBlank()) {
                 updateProviderState(providerName, ConnectionState.Unauthorized("No API key configured"))
@@ -91,7 +93,7 @@ class ProvidersViewModel(
             updateProviderState(providerName, ConnectionState.Verifying)
 
             val result = withContext(Dispatchers.IO) {
-                performHealthCheck(providerName, key)
+                performHealthCheck(providerName, key ?: "")
             }
 
             updateProviderState(providerName, result)

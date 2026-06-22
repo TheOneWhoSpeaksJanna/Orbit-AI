@@ -1,11 +1,13 @@
 package com.omniclaw.ui.viewmodels
 
+import androidx.annotation.StringRes
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.APPLICATION_KEY
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.CreationExtras
 import com.omniclaw.OmniClawApplication
+import com.omniclaw.R
 import com.omniclaw.data.local.prefs.PreferencesManager
 import com.omniclaw.domain.models.Agent
 import com.omniclaw.domain.api.AiProvider
@@ -14,6 +16,15 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+
+enum class SetupStep(@StringRes val labelResId: Int) {
+    Welcome(R.string.step_welcome),
+    Theme(R.string.step_theme),
+    Agent(R.string.step_agent),
+    Provider(R.string.step_provider),
+    Shizuku(R.string.step_shizuku),
+    Summary(R.string.step_summary);
+}
 
 class SetupViewModel(
     private val prefsManager: PreferencesManager,
