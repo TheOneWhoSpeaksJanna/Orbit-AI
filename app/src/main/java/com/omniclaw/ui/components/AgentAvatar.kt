@@ -228,7 +228,7 @@ private fun DrawScope.drawHookIcon(color: Color, s: Float) {
 }
 
 /** OpenCode Agent — infinity symbol with code spark */
-private fun drawOpenCodeIcon(color: Color, s: Float) {
+private fun DrawScope.drawOpenCodeIcon(color: Color, s: Float) {
     // Infinity symbol (horizontal figure-8)
     val infinityPath = Path().apply {
         moveTo(14f * s, 24f * s)
