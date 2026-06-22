@@ -31,7 +31,8 @@ import com.omniclaw.ui.components.AnimatedGlassCard
 import com.omniclaw.ui.viewmodels.SetupStep
 import com.omniclaw.ui.viewmodels.SetupViewModel
 import com.omniclaw.ui.theme.*
-import rikka.shizuku.Shizuku
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalAnimationApi::class, ExperimentalMaterial3Api::class)
 @Composable
@@ -41,6 +42,7 @@ fun SetupWizardScreen(
 ) {
     val currentStep by viewModel.currentStep.collectAsState()
     val currentStepDef = SetupStep.entries[currentStep]
+    val scope = rememberCoroutineScope()
 
     Scaffold(
         containerColor = OmniClawObsidianBase,
@@ -89,7 +91,10 @@ fun SetupWizardScreen(
                 } else {
                     Button(onClick = {
                         viewModel.completeSetup()
-                        onFinishSetup()
+                        scope.launch {
+                            delay(300)
+                            onFinishSetup()
+                        }
                     }) {
                         Text(stringResource(R.string.finish_setup))
                     }

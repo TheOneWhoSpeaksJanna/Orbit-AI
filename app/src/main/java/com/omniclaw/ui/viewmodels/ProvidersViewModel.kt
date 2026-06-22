@@ -163,7 +163,7 @@ class ProvidersViewModel(
                 .build()
 
             "OpenRouter" -> Request.Builder()
-                .url("https://openrouter.ai/api/v1/models")
+                .url("https://openrouter.ai/api/v1/auth/key")
                 .header("Authorization", "Bearer $apiKey")
                 .get()
                 .build()
