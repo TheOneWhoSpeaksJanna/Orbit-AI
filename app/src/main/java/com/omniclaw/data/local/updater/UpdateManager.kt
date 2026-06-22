@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
 import java.io.FileOutputStream
@@ -54,46 +55,44 @@ class UpdateManager(
         _updateState.value = UpdateState.Checking
         try {
             val result = withContext(Dispatchers.IO) {
-                val request = Request.Builder()
-                    .url("https://api.github.com/repos/$repoOwner/$repoName/releases/latest")
-                    .header("Accept", "application/vnd.github.v3+json")
-                    .build()
+                val response = httpClient.newCall(
+                    Request.Builder()
+                        .url("https://api.github.com/repos/$repoOwner/$repoName/releases/latest")
+                        .header("Accept", "application/vnd.github.v3+json")
+                        .build()
+                ).execute()
 
-                val response = httpClient.newCall(request).execute()
-                if (!response.isSuccessful) {
-                    throw Exception("GitHub API returned ${response.code}")
-                }
+                if (response.code == 404) {
+                    // No releases published yet - try listing all releases
+                    val listResponse = httpClient.newCall(
+                        Request.Builder()
+                            .url("https://api.github.com/repos/$repoOwner/$repoName/releases?per_page=1")
+                            .header("Accept", "application/vnd.github.v3+json")
+                            .build()
+                    ).execute()
 
-                val body = response.body?.string() ?: throw Exception("Empty response")
-                val json = JSONObject(body)
-                val tagName = json.optString("tag_name", "").removePrefix("v")
-                val releaseNotes = json.optString("body", "")
-                val assets = json.optJSONArray("assets")
-                var downloadUrl = ""
-
-                if (assets != null) {
-                    for (i in 0 until assets.length()) {
-                        val asset = assets.getJSONObject(i)
-                        val name = asset.optString("name", "")
-                        if (name.endsWith(".apk")) {
-                            downloadUrl = asset.optString("browser_download_url", "")
-                            break
-                        }
+                    if (!listResponse.isSuccessful || listResponse.body == null) {
+                        return@withContext null
                     }
+                    val listBody = listResponse.body!!.string()
+                    val releasesArray = JSONArray(listBody)
+                    if (releasesArray.length() == 0) {
+                        return@withContext null
+                    }
+                    val json = releasesArray.getJSONObject(0)
+                    parseReleaseJson(json)
+                } else if (!response.isSuccessful) {
+                    throw Exception("GitHub API returned ${response.code}")
+                } else {
+                    val body = response.body?.string() ?: throw Exception("Empty response")
+                    val json = JSONObject(body)
+                    parseReleaseJson(json)
                 }
-
-                val currentVersion = BuildConfig.VERSION_NAME
-                val isNewer = compareVersions(tagName, currentVersion) > 0
-
-                UpdateInfo(
-                    latestVersion = tagName,
-                    downloadUrl = downloadUrl,
-                    releaseNotes = releaseNotes,
-                    isNewer = isNewer
-                )
             }
 
-            if (result.isNewer && result.downloadUrl.isNotBlank()) {
+            if (result == null) {
+                _updateState.value = UpdateState.UpToDate
+            } else if (result.isNewer && result.downloadUrl.isNotBlank()) {
                 _updateState.value = UpdateState.Available(result)
             } else {
                 _updateState.value = UpdateState.UpToDate
@@ -177,5 +176,33 @@ class UpdateManager(
             if (p1 != p2) return p1 - p2
         }
         return 0
+    }
+
+    private fun parseReleaseJson(json: JSONObject): UpdateInfo {
+        val tagName = json.optString("tag_name", "").removePrefix("v")
+        val releaseNotes = json.optString("body", "")
+        val assets = json.optJSONArray("assets")
+        var downloadUrl = ""
+
+        if (assets != null) {
+            for (i in 0 until assets.length()) {
+                val asset = assets.getJSONObject(i)
+                val name = asset.optString("name", "")
+                if (name.endsWith(".apk")) {
+                    downloadUrl = asset.optString("browser_download_url", "")
+                    break
+                }
+            }
+        }
+
+        val currentVersion = BuildConfig.VERSION_NAME
+        val isNewer = compareVersions(tagName, currentVersion) > 0
+
+        return UpdateInfo(
+            latestVersion = tagName,
+            downloadUrl = downloadUrl,
+            releaseNotes = releaseNotes,
+            isNewer = isNewer
+        )
     }
 }

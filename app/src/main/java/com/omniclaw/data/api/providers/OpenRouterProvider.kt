@@ -165,6 +165,9 @@ class OpenRouterProvider : AiProvider {
         }
     }
 
+    override suspend fun createSession(sessionId: String, systemPrompt: String?) { }
+    override suspend fun deleteSession(sessionId: String) { }
+
     override val metadata: ProviderMetadata = ProviderMetadata(
         name = "OpenRouter",
         displayName = "OpenRouter",
