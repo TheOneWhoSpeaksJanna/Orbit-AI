@@ -51,7 +51,7 @@ class OpenCodeRepositoryImpl : OpenCodeRepository {
             description = "Real-time filesystem monitoring and event-driven action triggers",
             category = AgentCategory.UTILITY,
             downloadUrl = "https://opencode.omniclaw.ai/packages/file-watcher-v1.tar.gz",
-            iconName = "folder",
+            iconName = "eye",
             version = "1.0.2",
             fileSize = 512_000L
         ),
@@ -61,7 +61,7 @@ class OpenCodeRepositoryImpl : OpenCodeRepository {
             description = "Local network discovery, port scanning, and connectivity diagnostics",
             category = AgentCategory.SECURITY,
             downloadUrl = "https://opencode.omniclaw.ai/packages/network-scanner-v1.tar.gz",
-            iconName = "network",
+            iconName = "radar",
             version = "1.1.0",
             fileSize = 768_000L
         ),
@@ -71,7 +71,7 @@ class OpenCodeRepositoryImpl : OpenCodeRepository {
             description = "Extract, transform, and load data with scheduled batch processing",
             category = AgentCategory.ANALYTICS,
             downloadUrl = "https://opencode.omniclaw.ai/packages/data-pipeline-v2.tar.gz",
-            iconName = "analytics",
+            iconName = "database",
             version = "2.0.0",
             fileSize = 3_200_000L
         ),
@@ -84,6 +84,16 @@ class OpenCodeRepositoryImpl : OpenCodeRepository {
             iconName = "hook",
             version = "1.0.5",
             fileSize = 384_000L
+        ),
+        DownloadableAgent(
+            id = "oc-opencode",
+            name = "OpenCode Agent",
+            description = "Autonomous AI coding agent with shell integration, file system access, and real-time collaboration for Termux",
+            category = AgentCategory.DEVELOPER,
+            downloadUrl = "https://opencode.omniclaw.ai/packages/opencode-agent-v1.tar.gz",
+            iconName = "opencode",
+            version = "1.0.0",
+            fileSize = 4_500_000L
         )
     )
 }

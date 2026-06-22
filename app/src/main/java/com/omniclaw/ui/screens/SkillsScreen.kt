@@ -20,11 +20,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.CloudDownload
-import androidx.compose.material.icons.filled.Extension
-import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Memory
-import androidx.compose.material.icons.filled.Security
-import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -38,12 +34,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.omniclaw.domain.models.AgentCategory
 import com.omniclaw.domain.models.DownloadState
 import com.omniclaw.domain.models.DownloadableAgent
+import com.omniclaw.ui.components.AgentAvatar
 import com.omniclaw.ui.theme.OmniClawAccent
 import com.omniclaw.ui.theme.OmniClawAccentSecondary
 import com.omniclaw.ui.theme.OmniClawGlassOverlay
@@ -184,7 +181,7 @@ private fun DownloadableAgentCard(
     onDownload: () -> Unit
 ) {
     val shape = remember { RoundedCornerShape(14.dp) }
-    val accent = categoryAccent(agent.category)
+    val accent = agentAccent(agent)
 
     Box(
         modifier = Modifier
@@ -194,20 +191,11 @@ private fun DownloadableAgentCard(
             .padding(16.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                modifier = Modifier
-                    .size(48.dp)
-                    .clip(CircleShape)
-                    .background(accent.copy(alpha = 0.15f)),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = categoryIcon(agent.category),
-                    contentDescription = null,
-                    modifier = Modifier.size(24.dp),
-                    tint = accent
-                )
-            }
+            AgentAvatar(
+                iconName = agent.iconName,
+                accentColor = accent,
+                size = 48.dp
+            )
             Spacer(modifier = Modifier.width(14.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
@@ -324,22 +312,15 @@ private fun DownloadButton(
     }
 }
 
-private fun categoryAccent(category: AgentCategory): androidx.compose.ui.graphics.Color = when (category) {
-    AgentCategory.UTILITY -> OmniClawSuccess
-    AgentCategory.AUTOMATION -> OmniClawAccent
-    AgentCategory.CUSTOM_LOGIC -> androidx.compose.ui.graphics.Color(0xFF8B5CF6)
-    AgentCategory.DEVELOPER -> androidx.compose.ui.graphics.Color(0xFF3B82F6)
-    AgentCategory.ANALYTICS -> androidx.compose.ui.graphics.Color(0xFFF59E0B)
-    AgentCategory.SECURITY -> androidx.compose.ui.graphics.Color(0xFFEF4444)
-}
-
-private fun categoryIcon(category: AgentCategory): androidx.compose.ui.graphics.vector.ImageVector = when (category) {
-    AgentCategory.UTILITY -> Icons.Default.Extension
-    AgentCategory.AUTOMATION -> Icons.Default.Build
-    AgentCategory.CUSTOM_LOGIC -> Icons.Default.Star
-    AgentCategory.DEVELOPER -> Icons.Default.Memory
-    AgentCategory.ANALYTICS -> Icons.Default.Favorite
-    AgentCategory.SECURITY -> Icons.Default.Security
+private fun agentAccent(agent: DownloadableAgent): Color = when (agent.iconName) {
+    "terminal" -> Color(0xFF34D399)
+    "code" -> Color(0xFF3B82F6)
+    "eye" -> Color(0xFF8B5CF6)
+    "radar" -> Color(0xFFF97316)
+    "database" -> Color(0xFFF59E0B)
+    "hook" -> Color(0xFFEC4899)
+    "opencode" -> Color(0xFF06B6D4)
+    else -> OmniClawAccent
 }
 
 @Composable

@@ -19,15 +19,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Cloud
-import androidx.compose.material.icons.filled.Computer
-import androidx.compose.material.icons.filled.FlashOn
-import androidx.compose.material.icons.filled.Lightbulb
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Send
-import androidx.compose.material.icons.filled.Share
-import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -45,6 +37,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.omniclaw.ui.components.BrandIcons
 import com.omniclaw.ui.viewmodels.ConnectionState
 import com.omniclaw.ui.viewmodels.ProviderConfig
 import com.omniclaw.ui.viewmodels.ProvidersViewModel
@@ -215,14 +208,14 @@ private fun providerAccent(name: String): Color = when (name) {
 }
 
 private fun providerIcon(name: String): androidx.compose.ui.graphics.vector.ImageVector = when (name) {
-    "Claude" -> Icons.Default.Send
-    "OpenAI" -> Icons.Default.Lightbulb
-    "Gemini" -> Icons.Default.Star
-    "OpenRouter" -> Icons.Default.Share
-    "DeepSeek" -> Icons.Default.Search
-    "Groq" -> Icons.Default.FlashOn
-    "Ollama" -> Icons.Default.Computer
-    else -> Icons.Default.Cloud
+    "Claude" -> BrandIcons.Claude
+    "OpenAI" -> BrandIcons.OpenAI
+    "Gemini" -> BrandIcons.Gemini
+    "OpenRouter" -> BrandIcons.OpenRouter
+    "DeepSeek" -> BrandIcons.DeepSeek
+    "Groq" -> BrandIcons.Groq
+    "Ollama" -> BrandIcons.Ollama
+    else -> BrandIcons.OpenRouter
 }
 
 private fun ConnectionState.statusColor(): Color = when (this) {
