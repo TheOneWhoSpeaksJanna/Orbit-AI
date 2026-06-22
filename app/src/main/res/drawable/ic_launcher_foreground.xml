@@ -67,7 +67,7 @@
         android:pathData="M75.5,33m-3.5,0a3.5,3.5 0 1,1 7,0a3.5,3.5 0 1,1 -7,0" />
     <path
         android:fillColor="@color/ic_omniclaw_glow"
-        android:opacity="0.4"
+        android:fillAlpha="0.4"
         android:pathData="M75.5,33m-5.5,0a5.5,5.5 0 1,1 11,0a5.5,5.5 0 1,1 -11,0" />
 
     <!-- Node 2 — left inner ring -->
@@ -76,7 +76,7 @@
         android:pathData="M35,54m-3,0a3,3 0 1,1 6,0a3,3 0 1,1 -6,0" />
     <path
         android:fillColor="@color/ic_omniclaw_core"
-        android:opacity="0.4"
+        android:fillAlpha="0.4"
         android:pathData="M35,54m-5,0a5,5 0 1,1 10,0a5,5 0 1,1 -10,0" />
 
     <!-- Node 3 — bottom outer ring -->
@@ -85,7 +85,7 @@
         android:pathData="M72,78m-3,0a3,3 0 1,1 6,0a3,3 0 1,1 -6,0" />
     <path
         android:fillColor="@color/ic_omniclaw_node"
-        android:opacity="0.4"
+        android:fillAlpha="0.4"
         android:pathData="M72,78m-5,0a5,5 0 1,1 10,0a5,5 0 1,1 -10,0" />
 
     <!-- Node 4 — right inner ring -->
@@ -94,7 +94,7 @@
         android:pathData="M73,54m-2.5,0a2.5,2.5 0 1,1 5,0a2.5,2.5 0 1,1 -5,0" />
     <path
         android:fillColor="@color/ic_omniclaw_accent"
-        android:opacity="0.4"
+        android:fillAlpha="0.4"
         android:pathData="M73,54m-4.5,0a4.5,4.5 0 1,1 9,0a4.5,4.5 0 1,1 -9,0" />
 
     <!-- Node 5 — small node top-left outer ring -->
