@@ -1,4 +1,4 @@
-package com.example.data.local.prefs
+package com.omniclaw.data.local.prefs
 
 import android.content.Context
 import androidx.datastore.preferences.core.booleanPreferencesKey

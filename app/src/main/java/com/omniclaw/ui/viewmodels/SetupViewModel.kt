@@ -1,15 +1,15 @@
-package com.example.presentation.viewmodels
+package com.omniclaw.ui.viewmodels
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.APPLICATION_KEY
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.CreationExtras
-import com.example.OrbitApplication
-import com.example.data.local.prefs.PreferencesManager
-import com.example.domain.model.Agent
-import com.example.domain.api.AiProvider
-import com.example.domain.repository.OrbitRepository
+import com.omniclaw.OmniClawApplication
+import com.omniclaw.data.local.prefs.PreferencesManager
+import com.omniclaw.domain.models.Agent
+import com.omniclaw.domain.api.AiProvider
+import com.omniclaw.domain.repository.OmniClawRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -17,7 +17,7 @@ import kotlinx.coroutines.launch
 
 class SetupViewModel(
     private val prefsManager: PreferencesManager,
-    private val repository: OrbitRepository,
+    private val repository: OmniClawRepository,
     private val aiProvider: AiProvider
 ) : ViewModel() {
 
@@ -111,7 +111,7 @@ class SetupViewModel(
         val Factory: ViewModelProvider.Factory = object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
             override fun <T : ViewModel> create(modelClass: Class<T>, extras: CreationExtras): T {
-                val application = checkNotNull(extras[APPLICATION_KEY]) as OrbitApplication
+                val application = checkNotNull(extras[APPLICATION_KEY]) as OmniClawApplication
                 return SetupViewModel(
                     application.container.prefsManager,
                     application.container.repository,

@@ -1,4 +1,4 @@
-package com.example.presentation.screens
+package com.omniclaw.ui.screens
 
 import android.content.pm.PackageManager
 import androidx.compose.foundation.background
@@ -25,7 +25,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.example.presentation.viewmodels.TermuxViewModel
+import com.omniclaw.ui.viewmodels.TermuxViewModel
 import rikka.shizuku.Shizuku
 
 @OptIn(ExperimentalMaterial3Api::class)

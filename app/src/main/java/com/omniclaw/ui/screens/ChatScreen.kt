@@ -1,4 +1,4 @@
-package com.example.presentation.screens
+package com.omniclaw.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -22,8 +22,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.example.domain.model.MessageRole
-import com.example.presentation.viewmodels.ChatViewModel
+import com.omniclaw.domain.models.MessageRole
+import com.omniclaw.ui.viewmodels.ChatViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

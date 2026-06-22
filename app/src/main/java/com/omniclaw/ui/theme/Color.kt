@@ -52,3 +52,7 @@ val OmniClawObsidianElevated = Color(0xFF0F1423)
 val OmniClawSuccess = Color(0xFF22C55E)
 val OmniClawWarning = Color(0xFFF59E0B)
 val OmniClawError = Color(0xFFEF4444)
+
+// ─── Backward-Compatible Aliases ────────────────────────────
+val OmniClawAccent = OmniClawSecondary
+val OmniClawAccentSecondary = OmniClawPrimary

@@ -1,21 +1,21 @@
-package com.example.presentation.viewmodels
+package com.omniclaw.ui.viewmodels
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.APPLICATION_KEY
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.CreationExtras
-import com.example.OrbitApplication
-import com.example.core.di.AppContainer
-import com.example.data.local.runner.LocalCommandRunner
-import com.example.data.local.prefs.PreferencesManager
-import com.example.domain.api.AiProvider
-import com.example.domain.api.AiResult
-import com.example.domain.model.ChatSession
-import com.example.domain.model.Message
-import com.example.domain.model.MessageRole
-import com.example.domain.model.TermuxLog
-import com.example.domain.repository.OrbitRepository
+import com.omniclaw.OmniClawApplication
+import com.omniclaw.core.di.AppContainer
+import com.omniclaw.data.local.runner.LocalCommandRunner
+import com.omniclaw.data.local.prefs.PreferencesManager
+import com.omniclaw.domain.api.AiProvider
+import com.omniclaw.domain.api.AiResult
+import com.omniclaw.domain.models.ChatSession
+import com.omniclaw.domain.models.Message
+import com.omniclaw.domain.models.MessageRole
+import com.omniclaw.domain.models.TermuxLog
+import com.omniclaw.domain.repository.OmniClawRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -24,7 +24,7 @@ import kotlinx.coroutines.launch
 import java.util.UUID
 
 class ChatViewModel(
-    private val repository: OrbitRepository,
+    private val repository: OmniClawRepository,
     private val aiProvider: AiProvider,
     private val localCommandRunner: LocalCommandRunner,
     private val prefsManager: PreferencesManager
@@ -187,7 +187,7 @@ class ChatViewModel(
         val Factory: ViewModelProvider.Factory = object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
             override fun <T : ViewModel> create(modelClass: Class<T>, extras: CreationExtras): T {
-                val application = checkNotNull(extras[APPLICATION_KEY]) as OrbitApplication
+                val application = checkNotNull(extras[APPLICATION_KEY]) as OmniClawApplication
                 return ChatViewModel(
                     application.container.repository,
                     application.container.aiProvider,
