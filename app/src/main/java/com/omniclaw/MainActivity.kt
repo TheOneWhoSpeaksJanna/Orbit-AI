@@ -18,7 +18,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             OmniClawTheme {
-                val viewModel: MainViewModel = viewModel()
+                val viewModel: MainViewModel = viewModel(factory = MainViewModel.Factory)
                 val destination by viewModel.startDestination.collectAsState()
                 destination?.let { dest ->
                     if (dest == "setup") {
