@@ -2,9 +2,6 @@ package com.omniclaw.ui.components
 
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.StrokeJoin
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.vector.path
 import androidx.compose.ui.unit.dp
@@ -101,22 +98,28 @@ object BrandIcons {
         viewportWidth = 24f,
         viewportHeight = 24f
     ).apply {
-        path(
-            fill = SolidColor(Color.White),
-            stroke = Stroke(width = 2.5f, cap = StrokeCap.Round, join = StrokeJoin.Round)
-        ) {
-            // Simplified "S" curve using line segments
-            moveTo(6f, 16f)
-            lineTo(6f, 14f)
-            lineTo(10f, 14f)
-            lineTo(10f, 10f)
-            lineTo(6f, 10f)
-            moveTo(18f, 8f)
-            lineTo(14f, 8f)
-            lineTo(14f, 12f)
-            lineTo(18f, 12f)
-            lineTo(18f, 16f)
-            lineTo(14f, 16f)
+        // Abstract whale / curved-wave silhouette (fill-based)
+        path(fill = SolidColor(Color.White)) {
+            // Top curve from left
+            moveTo(5f, 16f)
+            lineTo(5f, 12f)
+            lineTo(8f, 12f)
+            lineTo(8f, 9f)
+            lineTo(11f, 9f)
+            lineTo(11f, 8f)
+            lineTo(16f, 8f)
+            // Right side — bottom curve
+            lineTo(16f, 10f)
+            lineTo(19f, 10f)
+            lineTo(19f, 16f)
+            lineTo(16f, 16f)
+            // Bottom curve back to left
+            lineTo(16f, 14f)
+            lineTo(13f, 14f)
+            lineTo(13f, 15f)
+            lineTo(8f, 15f)
+            lineTo(8f, 16f)
+            close()
         }
     }.build()
 
