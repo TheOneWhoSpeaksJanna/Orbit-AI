@@ -281,12 +281,14 @@ private fun LoadingBubble() {
                     val alpha by infiniteTransition.animateFloat(
                         initialValue = 0.3f,
                         targetValue = 1.0f,
-                        animationSpec = keyframes {
-                            durationMillis = 900
-                            0.3f at 0
-                            1.0f at 450
-                            0.3f at 900
-                        },
+                        animationSpec = infiniteRepeatable(
+                            animation = keyframes {
+                                durationMillis = 900
+                                0.3f at 0
+                                1.0f at 450
+                                0.3f at 900
+                            }
+                        ),
                         label = "dotAlpha"
                     )
                     Box(

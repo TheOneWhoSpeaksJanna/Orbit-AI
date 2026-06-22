@@ -1,6 +1,8 @@
 package com.omniclaw.ui.screens
 
 import com.omniclaw.R
+import com.omniclaw.data.local.updater.UpdateState
+import com.omniclaw.data.local.updater.UpdateInfo
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
