@@ -1,52 +1,31 @@
-package com.omniclaw.ui.screens
+package com.example.presentation.screens
 
 import android.content.pm.PackageManager
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Terminal
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FloatingActionButton
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.omniclaw.R
-import com.omniclaw.ui.components.AgentCardsGrid
-import com.omniclaw.ui.components.CodexSection
-import com.omniclaw.ui.components.QuickActionsBar
-import com.omniclaw.ui.viewmodels.DashboardViewModel
+import com.example.presentation.viewmodels.DashboardViewModel
 import rikka.shizuku.Shizuku
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -61,14 +40,11 @@ fun DashboardScreen(
     onNavigateToTermux: () -> Unit,
     viewModel: DashboardViewModel = viewModel(factory = DashboardViewModel.Factory)
 ) {
+    val projects by viewModel.projects.collectAsState()
     val sessions by viewModel.sessions.collectAsState()
-    val agents by viewModel.agents.collectAsState()
-    val termuxLogs by viewModel.termuxLogs.collectAsState()
     val activeAgent by viewModel.activeAgent.collectAsState()
-    val activeProvider by viewModel.activeProvider.collectAsState()
     val shizukuEnabled by viewModel.shizukuEnabled.collectAsState()
-    val activeSessionToolCalls by viewModel.activeSessionToolCalls.collectAsState()
-    val gitDiffResult by viewModel.gitDiffResult.collectAsState()
+    val activeProvider by viewModel.activeProvider.collectAsState()
 
     val context = LocalContext.current
     var isShizukuActive by remember { mutableStateOf(false) }
@@ -77,24 +53,35 @@ fun DashboardScreen(
         val isInstalled = try {
             context.packageManager.getPackageInfo("moe.shizuku.privileged.api", 0)
             true
-        } catch (e: PackageManager.NameNotFoundException) {
+        } catch (_: PackageManager.NameNotFoundException) {
             false
         }
-        if (isInstalled && Shizuku.pingBinder()) {
-            isShizukuActive = Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED
-        }
+        isShizukuActive = isInstalled
+                && Shizuku.pingBinder()
+                && Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED
     }
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(stringResource(R.string.omniclaw_workspace), fontWeight = FontWeight.Bold) },
+                title = {
+                    Column {
+                        Text("Orbit", fontWeight = FontWeight.Bold)
+                        activeProvider?.let {
+                            Text(
+                                it,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                },
                 actions = {
                     IconButton(onClick = onNavigateToTermux) {
-                        Icon(Icons.Default.Terminal, contentDescription = stringResource(R.string.local_tools))
+                        Icon(Icons.Default.Terminal, contentDescription = "Local Tools")
                     }
                     IconButton(onClick = onNavigateToSettings) {
-                        Icon(Icons.Default.Settings, contentDescription = stringResource(R.string.settings))
+                        Icon(Icons.Default.Settings, contentDescription = "Settings")
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -103,8 +90,18 @@ fun DashboardScreen(
             )
         },
         floatingActionButton = {
-            FloatingActionButton(onClick = onNavigateToNewSession) {
-                Icon(Icons.Default.Add, contentDescription = stringResource(R.string.new_session))
+            Surface(
+                shape = CircleShape,
+                shadowElevation = 8.dp,
+                color = MaterialTheme.colorScheme.primary
+            ) {
+                FloatingActionButton(
+                    onClick = onNavigateToNewSession,
+                    containerColor = Color.Transparent,
+                    contentColor = MaterialTheme.colorScheme.onPrimary
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = "New Session")
+                }
             }
         }
     ) { padding ->
@@ -115,107 +112,269 @@ fun DashboardScreen(
                 .padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
+            // Status Cards
+            item {
+                Spacer(Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    // Agent Card
+                    GlassCard(
+                        modifier = Modifier.weight(1f),
+                        gradientColors = listOf(
+                            MaterialTheme.colorScheme.primaryContainer,
+                            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+                        )
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            StatusDot(color = MaterialTheme.colorScheme.primary)
+                            Spacer(Modifier.height(8.dp))
+                            Text(
+                                "Active Agent",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Text(
+                                activeAgent ?: "Hermes",
+                                fontWeight = FontWeight.Bold,
+                                style = MaterialTheme.typography.titleLarge,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            activeProvider?.let {
+                                Text(
+                                    it,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+
+                    // Shizuku Status Card
+                    GlassCard(
+                        modifier = Modifier.weight(1f),
+                        gradientColors = if (isShizukuActive)
+                            listOf(
+                                MaterialTheme.colorScheme.tertiaryContainer,
+                                MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.3f)
+                            )
+                        else
+                            listOf(
+                                MaterialTheme.colorScheme.surfaceVariant,
+                                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+                            )
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            StatusDot(
+                                color = if (isShizukuActive)
+                                    MaterialTheme.colorScheme.tertiary
+                                else
+                                    MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Spacer(Modifier.height(8.dp))
+                            Text(
+                                "Shizuku",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Text(
+                                if (isShizukuActive) "Active" else "Inactive",
+                                fontWeight = FontWeight.Bold,
+                                style = MaterialTheme.typography.titleLarge
+                            )
+                        }
+                    }
+                }
+            }
+
+            // Section Header
             item {
                 Row(
-                    modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 16.dp, bottom = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Card(
-                        modifier = Modifier.weight(1f),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
-                    ) {
-                        Column(modifier = Modifier.padding(16.dp)) {
-                            Text(stringResource(R.string.agent), style = MaterialTheme.typography.labelMedium)
-                            Text(activeAgent ?: "Hermes", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
-                            Text(activeProvider ?: stringResource(R.string.unknown), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f))
-                        }
-                    }
-                    Card(
-                        modifier = Modifier.weight(1f),
-                        colors = CardDefaults.cardColors(containerColor = if (isShizukuActive) MaterialTheme.colorScheme.tertiaryContainer else MaterialTheme.colorScheme.surfaceVariant)
-                    ) {
-                        Column(modifier = Modifier.padding(16.dp)) {
-                            Text(stringResource(R.string.shizuku_status), style = MaterialTheme.typography.labelMedium)
-                            Text(if (isShizukuActive) stringResource(R.string.active) else stringResource(R.string.unavailable), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
-                        }
-                    }
-                }
-            }
-
-            item {
-                QuickActionsBar(
-                    onNewSession = onNavigateToNewSession,
-                    onOpenTerminal = onNavigateToTermux,
-                    onOpenSettings = onNavigateToSettings
-                )
-            }
-
-            if (agents.isNotEmpty()) {
-                item {
                     Text(
-                        text = "AI Agents",
+                        text = "Recent Sessions",
                         style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onBackground
                     )
+                    if (sessions.isNotEmpty()) {
+                        Text(
+                            text = "${sessions.size} total",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
-                item {
-                    AgentCardsGrid(
-                        agents = agents,
-                        activeAgentName = activeAgent,
-                        onAgentSelected = { }
-                    )
-                }
             }
 
-            item {
-                CodexSection(
-                    toolCallRecords = activeSessionToolCalls,
-                    termuxLogs = termuxLogs,
-                    gitDiffResult = gitDiffResult
-                )
-            }
-
-            item {
-                Text(
-                    text = stringResource(R.string.recent_sessions),
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.padding(top = 16.dp, bottom = 8.dp)
-                )
-            }
-
+            // Session List or Empty State
             if (sessions.isEmpty()) {
                 item {
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
-                    ) {
-                        Box(
-                            modifier = Modifier.padding(32.dp).fillMaxWidth(),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(stringResource(R.string.no_sessions), color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                    }
+                    EmptySessionsPlaceholder(onNewSession = onNavigateToNewSession)
                 }
             } else {
                 items(sessions) { session ->
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { onNavigateToSession(session.id) },
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-                    ) {
-                        Column(modifier = Modifier.padding(16.dp)) {
-                            Text(text = session.title, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
-                            Spacer(modifier = Modifier.height(4.dp))
-                            val dateStr = SimpleDateFormat("MMM dd, HH:mm", Locale.getDefault()).format(Date(session.updatedAt))
-                            Text(text = stringResource(R.string.updated_format, dateStr), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                    }
+                    SessionCard(
+                        title = session.title,
+                        updatedAt = session.updatedAt,
+                        onClick = { onNavigateToSession(session.id) }
+                    )
                 }
+            }
+
+            // Bottom spacer for FAB
+            item { Spacer(Modifier.height(80.dp)) }
+        }
+    }
+}
+
+@Composable
+private fun StatusDot(color: Color) {
+    Box(
+        modifier = Modifier
+            .size(8.dp)
+            .clip(CircleShape)
+            .background(color)
+    )
+}
+
+@Composable
+private fun GlassCard(
+    modifier: Modifier = Modifier,
+    gradientColors: List<Color>,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    Surface(
+        modifier = modifier,
+        shape = MaterialTheme.shapes.large,
+        color = Color.Transparent,
+        tonalElevation = 0.dp
+    ) {
+        Box(
+            modifier = Modifier
+                .background(
+                    brush = Brush.linearGradient(gradientColors),
+                    shape = MaterialTheme.shapes.large
+                )
+        ) {
+            // Glass border effect
+            Box(
+                modifier = Modifier
+                    .matchParentSize()
+                    .background(
+                        brush = Brush.linearGradient(
+                            colors = listOf(
+                                Color.White.copy(alpha = 0.08f),
+                                Color.White.copy(alpha = 0.02f)
+                            )
+                        ),
+                        shape = MaterialTheme.shapes.large
+                    )
+            )
+            Column(modifier = Modifier, content = content)
+        }
+    }
+}
+
+@Composable
+private fun EmptySessionsPlaceholder(onNewSession: () -> Unit) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.large,
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(48.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Icon(
+                Icons.Default.Chat,
+                contentDescription = null,
+                modifier = Modifier.size(48.dp),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+            )
+            Spacer(Modifier.height(16.dp))
+            Text(
+                "No sessions yet",
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontWeight = FontWeight.SemiBold
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+                "Start a new session to begin interacting with your AI agent.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                modifier = Modifier.padding(horizontal = 16.dp)
+            )
+            Spacer(Modifier.height(20.dp))
+            FilledTonalButton(onClick = onNewSession) {
+                Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(8.dp))
+                Text("New Session")
+            }
+        }
+    }
+}
+
+@Composable
+private fun SessionCard(
+    title: String,
+    updatedAt: Long,
+    onClick: () -> Unit
+) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+        shape = MaterialTheme.shapes.medium,
+        color = MaterialTheme.colorScheme.surface,
+        tonalElevation = 1.dp
+    ) {
+        Row(
+            modifier = Modifier.padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Session icon
+            Surface(
+                shape = MaterialTheme.shapes.small,
+                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
+            ) {
+                Icon(
+                    Icons.Default.Chat,
+                    contentDescription = null,
+                    modifier = Modifier
+                        .padding(10.dp)
+                        .size(20.dp),
+                    tint = MaterialTheme.colorScheme.primary
+                )
+            }
+            Spacer(Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = title,
+                    fontWeight = FontWeight.SemiBold,
+                    style = MaterialTheme.typography.titleSmall,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Spacer(Modifier.height(2.dp))
+                val dateStr = SimpleDateFormat("MMM dd, HH:mm", Locale.getDefault())
+                    .format(Date(updatedAt))
+                Text(
+                    text = dateStr,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
         }
     }

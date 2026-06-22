@@ -1,21 +1,21 @@
-package com.omniclaw.ui.viewmodels
+package com.example.presentation.viewmodels
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.APPLICATION_KEY
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.CreationExtras
-import com.omniclaw.OmniClawApplication
-import com.omniclaw.core.di.AppContainer
-import com.omniclaw.data.api.tools.ToolRegistry
-import com.omniclaw.data.local.runner.LocalCommandRunner
-import com.omniclaw.domain.api.AiProvider
-import com.omniclaw.domain.api.AiResult
-import com.omniclaw.domain.models.ChatSession
-import com.omniclaw.domain.models.Message
-import com.omniclaw.domain.models.MessageRole
-import com.omniclaw.domain.models.TermuxLog
-import com.omniclaw.domain.repository.OmniClawRepository
+import com.example.OrbitApplication
+import com.example.core.di.AppContainer
+import com.example.data.local.runner.LocalCommandRunner
+import com.example.data.local.prefs.PreferencesManager
+import com.example.domain.api.AiProvider
+import com.example.domain.api.AiResult
+import com.example.domain.model.ChatSession
+import com.example.domain.model.Message
+import com.example.domain.model.MessageRole
+import com.example.domain.model.TermuxLog
+import com.example.domain.repository.OrbitRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -24,11 +24,10 @@ import kotlinx.coroutines.launch
 import java.util.UUID
 
 class ChatViewModel(
-    private val repository: OmniClawRepository,
+    private val repository: OrbitRepository,
     private val aiProvider: AiProvider,
     private val localCommandRunner: LocalCommandRunner,
-    private val prefsManager: com.omniclaw.data.local.prefs.PreferencesManager,
-    private val toolRegistry: ToolRegistry
+    private val prefsManager: PreferencesManager
 ) : ViewModel() {
 
     private val _currentSession = MutableStateFlow<ChatSession?>(null)
@@ -81,17 +80,21 @@ class ChatViewModel(
             _isLoading.value = true
 
             val activeProvider = prefsManager.selectedProvider.firstOrNull() ?: "Gemini"
-            val apiKey = prefsManager.getApiKeyForProvider(activeProvider) ?: ""
             val activeModelName = prefsManager.selectedModel.firstOrNull() ?: ""
-            val activeAgentId = prefsManager.selectedAgent.firstOrNull()?.lowercase()?.replace(" ", "_") ?: "hermes"
-            
+            val activeAgentId = prefsManager.selectedAgent.firstOrNull()
+                ?.lowercase()?.replace(" ", "_") ?: "hermes"
+
+            // Get the correct API key for the selected provider
+            val apiKey = prefsManager.getApiKeyForProvider(activeProvider).firstOrNull() ?: ""
+
             val agentEntity = repository.getAllAgents().firstOrNull()?.find { it.id == activeAgentId }
-            val systemPrompt = agentEntity?.systemPrompt ?: "System: You are an expert AI assistant."
-            
+            val systemPrompt = agentEntity?.systemPrompt
+                ?: "System: You are an expert AI assistant."
+
             // Build full prompt history
             val promptBuilder = StringBuilder()
             promptBuilder.append("$systemPrompt\n\n")
-            
+
             _messages.value.forEach { msg ->
                 promptBuilder.append("${msg.role.name}: ${msg.content}\n")
             }
@@ -99,14 +102,19 @@ class ChatViewModel(
 
             var continueLooping = true
             while (continueLooping) {
-                val result = aiProvider.generateContent(promptBuilder.toString(), apiKey, activeProvider, activeModelName)
-                
+                val result = aiProvider.generateContent(
+                    promptBuilder.toString(), apiKey, activeProvider, activeModelName
+                )
+
                 val modelText = when (result) {
                     is AiResult.Success -> result.text
                     is AiResult.Error -> "Error: ${result.message}"
                 }
-                
-                if (toolRegistry.containsToolCall(modelText)) {
+
+                if (modelText.contains("[RUN: ") || modelText.contains("[SUDO: ")) {
+                    val runMatch = "\\[RUN: (.+?)]".toRegex().find(modelText)
+                    val sudoMatch = "\\[SUDO: (.+?)]".toRegex().find(modelText)
+
                     val actionModelMsg = Message(
                         id = UUID.randomUUID().toString(),
                         sessionId = session.id,
@@ -115,21 +123,40 @@ class ChatViewModel(
                         timestamp = System.currentTimeMillis()
                     )
                     repository.insertMessage(actionModelMsg)
-                    
-                    val toolCalls = toolRegistry.parseToolCalls(modelText)
-                    for (toolCall in toolCalls) {
-                        val execResult = toolRegistry.execute(toolCall)
+
+                    if (runMatch != null) {
+                        val cmd = runMatch.groupValues[1]
+                        val execResult = localCommandRunner.executeCommand(cmd)
                         val toolOutput = "Output: ${execResult.output}\nExitCode: ${execResult.exitCode}"
-                        val loggedCommand = if (toolCall.toolName.equals("SUDO", ignoreCase = true)) "sudo ${toolCall.params}" else toolCall.params
-                        
-                        repository.insertTermuxLog(TermuxLog(
-                            UUID.randomUUID().toString(),
-                            loggedCommand,
-                            execResult.output,
-                            execResult.exitCode,
-                            System.currentTimeMillis()
-                        ))
-                        
+
+                        repository.insertTermuxLog(
+                            TermuxLog(
+                                UUID.randomUUID().toString(), cmd, execResult.output,
+                                execResult.exitCode, System.currentTimeMillis()
+                            )
+                        )
+
+                        val toolMsg = Message(
+                            id = UUID.randomUUID().toString(),
+                            sessionId = session.id,
+                            role = MessageRole.TOOL,
+                            content = toolOutput,
+                            timestamp = System.currentTimeMillis()
+                        )
+                        repository.insertMessage(toolMsg)
+                        promptBuilder.append("$modelText\nTOOL: $toolOutput\nMODEL: ")
+                    } else if (sudoMatch != null) {
+                        val cmd = sudoMatch.groupValues[1]
+                        val execResult = localCommandRunner.executePrivilegedCommand(cmd)
+                        val toolOutput = "Output: ${execResult.output}\nExitCode: ${execResult.exitCode}"
+
+                        repository.insertTermuxLog(
+                            TermuxLog(
+                                UUID.randomUUID().toString(), "sudo $cmd", execResult.output,
+                                execResult.exitCode, System.currentTimeMillis()
+                            )
+                        )
+
                         val toolMsg = Message(
                             id = UUID.randomUUID().toString(),
                             sessionId = session.id,
@@ -160,13 +187,12 @@ class ChatViewModel(
         val Factory: ViewModelProvider.Factory = object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
             override fun <T : ViewModel> create(modelClass: Class<T>, extras: CreationExtras): T {
-                val application = checkNotNull(extras[APPLICATION_KEY]) as OmniClawApplication
+                val application = checkNotNull(extras[APPLICATION_KEY]) as OrbitApplication
                 return ChatViewModel(
                     application.container.repository,
                     application.container.aiProvider,
                     application.container.localCommandRunner,
-                    application.container.prefsManager,
-                    application.container.toolRegistry
+                    application.container.prefsManager
                 ) as T
             }
         }

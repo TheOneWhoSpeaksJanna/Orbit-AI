@@ -1,4 +1,4 @@
-package com.omniclaw.data.local.prefs
+package com.example.data.local.prefs
 
 import android.content.Context
 import androidx.datastore.preferences.core.booleanPreferencesKey
@@ -8,12 +8,9 @@ import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
-val Context.dataStore by preferencesDataStore("omniclaw_prefs")
+val Context.dataStore by preferencesDataStore("orbit_prefs")
 
-class PreferencesManager(
-    private val context: Context,
-    private val credentialsStore: CredentialsStore
-) {
+class PreferencesManager(private val context: Context) {
 
     companion object {
         val THEME_MODE = stringPreferencesKey("theme_mode")
@@ -22,6 +19,12 @@ class PreferencesManager(
         val SELECTED_AGENT = stringPreferencesKey("selected_agent")
         val SELECTED_PROVIDER = stringPreferencesKey("selected_provider")
         val SELECTED_MODEL = stringPreferencesKey("selected_model")
+
+        // Per-provider API keys
+        val GEMINI_API_KEY = stringPreferencesKey("gemini_api_key")
+        val OPENAI_API_KEY = stringPreferencesKey("openai_api_key")
+        val CLAUDE_API_KEY = stringPreferencesKey("claude_api_key")
+        val OPENROUTER_API_KEY = stringPreferencesKey("openrouter_api_key")
     }
 
     val themeMode: Flow<String?> = context.dataStore.data.map { prefs ->
@@ -48,46 +51,81 @@ class PreferencesManager(
         prefs[SELECTED_MODEL]
     }
 
-    suspend fun getApiKeyForProvider(providerName: String): String? =
-        credentialsStore.getApiKey(providerName)
+    // Per-provider API key flows
+    val geminiApiKey: Flow<String?> = context.dataStore.data.map { prefs ->
+        prefs[GEMINI_API_KEY]
+    }
 
-    suspend fun setApiKeyForProvider(providerName: String, key: String) {
-        credentialsStore.setApiKey(providerName, key)
+    val openAiApiKey: Flow<String?> = context.dataStore.data.map { prefs ->
+        prefs[OPENAI_API_KEY]
+    }
+
+    val claudeApiKey: Flow<String?> = context.dataStore.data.map { prefs ->
+        prefs[CLAUDE_API_KEY]
+    }
+
+    val openRouterApiKey: Flow<String?> = context.dataStore.data.map { prefs ->
+        prefs[OPENROUTER_API_KEY]
+    }
+
+    // Unified: get API key for the currently selected provider
+    fun getApiKeyForProvider(provider: String): Flow<String?> {
+        return when (provider.lowercase()) {
+            "gemini" -> geminiApiKey
+            "openai" -> openAiApiKey
+            "claude" -> claudeApiKey
+            "openrouter" -> openRouterApiKey
+            else -> geminiApiKey
+        }
     }
 
     suspend fun setThemeMode(mode: String) {
-        context.dataStore.edit { prefs ->
-            prefs[THEME_MODE] = mode
-        }
+        context.dataStore.edit { prefs -> prefs[THEME_MODE] = mode }
     }
 
     suspend fun setOnboardingComplete(complete: Boolean) {
-        context.dataStore.edit { prefs ->
-            prefs[IS_ONBOARDING_COMPLETE] = complete
-        }
+        context.dataStore.edit { prefs -> prefs[IS_ONBOARDING_COMPLETE] = complete }
     }
 
     suspend fun setShizukuEnabled(enabled: Boolean) {
-        context.dataStore.edit { prefs ->
-            prefs[SHIZUKU_ENABLED] = enabled
-        }
+        context.dataStore.edit { prefs -> prefs[SHIZUKU_ENABLED] = enabled }
     }
 
     suspend fun setSelectedAgent(agentId: String) {
-        context.dataStore.edit { prefs ->
-            prefs[SELECTED_AGENT] = agentId
-        }
+        context.dataStore.edit { prefs -> prefs[SELECTED_AGENT] = agentId }
     }
 
     suspend fun setSelectedProvider(provider: String) {
-        context.dataStore.edit { prefs ->
-            prefs[SELECTED_PROVIDER] = provider
-        }
+        context.dataStore.edit { prefs -> prefs[SELECTED_PROVIDER] = provider }
     }
 
     suspend fun setSelectedModel(model: String) {
-        context.dataStore.edit { prefs ->
-            prefs[SELECTED_MODEL] = model
+        context.dataStore.edit { prefs -> prefs[SELECTED_MODEL] = model }
+    }
+
+    suspend fun setGeminiApiKey(key: String) {
+        context.dataStore.edit { prefs -> prefs[GEMINI_API_KEY] = key }
+    }
+
+    suspend fun setOpenAiApiKey(key: String) {
+        context.dataStore.edit { prefs -> prefs[OPENAI_API_KEY] = key }
+    }
+
+    suspend fun setClaudeApiKey(key: String) {
+        context.dataStore.edit { prefs -> prefs[CLAUDE_API_KEY] = key }
+    }
+
+    suspend fun setOpenRouterApiKey(key: String) {
+        context.dataStore.edit { prefs -> prefs[OPENROUTER_API_KEY] = key }
+    }
+
+    suspend fun setApiKeyForProvider(provider: String, key: String) {
+        when (provider.lowercase()) {
+            "gemini" -> setGeminiApiKey(key)
+            "openai" -> setOpenAiApiKey(key)
+            "claude" -> setClaudeApiKey(key)
+            "openrouter" -> setOpenRouterApiKey(key)
+            else -> setGeminiApiKey(key)
         }
     }
 }
