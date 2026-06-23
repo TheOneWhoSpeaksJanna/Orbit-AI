@@ -28,7 +28,7 @@ android {
       keyAlias = "upload"
       keyPassword = System.getenv("KEY_PASSWORD")
     }
-    create("debug") {
+    create("ciDebug") {
       storeFile = file("debug.keystore")
       storePassword = "android"
       keyAlias = "androiddebugkey"
@@ -45,7 +45,7 @@ android {
       signingConfig = signingConfigs.getByName("release")
     }
     debug {
-      signingConfig = signingConfigs.getByName("debug")
+      signingConfig = signingConfigs.getByName("ciDebug")
     }
   }
   compileOptions {
