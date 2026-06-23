@@ -2,18 +2,16 @@ package com.omniclaw.data.local.updater
 
 import android.content.Context
 import android.content.Intent
-import android.content.pm.PackageInstaller
-import android.net.Uri
 import android.os.Build
 import androidx.core.content.FileProvider
 import com.omniclaw.BuildConfig
+import com.omniclaw.data.local.prefs.PreferencesManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
-import com.omniclaw.data.local.prefs.PreferencesManager
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONArray
@@ -45,15 +43,12 @@ class UpdateManager(
     private val prefsManager: PreferencesManager
 ) {
     private val httpClient = OkHttpClient.Builder()
-        .connectTimeout(15, TimeUnit.SECONDS)
-        .readTimeout(30, TimeUnit.SECONDS)
+        .connectTimeout(CONNECT_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+        .readTimeout(READ_TIMEOUT_SECONDS, TimeUnit.SECONDS)
         .build()
 
     private val _updateState = MutableStateFlow<UpdateState>(UpdateState.Idle)
     val updateState: StateFlow<UpdateState> = _updateState.asStateFlow()
-
-    private val repoOwner = "TheOneWhoSpeaksJanna"
-    private val repoName = "Orbit-AI"
 
     private suspend fun githubToken(): String? {
         return prefsManager.githubToken.first()
@@ -75,17 +70,12 @@ class UpdateManager(
         try {
             val result = withContext(Dispatchers.IO) {
                 val response = httpClient.newCall(
-                    buildAuthenticatedRequest(
-                        "https://api.github.com/repos/$repoOwner/$repoName/releases/latest"
-                    )
+                    buildAuthenticatedRequest("$API_BASE_URL/releases/latest")
                 ).execute()
 
                 if (response.code == 404) {
-                    // Either no releases or private repo without token
                     val listResponse = httpClient.newCall(
-                        buildAuthenticatedRequest(
-                            "https://api.github.com/repos/$repoOwner/$repoName/releases?per_page=1"
-                        )
+                        buildAuthenticatedRequest("$API_BASE_URL/releases?per_page=1")
                     ).execute()
 
                     if (!listResponse.isSuccessful || listResponse.body == null) {
@@ -115,7 +105,7 @@ class UpdateManager(
                 _updateState.value = UpdateState.UpToDate
             }
         } catch (e: Exception) {
-            _updateState.value = UpdateState.Failed("Check failed: ${e.message}")
+            _updateState.value = UpdateState.Failed("${CHECK_FAILED_PREFIX}${e.message}")
         }
     }
 
@@ -128,11 +118,7 @@ class UpdateManager(
                 val file = File(downloadsDir, "Orbit-AI-${info.latestVersion}.apk")
 
                 val token = githubToken()
-                // Use the API endpoint instead of browser_download_url —
-                // github.com URLs accept cookies, not Bearer tokens.
-                // api.github.com accepts Bearer tokens and returns a 302
-                // redirect to a pre-signed CDN URL that needs no auth.
-                val apiUrl = "https://api.github.com/repos/$repoOwner/$repoName/releases/assets/${info.assetId}"
+                val apiUrl = "$API_BASE_URL/releases/assets/${info.assetId}"
                 val requestBuilder = Request.Builder()
                     .url(apiUrl)
                     .header("Accept", "application/octet-stream")
@@ -142,7 +128,7 @@ class UpdateManager(
                 val request = requestBuilder.build()
 
                 val response = httpClient.newCall(request).execute()
-                if (!response.isSuccessful) throw Exception("Download failed: ${response.code}")
+                if (!response.isSuccessful) throw Exception("${DOWNLOAD_FAILED_PREFIX}${response.code}")
 
                 val body = response.body ?: throw Exception("No response body")
                 val totalBytes = body.contentLength()
@@ -150,7 +136,7 @@ class UpdateManager(
 
                 body.byteStream().use { input ->
                     FileOutputStream(file).use { output ->
-                        val buffer = ByteArray(8192)
+                        val buffer = ByteArray(BUFFER_SIZE)
                         var bytesRead: Int
                         while (input.read(buffer).also { bytesRead = it } != -1) {
                             output.write(buffer, 0, bytesRead)
@@ -167,7 +153,7 @@ class UpdateManager(
 
             _updateState.value = UpdateState.Downloaded(apkFile.absolutePath)
         } catch (e: Exception) {
-            _updateState.value = UpdateState.Failed("Download failed: ${e.message}")
+            _updateState.value = UpdateState.Failed("${DOWNLOAD_FAILED_PREFIX}${e.message}")
         }
     }
 
@@ -189,7 +175,7 @@ class UpdateManager(
             }
             context.startActivity(intent)
         } catch (e: Exception) {
-            _updateState.value = UpdateState.Failed("Install failed: ${e.message}")
+            _updateState.value = UpdateState.Failed("${INSTALL_FAILED_PREFIX}${e.message}")
         }
     }
 
@@ -235,5 +221,19 @@ class UpdateManager(
             isNewer = isNewer,
             assetId = assetId
         )
+    }
+
+    companion object {
+        private const val REPO_OWNER = "TheOneWhoSpeaksJanna"
+        private const val REPO_NAME = "Orbit-AI"
+        private val API_BASE_URL = "https://api.github.com/repos/$REPO_OWNER/$REPO_NAME"
+
+        private const val CONNECT_TIMEOUT_SECONDS = 15L
+        private const val READ_TIMEOUT_SECONDS = 30L
+        private const val BUFFER_SIZE = 8192
+
+        private const val CHECK_FAILED_PREFIX = "Check failed: "
+        private const val DOWNLOAD_FAILED_PREFIX = "Download failed: "
+        private const val INSTALL_FAILED_PREFIX = "Install failed: "
     }
 }

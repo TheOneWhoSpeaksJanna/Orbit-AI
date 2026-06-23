@@ -2,7 +2,6 @@ package com.omniclaw.ui.screens
 
 import android.content.pm.PackageManager
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -27,6 +26,27 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.omniclaw.ui.viewmodels.TermuxViewModel
 import rikka.shizuku.Shizuku
+
+private const val TITLE = "App Workspace & Execution"
+private const val CD_BACK = "Back"
+private const val CD_EXECUTE = "Execute"
+private const val INPUT_LABEL = "Type a shell command..."
+private const val SUDO_LABEL = "Sudo"
+private const val CONFIRM_TITLE = "Execute Command?"
+private const val CONFIRM_TITLE_PRIVILEGED = "Execute Privileged Command?"
+private const val CONFIRM_NATIVE = "Execution happens directly on your device natively."
+private const val CONFIRM_PRIVILEGED = "WARNING: This will execute via Shizuku with elevated privileges. Destructive actions can occur."
+private const val CANCEL = "Cancel"
+private const val MBPS_FORMAT = "%.1f MB/s"
+private const val SECONDS_REMAINING_FORMAT = "%ds remaining"
+
+private val CARD_BG = Color(0xFF0F172A)
+private val CMD_COLOR = Color(0xFF00F2FE)
+private val SUCCESS_TEXT = Color(0xFFE2E8F0)
+private val ERROR_TEXT = Color(0xFFFCA5A5)
+private val DIVIDER_COLOR = Color(0xFF1E293B)
+
+private val QUICK_TOOLS = listOf("git", "python", "nodejs", "curl", "wget")
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -58,10 +78,10 @@ fun TermuxScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("App Workspace & Execution", fontWeight = FontWeight.Bold) },
+                title = { Text(TITLE, fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = CD_BACK)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -75,7 +95,6 @@ fun TermuxScreen(
                 .fillMaxSize()
                 .padding(padding)
         ) {
-            // Quick Installs Section
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -83,7 +102,7 @@ fun TermuxScreen(
                     .horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                listOf("git", "python", "nodejs", "curl", "wget").forEach { tool ->
+                QUICK_TOOLS.forEach { tool ->
                     SuggestionChip(
                         onClick = { viewModel.installTool(tool) },
                         label = { Text("Install $tool", fontSize = 12.sp) },
@@ -101,7 +120,6 @@ fun TermuxScreen(
                 }
             }
 
-            // Progress Bar
             if (progress != null && progress!!.isActive) {
                 Card(
                     modifier = Modifier
@@ -143,11 +161,11 @@ fun TermuxScreen(
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
                             Text(
-                                String.format("%.1f MB/s", progress!!.mbPerSecond),
+                                String.format(MBPS_FORMAT, progress!!.mbPerSecond),
                                 style = MaterialTheme.typography.bodySmall
                             )
                             Text(
-                                "${progress!!.timeRemainingSeconds}s remaining",
+                                SECONDS_REMAINING_FORMAT.format(progress!!.timeRemainingSeconds),
                                 style = MaterialTheme.typography.bodySmall
                             )
                         }
@@ -155,7 +173,6 @@ fun TermuxScreen(
                 }
             }
 
-            // Logs
             LazyColumn(
                 modifier = Modifier
                     .weight(1f)
@@ -169,14 +186,14 @@ fun TermuxScreen(
                             .fillMaxWidth()
                             .padding(vertical = 4.dp),
                         colors = CardDefaults.cardColors(
-                            containerColor = Color(0xFF0F172A)
+                            containerColor = CARD_BG
                         ),
                         shape = RoundedCornerShape(8.dp)
                     ) {
                         Column(modifier = Modifier.padding(12.dp)) {
                             Text(
                                 text = "orbit> ${log.command}",
-                                color = Color(0xFF00F2FE),
+                                color = CMD_COLOR,
                                 fontFamily = FontFamily.Monospace,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 13.sp
@@ -184,19 +201,18 @@ fun TermuxScreen(
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
                                 text = log.output,
-                                color = if (log.exitCode == 0) Color(0xFFE2E8F0) else Color(0xFFFCA5A5),
+                                color = if (log.exitCode == 0) SUCCESS_TEXT else ERROR_TEXT,
                                 fontFamily = FontFamily.Monospace,
                                 fontSize = 13.sp,
                                 lineHeight = 18.sp
                             )
                             Spacer(modifier = Modifier.height(4.dp))
-                            Divider(color = Color(0xFF1E293B), thickness = 1.dp)
+                            Divider(color = DIVIDER_COLOR, thickness = 1.dp)
                         }
                     }
                 }
             }
 
-            // Command Input
             Surface(
                 color = MaterialTheme.colorScheme.surface,
                 tonalElevation = 8.dp
@@ -211,7 +227,7 @@ fun TermuxScreen(
                     OutlinedTextField(
                         value = commandText,
                         onValueChange = { commandText = it },
-                        label = { Text("Type a shell command...") },
+                        label = { Text(INPUT_LABEL) },
                         modifier = Modifier.weight(1f),
                         colors = TextFieldDefaults.colors(
                             focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
@@ -222,7 +238,6 @@ fun TermuxScreen(
                         shape = RoundedCornerShape(8.dp)
                     )
 
-                    // Only show sudo button when Shizuku is active
                     if (isShizukuActive) {
                         Spacer(modifier = Modifier.width(8.dp))
                         IconButton(
@@ -238,7 +253,7 @@ fun TermuxScreen(
                             )
                         ) {
                             Text(
-                                "Sudo",
+                                SUDO_LABEL,
                                 color = MaterialTheme.colorScheme.onErrorContainer,
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold
@@ -256,7 +271,7 @@ fun TermuxScreen(
                         },
                         containerColor = MaterialTheme.colorScheme.secondary
                     ) {
-                        Icon(Icons.Default.PlayArrow, contentDescription = "Execute")
+                        Icon(Icons.Default.PlayArrow, contentDescription = CD_EXECUTE)
                     }
                 }
             }
@@ -268,15 +283,12 @@ fun TermuxScreen(
         AlertDialog(
             onDismissRequest = { showConfirmation = false },
             title = {
-                Text(if (isPrivileged) "Execute Privileged Command?" else "Execute Command?")
+                Text(if (isPrivileged) CONFIRM_TITLE_PRIVILEGED else CONFIRM_TITLE)
             },
             text = {
                 Text(
                     "Are you sure you want to run this command locally?\n\n$ $commandText\n\n" +
-                            if (isPrivileged)
-                                "WARNING: This will execute via Shizuku with elevated privileges. Destructive actions can occur."
-                            else
-                                "Execution happens directly on your device natively."
+                            if (isPrivileged) CONFIRM_PRIVILEGED else CONFIRM_NATIVE
                 )
             },
             confirmButton = {
@@ -297,12 +309,12 @@ fun TermuxScreen(
                             MaterialTheme.colorScheme.primary
                     )
                 ) {
-                    Text("Execute")
+                    Text(CD_EXECUTE)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showConfirmation = false }) {
-                    Text("Cancel")
+                    Text(CANCEL)
                 }
             }
         )

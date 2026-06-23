@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Chat
@@ -32,6 +31,19 @@ import java.util.Date
 import java.util.Locale
 
 private val DATE_SESSION_FORMAT = SimpleDateFormat("MMM dd, HH:mm", Locale.getDefault())
+
+private const val APP_NAME = "Orbit"
+private const val SHIZUKU_LABEL = "Shizuku"
+private const val STATUS_ACTIVE = "Active"
+private const val STATUS_INACTIVE = "Inactive"
+private const val ACTIVE_AGENT_DEFAULT = "Hermes"
+private const val SECTION_RECENT_SESSIONS = "Recent Sessions"
+private const val EMPTY_SESSIONS_TITLE = "No sessions yet"
+private const val EMPTY_SESSIONS_DESC = "Start a new session to begin interacting with your AI agent."
+private const val CD_NEW_SESSION = "New Session"
+private const val CD_LOCAL_TOOLS = "Local Tools"
+private const val CD_SETTINGS = "Settings"
+private const val CD_SESSION_ICON = "Session"
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -68,7 +80,7 @@ fun DashboardScreen(
             TopAppBar(
                 title = {
                     Column {
-                        Text("Orbit", fontWeight = FontWeight.Bold)
+                        Text(APP_NAME, fontWeight = FontWeight.Bold)
                         activeProvider?.let {
                             Text(
                                 it,
@@ -80,10 +92,10 @@ fun DashboardScreen(
                 },
                 actions = {
                     IconButton(onClick = onNavigateToTermux) {
-                        Icon(Icons.Default.Terminal, contentDescription = "Local Tools")
+                        Icon(Icons.Default.Terminal, contentDescription = CD_LOCAL_TOOLS)
                     }
                     IconButton(onClick = onNavigateToSettings) {
-                        Icon(Icons.Default.Settings, contentDescription = "Settings")
+                        Icon(Icons.Default.Settings, contentDescription = CD_SETTINGS)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -102,7 +114,7 @@ fun DashboardScreen(
                     containerColor = Color.Transparent,
                     contentColor = MaterialTheme.colorScheme.onPrimary
                 ) {
-                    Icon(Icons.Default.Add, contentDescription = "New Session")
+                    Icon(Icons.Default.Add, contentDescription = CD_NEW_SESSION)
                 }
             }
         }
@@ -114,14 +126,12 @@ fun DashboardScreen(
                 .padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // Status Cards
             item {
                 Spacer(Modifier.height(8.dp))
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    // Agent Card
                     GlassCard(
                         modifier = Modifier.weight(1f),
                         gradientColors = listOf(
@@ -138,7 +148,7 @@ fun DashboardScreen(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                             Text(
-                                activeAgent ?: "Hermes",
+                                activeAgent ?: ACTIVE_AGENT_DEFAULT,
                                 fontWeight = FontWeight.Bold,
                                 style = MaterialTheme.typography.titleLarge,
                                 maxLines = 1,
@@ -154,7 +164,6 @@ fun DashboardScreen(
                         }
                     }
 
-                    // Shizuku Status Card
                     GlassCard(
                         modifier = Modifier.weight(1f),
                         gradientColors = if (isShizukuActive)
@@ -177,12 +186,12 @@ fun DashboardScreen(
                             )
                             Spacer(Modifier.height(8.dp))
                             Text(
-                                "Shizuku",
+                                SHIZUKU_LABEL,
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                             Text(
-                                if (isShizukuActive) "Active" else "Inactive",
+                                if (isShizukuActive) STATUS_ACTIVE else STATUS_INACTIVE,
                                 fontWeight = FontWeight.Bold,
                                 style = MaterialTheme.typography.titleLarge
                             )
@@ -191,7 +200,6 @@ fun DashboardScreen(
                 }
             }
 
-            // Section Header
             item {
                 Row(
                     modifier = Modifier
@@ -201,7 +209,7 @@ fun DashboardScreen(
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Text(
-                        text = "Recent Sessions",
+                        text = SECTION_RECENT_SESSIONS,
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onBackground
@@ -216,7 +224,6 @@ fun DashboardScreen(
                 }
             }
 
-            // Session List or Empty State
             if (sessions.isEmpty()) {
                 item {
                     EmptySessionsPlaceholder(onNewSession = onNavigateToNewSession)
@@ -231,7 +238,6 @@ fun DashboardScreen(
                 }
             }
 
-            // Bottom spacer for FAB
             item { Spacer(Modifier.height(80.dp)) }
         }
     }
@@ -266,7 +272,6 @@ private fun GlassCard(
                     shape = MaterialTheme.shapes.large
                 )
         ) {
-            // Glass border effect
             Box(
                 modifier = Modifier
                     .matchParentSize()
@@ -306,14 +311,14 @@ private fun EmptySessionsPlaceholder(onNewSession: () -> Unit) {
             )
             Spacer(Modifier.height(16.dp))
             Text(
-                "No sessions yet",
+                EMPTY_SESSIONS_TITLE,
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontWeight = FontWeight.SemiBold
             )
             Spacer(Modifier.height(4.dp))
             Text(
-                "Start a new session to begin interacting with your AI agent.",
+                EMPTY_SESSIONS_DESC,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                 modifier = Modifier.padding(horizontal = 16.dp)
@@ -322,7 +327,7 @@ private fun EmptySessionsPlaceholder(onNewSession: () -> Unit) {
             FilledTonalButton(onClick = onNewSession) {
                 Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.width(8.dp))
-                Text("New Session")
+                Text(CD_NEW_SESSION)
             }
         }
     }
@@ -346,7 +351,6 @@ private fun SessionCard(
             modifier = Modifier.padding(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Session icon
             Surface(
                 shape = MaterialTheme.shapes.small,
                 color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)

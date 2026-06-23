@@ -37,6 +37,22 @@ import com.omniclaw.ui.theme.OmniClawSurfaceDark
 import com.omniclaw.ui.theme.OmniClawTextPrimary
 import com.omniclaw.ui.theme.OmniClawTextSecondary
 
+private const val BLOCK_SHAPE_RADIUS_DP = 8
+private const val BLOCK_PADDING_DP = 10
+private const val ICON_SIZE_DP = 14
+private const val SPACER_SIZE_DP = 6
+private const val SPACER_HEIGHT_DP = 4
+private const val PREVIEW_MAX_LENGTH = 80
+private const val STATUS_FONT_SIZE_SP = 11
+private const val COMMAND_FONT_SIZE_SP = 11
+private const val PREVIEW_FONT_SIZE_SP = 10
+private const val EXPANDED_TOP_PADDING_DP = 6
+private const val EXPANDED_FONT_SIZE_SP = 10
+
+private const val MESSAGE_COMMAND_FAILED = "Command failed"
+private const val MESSAGE_NO_OUTPUT = "No output"
+private const val MESSAGE_EMPTY = "(empty)"
+
 @Composable
 fun TerminalBlock(
     log: TermuxLog,
@@ -44,56 +60,56 @@ fun TerminalBlock(
 ) {
     var expanded by remember { mutableStateOf(false) }
     val isError = log.exitCode != 0
-    val preview = log.output.take(80).replace("\n", " ")
+    val preview = log.output.take(PREVIEW_MAX_LENGTH).replace("\n", " ")
 
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(8.dp))
+            .clip(RoundedCornerShape(BLOCK_SHAPE_RADIUS_DP.dp))
             .background(OmniClawSurfaceDark)
             .clickable { expanded = !expanded }
-            .padding(10.dp)
+            .padding(BLOCK_PADDING_DP.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Icon(
                 imageVector = if (isError) Icons.Default.Error else Icons.Default.CheckCircle,
                 contentDescription = null,
                 tint = if (isError) OmniClawError else OmniClawSuccess,
-                modifier = Modifier.size(14.dp)
+                modifier = Modifier.size(ICON_SIZE_DP.dp)
             )
-            Spacer(Modifier.size(6.dp))
+            Spacer(Modifier.size(SPACER_SIZE_DP.dp))
             Text(
                 text = "${log.exitCode}",
                 color = if (isError) OmniClawError else OmniClawSuccess,
-                fontSize = 11.sp,
+                fontSize = STATUS_FONT_SIZE_SP.sp,
                 fontWeight = FontWeight.Bold
             )
             Spacer(Modifier.weight(1f))
             Text(
                 text = "\$ ${log.command}",
                 fontFamily = FontFamily.Monospace,
-                fontSize = 11.sp,
+                fontSize = COMMAND_FONT_SIZE_SP.sp,
                 color = OmniClawAccent,
                 maxLines = 1
             )
         }
-        Spacer(Modifier.height(4.dp))
+        Spacer(Modifier.height(SPACER_HEIGHT_DP.dp))
         Text(
-            text = preview.ifEmpty { if (isError) "Command failed" else "No output" },
+            text = preview.ifEmpty { if (isError) MESSAGE_COMMAND_FAILED else MESSAGE_NO_OUTPUT },
             style = MaterialTheme.typography.bodySmall,
             color = OmniClawTextSecondary,
             fontFamily = FontFamily.Monospace,
-            fontSize = 10.sp,
+            fontSize = PREVIEW_FONT_SIZE_SP.sp,
             maxLines = if (expanded) Int.MAX_VALUE else 2
         )
         AnimatedVisibility(visible = expanded) {
             Text(
-                text = log.output.ifEmpty { "(empty)" },
+                text = log.output.ifEmpty { MESSAGE_EMPTY },
                 style = MaterialTheme.typography.bodySmall,
                 color = OmniClawTextPrimary,
                 fontFamily = FontFamily.Monospace,
-                fontSize = 10.sp,
-                modifier = Modifier.padding(top = 6.dp)
+                fontSize = EXPANDED_FONT_SIZE_SP.sp,
+                modifier = Modifier.padding(top = EXPANDED_TOP_PADDING_DP.dp)
             )
         }
     }

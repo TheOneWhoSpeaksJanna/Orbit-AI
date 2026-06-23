@@ -13,7 +13,7 @@ class CredentialsStore(context: Context) {
             .build()
         EncryptedSharedPreferences.create(
             context,
-            "omniclaw_secure_prefs",
+            PREF_NAME,
             masterKey,
             EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
             EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
@@ -21,17 +21,24 @@ class CredentialsStore(context: Context) {
     }
 
     fun getApiKey(providerName: String): String? =
-        prefs.getString("${providerName.lowercase()}_api_key", null)
+        prefs.getString(apiKeyKey(providerName), null)
 
     fun setApiKey(providerName: String, key: String) {
-        prefs.edit().putString("${providerName.lowercase()}_api_key", key).apply()
+        prefs.edit().putString(apiKeyKey(providerName), key).apply()
     }
 
     fun clearApiKey(providerName: String) {
-        prefs.edit().remove("${providerName.lowercase()}_api_key").apply()
+        prefs.edit().remove(apiKeyKey(providerName)).apply()
     }
 
     fun clearAll() {
         prefs.edit().clear().apply()
+    }
+
+    companion object {
+        private const val PREF_NAME = "omniclaw_secure_prefs"
+        private const val API_KEY_SUFFIX = "_api_key"
+
+        private fun apiKeyKey(providerName: String) = "${providerName.lowercase()}$API_KEY_SUFFIX"
     }
 }

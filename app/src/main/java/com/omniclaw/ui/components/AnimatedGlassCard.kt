@@ -19,27 +19,28 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.dp
 import com.omniclaw.ui.theme.*
 
+private const val DEFAULT_RADIUS = 16
+private const val BORDER_DP = 1
+private const val SCALE_PRESSED = 0.95f
+private const val SCALE_NORMAL = 1.0f
+private const val DAMPING_PRESS = 0.6f
+private const val STIFFNESS_PRESS = 450f
+
 @Composable
 fun AnimatedGlassCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    radius: Int = 16,
+    radius: Int = DEFAULT_RADIUS,
     content: @Composable BoxScope.() -> Unit
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
 
-    val scaleTarget = if (isPressed) 0.95f else 1.0f
+    val scaleTarget = if (isPressed) SCALE_PRESSED else SCALE_NORMAL
     val animatedScale by animateFloatAsState(
         targetValue = scaleTarget,
-        animationSpec = spring(dampingRatio = 0.6f, stiffness = 450f),
+        animationSpec = spring(dampingRatio = DAMPING_PRESS, stiffness = STIFFNESS_PRESS),
         label = "CardPressBounce"
-    )
-
-    val animatedElevation by animateFloatAsState(
-        targetValue = if (isPressed) 0f else 8f,
-        animationSpec = spring(dampingRatio = 0.75f, stiffness = 300f),
-        label = "CardElevation"
     )
 
     Box(
@@ -54,7 +55,7 @@ fun AnimatedGlassCard(
                 if (isPressed) OmniClawGlassOverlayPressed
                 else OmniClawGlassOverlay
             )
-            .border(1.dp, OmniClawGlassBorder, RoundedCornerShape(radius.dp))
+            .border(BORDER_DP.dp, OmniClawGlassBorder, RoundedCornerShape(radius.dp))
             .clickable(
                 interactionSource = interactionSource,
                 indication = null,

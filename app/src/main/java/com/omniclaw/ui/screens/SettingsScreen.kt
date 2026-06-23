@@ -25,6 +25,24 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.omniclaw.ui.viewmodels.SettingsViewModel
 
+private const val GITHUB_TOKEN_LABEL = "GitHub Token"
+private const val THEME_SYSTEM = "System"
+private const val THEME_DARK = "Dark"
+private const val THEME_LIGHT = "Light"
+private const val SECTION_UPDATES = "Updates"
+private const val VERSION_PREFIX = "Version "
+private const val BTN_CHECK_UPDATES = "Check for Updates"
+private const val BTN_CHECKING = "Checking for updates..."
+private const val BTN_DOWNLOAD = "Download Update"
+private const val BTN_CHECK_AGAIN = "Check Again"
+private const val BTN_INSTALL = "Install Update"
+private const val BTN_RETRY = "Retry"
+private const val MSG_UP_TO_DATE = "You're up to date!"
+private const val MSG_DOWNLOAD_COMPLETE = "Download complete!"
+private const val MSG_DOWNLOADING = "Downloading... "
+
+private val THEME_OPTIONS = listOf(THEME_SYSTEM, THEME_DARK, THEME_LIGHT)
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
@@ -114,11 +132,10 @@ fun SettingsScreen(
                         onToggleVisibility = { openRouterVisible = !openRouterVisible }
                     )
                     Spacer(modifier = Modifier.height(12.dp))
-                    // GitHub token for private repo update checks
                     ApiKeyField(
                         value = githubToken,
                         onValueChange = { viewModel.updateGithubToken(it) },
-                        label = "GitHub Token",
+                        label = GITHUB_TOKEN_LABEL,
                         visible = githubTokenVisible,
                         onToggleVisibility = { githubTokenVisible = !githubTokenVisible }
                     )
@@ -151,7 +168,7 @@ fun SettingsScreen(
                             expanded = expanded,
                             onDismissRequest = { expanded = false }
                         ) {
-                            listOf("System", "Dark", "Light").forEach { selection ->
+                            THEME_OPTIONS.forEach { selection ->
                                 DropdownMenuItem(
                                     text = { Text(selection) },
                                     onClick = {
@@ -165,16 +182,15 @@ fun SettingsScreen(
                 }
             }
 
-            // Updates section
             Card(
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
                 shape = MaterialTheme.shapes.extraLarge
             ) {
                 Column(modifier = Modifier.padding(20.dp).fillMaxWidth()) {
-                    Text("Updates", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                    Text(SECTION_UPDATES, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        "Version $appVersion",
+                        "$VERSION_PREFIX$appVersion",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -187,14 +203,14 @@ fun SettingsScreen(
                                 modifier = Modifier.fillMaxWidth(),
                                 shape = MaterialTheme.shapes.medium
                             ) {
-                                Text("Check for Updates")
+                                Text(BTN_CHECK_UPDATES)
                             }
                         }
                         is UpdateState.Checking -> {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
                                 Spacer(Modifier.width(12.dp))
-                                Text("Checking for updates...", style = MaterialTheme.typography.bodySmall)
+                                Text(BTN_CHECKING, style = MaterialTheme.typography.bodySmall)
                             }
                         }
                         is UpdateState.Available -> {
@@ -219,12 +235,12 @@ fun SettingsScreen(
                                 modifier = Modifier.fillMaxWidth(),
                                 shape = MaterialTheme.shapes.medium
                             ) {
-                                Text("Download Update")
+                                Text(BTN_DOWNLOAD)
                             }
                         }
                         is UpdateState.UpToDate -> {
                             Text(
-                                "You're up to date!",
+                                MSG_UP_TO_DATE,
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -234,7 +250,7 @@ fun SettingsScreen(
                                 modifier = Modifier.fillMaxWidth(),
                                 shape = MaterialTheme.shapes.medium
                             ) {
-                                Text("Check Again")
+                                Text(BTN_CHECK_AGAIN)
                             }
                         }
                         is UpdateState.Downloading -> {
@@ -246,14 +262,14 @@ fun SettingsScreen(
                             )
                             Spacer(Modifier.height(8.dp))
                             Text(
-                                "Downloading... ${(state.progress * 100).toInt()}%",
+                                "$MSG_DOWNLOADING${(state.progress * 100).toInt()}%",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                         is UpdateState.Downloaded -> {
                             Text(
-                                "Download complete!",
+                                MSG_DOWNLOAD_COMPLETE,
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.primary
                             )
@@ -263,7 +279,7 @@ fun SettingsScreen(
                                 modifier = Modifier.fillMaxWidth(),
                                 shape = MaterialTheme.shapes.medium
                             ) {
-                                Text("Install Update")
+                                Text(BTN_INSTALL)
                             }
                         }
                         is UpdateState.Failed -> {
@@ -278,7 +294,7 @@ fun SettingsScreen(
                                 modifier = Modifier.fillMaxWidth(),
                                 shape = MaterialTheme.shapes.medium
                             ) {
-                                Text("Retry")
+                                Text(BTN_RETRY)
                             }
                         }
                     }

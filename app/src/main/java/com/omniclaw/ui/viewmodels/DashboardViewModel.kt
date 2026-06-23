@@ -6,6 +6,7 @@ import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.AP
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.CreationExtras
 import com.omniclaw.OmniClawApplication
+import com.omniclaw.core.di.AppContainer
 import com.omniclaw.core.di.ToolCallRecord
 import com.omniclaw.domain.models.Agent
 import com.omniclaw.domain.models.ChatSession
@@ -21,9 +22,13 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.util.UUID
 
+private const val DEFAULT_AGENT = "Hermes"
+private const val DEFAULT_PROVIDER = "Claude"
+private const val GIT_DIFF_COMMAND = "git -C /data/data/com.termux/files/home/project\\ omniclaw diff --stat"
+
 class DashboardViewModel(
     private val repository: OmniClawRepository,
-    private val appContainer: com.omniclaw.core.di.AppContainer
+    private val appContainer: AppContainer
 ) : ViewModel() {
 
     val projects: StateFlow<List<Project>> = repository.getAllProjects()
@@ -58,14 +63,14 @@ class DashboardViewModel(
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000),
-            initialValue = "Hermes"
+            initialValue = DEFAULT_AGENT
         )
 
     val activeProvider = appContainer.prefsManager.selectedProvider
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000),
-            initialValue = "Claude"
+            initialValue = DEFAULT_PROVIDER
         )
 
     val shizukuEnabled = appContainer.prefsManager.shizukuEnabled
@@ -95,9 +100,7 @@ class DashboardViewModel(
 
     private fun loadGitDiff() {
         viewModelScope.launch {
-            val result = appContainer.localCommandRunner.executeCommand(
-                "git -C /data/data/com.termux/files/home/project\\ omniclaw diff --stat"
-            )
+            val result = appContainer.localCommandRunner.executeCommand(GIT_DIFF_COMMAND)
             _gitDiffResult.value = if (result.exitCode == 0 && result.output.isNotBlank()) {
                 result.output
             } else {

@@ -16,9 +16,8 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONArray
 import org.json.JSONObject
 
-class OpenRouterProvider(okHttpClient: OkHttpClient) : AiProvider {
+class OpenRouterProvider(private val httpClient: OkHttpClient) : AiProvider {
 
-    private val httpClient = okHttpClient
     private val jsonMediaType = "application/json; charset=utf-8".toMediaType()
 
     private var cachedModels: List<DetailedModelInfo>? = null
@@ -39,7 +38,7 @@ class OpenRouterProvider(okHttpClient: OkHttpClient) : AiProvider {
             try {
                 if (apiKey.isBlank()) return@withContext AiResult.Error("API Key is missing.")
 
-                val requestModel = if (model.isNotBlank()) model else "openai/gpt-4o"
+                val requestModel = if (model.isNotBlank()) model else DEFAULT_MODEL
 
                 val jsonBody = JSONObject().apply {
                     put("model", requestModel)
@@ -53,10 +52,10 @@ class OpenRouterProvider(okHttpClient: OkHttpClient) : AiProvider {
                 }
 
                 val request = Request.Builder()
-                    .url("https://openrouter.ai/api/v1/chat/completions")
+                    .url(API_BASE_URL)
                     .addHeader("Authorization", "Bearer $apiKey")
-                    .addHeader("HTTP-Referer", "https://github.com/TheOneWhoSpeaksJanna/Orbit-AI")
-                    .addHeader("X-Title", "Orbit AI")
+                    .addHeader("HTTP-Referer", REFERRER_URL)
+                    .addHeader("X-Title", APP_TITLE)
                     .post(jsonBody.toString().toRequestBody(jsonMediaType))
                     .build()
 
@@ -87,7 +86,7 @@ class OpenRouterProvider(okHttpClient: OkHttpClient) : AiProvider {
     override suspend fun testConnection(provider: String, apiKey: String, model: String): Boolean {
         return withContext(Dispatchers.IO) {
             try {
-                val requestModel = if (model.isNotBlank()) model else "openai/gpt-4o"
+                val requestModel = if (model.isNotBlank()) model else DEFAULT_MODEL
                 val jsonBody = JSONObject().apply {
                     put("model", requestModel)
                     put("max_tokens", 1)
@@ -100,10 +99,10 @@ class OpenRouterProvider(okHttpClient: OkHttpClient) : AiProvider {
                     put("messages", messages)
                 }
                 val request = Request.Builder()
-                    .url("https://openrouter.ai/api/v1/chat/completions")
+                    .url(API_BASE_URL)
                     .addHeader("Authorization", "Bearer $apiKey")
-                    .addHeader("HTTP-Referer", "https://github.com/TheOneWhoSpeaksJanna/Orbit-AI")
-                    .addHeader("X-Title", "Orbit AI")
+                    .addHeader("HTTP-Referer", REFERRER_URL)
+                    .addHeader("X-Title", APP_TITLE)
                     .post(jsonBody.toString().toRequestBody(jsonMediaType))
                     .build()
                 val response = httpClient.newCall(request).execute()
@@ -115,46 +114,46 @@ class OpenRouterProvider(okHttpClient: OkHttpClient) : AiProvider {
     }
 
     override suspend fun fetchDetailedModels(providerName: String, apiKey: String): List<DetailedModelInfo> {
-        // Cache for 5 minutes
-        if (cachedModels != null && (System.currentTimeMillis() - lastFetchTime) < 300_000) {
-            return cachedModels!!
+        cachedModels?.let {
+            if (System.currentTimeMillis() - lastFetchTime < CACHE_DURATION_MS) return it
         }
 
         return withContext(Dispatchers.IO) {
             try {
                 val request = Request.Builder()
-                    .url("https://openrouter.ai/api/v1/models")
+                    .url(MODELS_API_URL)
                     .addHeader("Authorization", "Bearer $apiKey")
-                    .addHeader("HTTP-Referer", "https://github.com/TheOneWhoSpeaksJanna/Orbit-AI")
-                    .addHeader("X-Title", "Orbit AI")
+                    .addHeader("HTTP-Referer", REFERRER_URL)
+                    .addHeader("X-Title", APP_TITLE)
                     .build()
 
                 val response = httpClient.newCall(request).execute()
                 val body = response.body?.string() ?: ""
 
                 if (!response.isSuccessful) {
-                    cachedModels ?: emptyList()
+                    return@withContext cachedModels ?: emptyList()
                 }
 
                 val json = JSONObject(body)
                 val data = json.optJSONArray("data") ?: JSONArray()
 
-                val models = mutableListOf<DetailedModelInfo>()
-                for (i in 0 until data.length()) {
-                    val item = data.getJSONObject(i)
-                    val pricing = item.optJSONObject("pricing") ?: JSONObject()
-                    models.add(DetailedModelInfo(
-                        id = item.optString("id", ""),
-                        name = item.optString("name", item.optString("id", "")),
-                        promptPrice = pricing.optString("prompt", "0"),
-                        completionPrice = pricing.optString("completion", "0"),
-                        contextLength = item.optLong("context_length", 0)
-                    ))
-                }
+                val models = buildList {
+                    for (i in 0 until data.length()) {
+                        val item = data.getJSONObject(i)
+                        val pricing = item.optJSONObject("pricing") ?: JSONObject()
+                        add(DetailedModelInfo(
+                            id = item.optString("id", ""),
+                            name = item.optString("name", item.optString("id", "")),
+                            promptPrice = pricing.optString("prompt", "0"),
+                            completionPrice = pricing.optString("completion", "0"),
+                            contextLength = item.optLong("context_length", 0)
+                        ))
+                    }
+                }.sortedBy { it.id }
 
-                cachedModels = models.sortedBy { it.id }
+                cachedModels = models
                 lastFetchTime = System.currentTimeMillis()
-                cachedModels!!
+                models
             } catch (_: Exception) {
                 cachedModels ?: emptyList()
             }
@@ -171,4 +170,13 @@ class OpenRouterProvider(okHttpClient: OkHttpClient) : AiProvider {
         supportsStreaming = true,
         requiresApiKey = true
     )
+
+    companion object {
+        private const val DEFAULT_MODEL = "openai/gpt-4o"
+        private const val API_BASE_URL = "https://openrouter.ai/api/v1/chat/completions"
+        private const val MODELS_API_URL = "https://openrouter.ai/api/v1/models"
+        private const val REFERRER_URL = "https://github.com/TheOneWhoSpeaksJanna/Orbit-AI"
+        private const val APP_TITLE = "Orbit AI"
+        private const val CACHE_DURATION_MS = 300_000L
+    }
 }

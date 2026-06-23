@@ -6,7 +6,6 @@ import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.AP
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.CreationExtras
 import com.omniclaw.OmniClawApplication
-import com.omniclaw.core.di.AppContainer
 import com.omniclaw.data.local.runner.LocalCommandRunner
 import com.omniclaw.data.local.prefs.PreferencesManager
 import com.omniclaw.domain.api.AiProvider
@@ -18,7 +17,6 @@ import com.omniclaw.domain.models.MessageRole
 import com.omniclaw.domain.models.TermuxLog
 import com.omniclaw.domain.repository.OmniClawRepository
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -28,6 +26,14 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.util.UUID
+
+private const val DEFAULT_PROVIDER = "Gemini"
+private const val NEW_SESSION_TITLE = "New Session"
+private const val NO_AGENT_CMD_ERROR = "Error: Selected agent has no run command configured."
+private const val DEFAULT_SYSTEM_PROMPT = "System: You are an expert AI assistant."
+private const val NO_OUTPUT = "(no output)"
+private const val ERROR_RUNNING_AGENT = "Error running agent: "
+private const val UNKNOWN_ERROR = "Unknown error"
 
 class ChatViewModel(
     private val repository: OmniClawRepository,
@@ -48,6 +54,13 @@ class ChatViewModel(
     private val _availableModels = MutableStateFlow<List<String>>(emptyList())
     val availableModels: StateFlow<List<String>> = _availableModels.asStateFlow()
 
+    private val _useLocalMode = MutableStateFlow(false)
+    val useLocalMode: StateFlow<Boolean> = _useLocalMode.asStateFlow()
+
+    fun toggleLocalMode() {
+        _useLocalMode.value = !_useLocalMode.value
+    }
+
     private val _detailedModels = MutableStateFlow<List<DetailedModelInfo>>(emptyList())
     val detailedModels: StateFlow<List<DetailedModelInfo>> = _detailedModels.asStateFlow()
 
@@ -58,16 +71,24 @@ class ChatViewModel(
         .map { it ?: "" }
         .stateIn(viewModelScope, SharingStarted.Eagerly, "")
 
+    val selectedAgent: StateFlow<String?> = prefsManager.selectedAgent
+        .stateIn(viewModelScope, SharingStarted.Eagerly, null)
+
+    val hasAgent: StateFlow<Boolean> = prefsManager.selectedAgent
+        .map { it != null }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
     fun loadModelsForCurrentProvider() {
         viewModelScope.launch {
-            val provider = prefsManager.selectedProvider.firstOrNull() ?: "Gemini"
-            _availableModels.value = aiProvider.getModels(provider)
+            val provider = prefsManager.selectedProvider.firstOrNull() ?: DEFAULT_PROVIDER
+            val models = aiProvider.getModels(provider)
+            _availableModels.value = if (models.isNotEmpty()) models else DEFAULT_MODELS
         }
     }
 
     fun fetchDetailedModels() {
         viewModelScope.launch {
-            val provider = prefsManager.selectedProvider.firstOrNull() ?: "Gemini"
+            val provider = prefsManager.selectedProvider.firstOrNull() ?: DEFAULT_PROVIDER
             if (provider != "OpenRouter") return@launch
             _isFetchingModels.value = true
             val apiKey = prefsManager.getApiKeyForProvider(provider).firstOrNull() ?: ""
@@ -80,7 +101,6 @@ class ChatViewModel(
                 _detailedModels.value = models
                 _availableModels.value = models.map { it.id }
             } catch (_: Exception) {
-                // Keep current list on failure
             } finally {
                 _isFetchingModels.value = false
             }
@@ -112,7 +132,7 @@ class ChatViewModel(
             val session = ChatSession(
                 id = UUID.randomUUID().toString(),
                 projectId = projectId,
-                title = "New Session",
+                title = NEW_SESSION_TITLE,
                 createdAt = System.currentTimeMillis(),
                 updatedAt = System.currentTimeMillis()
             )
@@ -134,21 +154,60 @@ class ChatViewModel(
                 timestamp = System.currentTimeMillis()
             )
             repository.insertMessage(userMsg)
-            _isLoading.value = true
 
-            val activeProvider = prefsManager.selectedProvider.firstOrNull() ?: "Gemini"
+            val activeProvider = prefsManager.selectedProvider.firstOrNull() ?: DEFAULT_PROVIDER
             val activeModelName = prefsManager.selectedModel.firstOrNull() ?: ""
             val activeAgentId = prefsManager.selectedAgent.firstOrNull()
-                ?.lowercase()?.replace(" ", "_") ?: "hermes"
+                ?.lowercase()?.replace(" ", "_")
+                ?: return@launch
 
-            // Get the correct API key for the selected provider
+            _isLoading.value = true
+
+            if (_useLocalMode.value) {
+                val agentEntity = repository.getAllAgents().firstOrNull()?.find { it.id == activeAgentId }
+                val runCmd = agentEntity?.runCommand
+                if (runCmd.isNullOrBlank()) {
+                    val errMsg = Message(
+                        id = UUID.randomUUID().toString(),
+                        sessionId = session.id,
+                        role = MessageRole.MODEL,
+                        content = NO_AGENT_CMD_ERROR,
+                        timestamp = System.currentTimeMillis()
+                    )
+                    repository.insertMessage(errMsg)
+                    _isLoading.value = false
+                    return@launch
+                }
+                try {
+                    val escaped = content.replace("\"", "\\\"")
+                    val result = localCommandRunner.executeCommand("echo \"$escaped\" | $runCmd")
+                    val modelMsg = Message(
+                        id = UUID.randomUUID().toString(),
+                        sessionId = session.id,
+                        role = MessageRole.MODEL,
+                        content = result.output.ifBlank { NO_OUTPUT },
+                        timestamp = System.currentTimeMillis()
+                    )
+                    repository.insertMessage(modelMsg)
+                } catch (e: Exception) {
+                    val errMsg = Message(
+                        id = UUID.randomUUID().toString(),
+                        sessionId = session.id,
+                        role = MessageRole.MODEL,
+                        content = "$ERROR_RUNNING_AGENT${e.message ?: UNKNOWN_ERROR}",
+                        timestamp = System.currentTimeMillis()
+                    )
+                    repository.insertMessage(errMsg)
+                }
+                _isLoading.value = false
+                return@launch
+            }
+
             val apiKey = prefsManager.getApiKeyForProvider(activeProvider).firstOrNull() ?: ""
 
             val agentEntity = repository.getAllAgents().firstOrNull()?.find { it.id == activeAgentId }
-            val systemPrompt = agentEntity?.systemPrompt
-                ?: "System: You are an expert AI assistant."
+            val systemPrompt = agentEntity?.systemPrompt ?: DEFAULT_SYSTEM_PROMPT
 
-            // Build full prompt history
             val promptBuilder = StringBuilder()
             promptBuilder.append("$systemPrompt\n\n")
 
@@ -243,6 +302,7 @@ class ChatViewModel(
     companion object {
         private val RUN_COMMAND_REGEX = "\\[RUN: (.+?)]".toRegex()
         private val SUDO_COMMAND_REGEX = "\\[SUDO: (.+?)]".toRegex()
+        val DEFAULT_MODELS = listOf("gemini-2.0-flash-exp", "gpt-4o", "claude-sonnet-4-20250514")
 
         val Factory: ViewModelProvider.Factory = object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")

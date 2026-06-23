@@ -1,7 +1,6 @@
 package com.omniclaw.data.repository
 
 import com.omniclaw.domain.models.AgentCategory
-import com.omniclaw.domain.models.DownloadSource
 import com.omniclaw.domain.models.DownloadableAgent
 import com.omniclaw.domain.repository.OpenCodeRepository
 import kotlinx.coroutines.delay
@@ -15,8 +14,7 @@ class OpenCodeRepositoryImpl : OpenCodeRepository {
     override fun getAvailableAgents(): Flow<List<DownloadableAgent>> = _catalog.asStateFlow()
 
     override suspend fun refreshCatalog() {
-        // Simulate network fetch delay; real impl would hit an OpenCode API
-        delay(800)
+        delay(SIMULATED_FETCH_DELAY_MS)
         _catalog.value = defaultCatalog()
     }
 
@@ -26,74 +24,52 @@ class OpenCodeRepositoryImpl : OpenCodeRepository {
 
     private fun defaultCatalog() = listOf(
         DownloadableAgent(
-            id = "oc-bash-automation",
-            name = "Bash Automation Suite",
-            description = "Advanced shell scripting and workflow automation toolkit for Termux",
-            category = AgentCategory.AUTOMATION,
-            downloadUrl = "https://opencode.omniclaw.ai/packages/bash-automation-v2.tar.gz",
-            iconName = "terminal",
-            version = "2.1.0",
-            fileSize = 1_024_000L
-        ),
-        DownloadableAgent(
-            id = "oc-code-analyzer",
-            name = "Code Analyzer Pro",
-            description = "Static analysis and code quality scanning across multiple languages",
+            id = "openclaude",
+            name = "OpenClaude",
+            description = "Open-source coding agent CLI supporting 200+ LLMs via OpenAI, Gemini, DeepSeek, Ollama, and more",
             category = AgentCategory.DEVELOPER,
-            downloadUrl = "https://opencode.omniclaw.ai/packages/code-analyzer-v1.tar.gz",
             iconName = "code",
-            version = "1.3.0",
-            fileSize = 2_560_000L
+            version = "0.19.0",
+            installCommand = "npm install -g @gitlawb/openclaude",
+            runCommand = "openclaude",
+            systemPrompt = "You are OpenClaude, an open-source coding agent that works with any LLM provider. You assist with software engineering tasks including code generation, debugging, refactoring, and testing. You can execute shell commands, read and write files, and manage complex multi-step development workflows. When asked to code, provide complete, working solutions with proper error handling. Prefer simple, maintainable solutions over complex abstractions."
         ),
         DownloadableAgent(
-            id = "oc-file-watcher",
-            name = "File Watcher Daemon",
-            description = "Real-time filesystem monitoring and event-driven action triggers",
-            category = AgentCategory.UTILITY,
-            downloadUrl = "https://opencode.omniclaw.ai/packages/file-watcher-v1.tar.gz",
-            iconName = "eye",
-            version = "1.0.2",
-            fileSize = 512_000L
-        ),
-        DownloadableAgent(
-            id = "oc-network-scanner",
-            name = "Network Scanner",
-            description = "Local network discovery, port scanning, and connectivity diagnostics",
-            category = AgentCategory.SECURITY,
-            downloadUrl = "https://opencode.omniclaw.ai/packages/network-scanner-v1.tar.gz",
-            iconName = "radar",
-            version = "1.1.0",
-            fileSize = 768_000L
-        ),
-        DownloadableAgent(
-            id = "oc-data-pipeline",
-            name = "Data Pipeline Engine",
-            description = "Extract, transform, and load data with scheduled batch processing",
-            category = AgentCategory.ANALYTICS,
-            downloadUrl = "https://opencode.omniclaw.ai/packages/data-pipeline-v2.tar.gz",
-            iconName = "database",
-            version = "2.0.0",
-            fileSize = 3_200_000L
-        ),
-        DownloadableAgent(
-            id = "oc-custom-hooks",
-            name = "Custom Hook Runner",
-            description = "Define and execute custom business logic hooks triggered by system events",
-            category = AgentCategory.CUSTOM_LOGIC,
-            downloadUrl = "https://opencode.omniclaw.ai/packages/custom-hooks-v1.tar.gz",
-            iconName = "hook",
-            version = "1.0.5",
-            fileSize = 384_000L
-        ),
-        DownloadableAgent(
-            id = "oc-opencode",
-            name = "OpenCode Agent",
-            description = "Autonomous AI coding agent with shell integration, file system access, and real-time collaboration for Termux",
+            id = "claude-code",
+            name = "Claude Code",
+            description = "Anthropic's official CLI coding agent — understands codebases, edits files, runs terminal commands, and handles entire workflows",
             category = AgentCategory.DEVELOPER,
-            downloadUrl = "https://opencode.omniclaw.ai/packages/opencode-agent-v1.tar.gz",
-            iconName = "opencode",
-            version = "1.0.0",
-            fileSize = 4_500_000L
+            iconName = "smart_toy",
+            version = "2.1.186",
+            installCommand = "npm install -g @anthropic-ai/claude-code",
+            runCommand = "claude",
+            systemPrompt = "You are Claude Code, Anthropic's official CLI coding agent. You understand entire codebases, edit files, run terminal commands, and handle complete development workflows. You think step-by-step before writing code, propose clear plans, and execute them precisely. You are an expert software engineer who ships production-quality code. When the user asks a coding question, you analyze the codebase context, plan your approach, and implement the solution."
+        ),
+        DownloadableAgent(
+            id = "codex-cli",
+            name = "Codex CLI",
+            description = "OpenAI's coding agent that runs locally on your computer — generates, runs, and debugs code autonomously",
+            category = AgentCategory.DEVELOPER,
+            iconName = "terminal",
+            version = "0.142.0",
+            installCommand = "npm install -g @openai/codex",
+            runCommand = "codex",
+            systemPrompt = "You are Codex CLI, OpenAI's coding agent that runs locally. You generate, run, and debug code autonomously. You have deep knowledge of programming languages, frameworks, and best practices. You write clean code, explain your reasoning, and iterate based on feedback. You can execute commands in the user's terminal and see the results to understand and fix issues. You are practical and focused on shipping working solutions."
+        ),
+        DownloadableAgent(
+            id = "opencode-ai",
+            name = "OpenCode AI",
+            description = "AI-powered coding assistant that integrates with your development workflow for code generation, review, and automation",
+            category = AgentCategory.DEVELOPER,
+            iconName = "extension",
+            version = "1.17.9",
+            installCommand = "npm install -g @opencode-ai/cli",
+            runCommand = "lildax",
+            systemPrompt = "You are OpenCode AI, a coding agent designed to integrate with development workflows for code generation, review, and automation. You help developers write better code faster by understanding their intent and context. You are proficient in analyzing requirements, suggesting architectures, and implementing clean, maintainable solutions across multiple programming languages and frameworks."
         )
     )
+
+    companion object {
+        private const val SIMULATED_FETCH_DELAY_MS = 800L
+    }
 }

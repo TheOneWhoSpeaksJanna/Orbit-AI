@@ -15,9 +15,8 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONArray
 import org.json.JSONObject
 
-class ClaudeProvider(okHttpClient: OkHttpClient) : AiProvider {
+class ClaudeProvider(private val httpClient: OkHttpClient) : AiProvider {
 
-    private val httpClient = okHttpClient
     private val jsonMediaType = "application/json; charset=utf-8".toMediaType()
 
     override fun generateContentStream(sessionId: String?, prompt: String, apiKey: String, provider: String, model: String): Flow<AiEvent> = flow {
@@ -33,11 +32,11 @@ class ClaudeProvider(okHttpClient: OkHttpClient) : AiProvider {
             try {
                 if (apiKey.isBlank()) return@withContext AiResult.Error("API Key is missing.")
 
-                val requestModel = if (model.isNotBlank()) model else "claude-sonnet-4-20250514"
-                
+                val requestModel = if (model.isNotBlank()) model else DEFAULT_MODEL
+
                 val jsonBody = JSONObject().apply {
                     put("model", requestModel)
-                    put("max_tokens", 1024)
+                    put("max_tokens", MAX_TOKENS)
                     val messages = JSONArray().apply {
                         put(JSONObject().apply {
                             put("role", "user")
@@ -48,9 +47,9 @@ class ClaudeProvider(okHttpClient: OkHttpClient) : AiProvider {
                 }
 
                 val request = Request.Builder()
-                    .url("https://api.anthropic.com/v1/messages")
+                    .url(API_BASE_URL)
                     .header("x-api-key", apiKey)
-                    .header("anthropic-version", "2023-06-01")
+                    .header("anthropic-version", API_VERSION)
                     .header("content-type", "application/json")
                     .post(jsonBody.toString().toRequestBody(jsonMediaType))
                     .build()
@@ -62,7 +61,7 @@ class ClaudeProvider(okHttpClient: OkHttpClient) : AiProvider {
                     val jsonResponse = JSONObject(responseBody)
                     val contents = jsonResponse.optJSONArray("content")
                     val text = contents?.optJSONObject(0)?.optString("text")
-                    
+
                     if (!text.isNullOrBlank()) {
                         AiResult.Success(text)
                     } else {
@@ -85,10 +84,10 @@ class ClaudeProvider(okHttpClient: OkHttpClient) : AiProvider {
     override val metadata: ProviderMetadata = ProviderMetadata(
         name = "Claude",
         displayName = "Anthropic Claude",
-        models = listOf("claude-sonnet-4-20250514", "claude-haiku-3-5-20241022", "claude-opus-4-20250514"),
+        models = listOf(DEFAULT_MODEL, "claude-haiku-3-5-20241022", "claude-opus-4-20250514"),
         supportsStreaming = true,
         requiresApiKey = true,
-        defaultModel = "claude-sonnet-4-20250514"
+        defaultModel = DEFAULT_MODEL
     )
 
     override suspend fun testConnection(provider: String, apiKey: String, model: String): Boolean {
@@ -96,5 +95,12 @@ class ClaudeProvider(okHttpClient: OkHttpClient) : AiProvider {
             val result = generateContent("Hi", apiKey, provider, model)
             result is AiResult.Success
         }
+    }
+
+    companion object {
+        private const val DEFAULT_MODEL = "claude-sonnet-4-20250514"
+        private const val API_BASE_URL = "https://api.anthropic.com/v1/messages"
+        private const val API_VERSION = "2023-06-01"
+        private const val MAX_TOKENS = 1024
     }
 }

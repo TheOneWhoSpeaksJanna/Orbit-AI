@@ -53,6 +53,35 @@ import com.omniclaw.ui.theme.OmniClawWarning
 import com.omniclaw.ui.viewmodels.DownloadViewModel
 import com.omniclaw.ui.viewmodels.SkillsViewModel
 
+private const val SECTION_ACTIVE = "Active Capabilities"
+private const val SECTION_AGENTS = "Agents"
+private const val SECTION_TOOLS = "Registered Tools"
+private const val SECTION_MARKETPLACE = "OpenCode Marketplace"
+private const val SUBTITLE_CAPABILITIES = "Installed agents, tools, and extension modules"
+private const val SUBTITLE_MARKETPLACE = "Download community agents and tools from the OpenCode registry"
+private const val DEFAULT_AGENT_NAME = "Default Agent"
+private const val DEFAULT_AGENT_DESC = "General-purpose AI orchestration agent"
+private const val DEFAULT_PROMPT_FALLBACK = "General-purpose agent"
+private const val STATUS_ACTIVE = "Active"
+private const val STATUS_READY = "Ready"
+private const val STATUS_AVAILABLE = "Available"
+private const val CD_GET = "Get"
+private const val CD_DOWNLOAD = "Download"
+private const val CD_DOWNLOADED = "Downloaded"
+private const val CD_INSTALLED = "Installed"
+private const val CD_FAILED = "Failed"
+private const val CD_RETRY = "Retry"
+
+private val AGENT_ACCENT_COLORS = mapOf(
+    "terminal" to Color(0xFF34D399),
+    "code" to Color(0xFF3B82F6),
+    "eye" to Color(0xFF8B5CF6),
+    "radar" to Color(0xFFF97316),
+    "database" to Color(0xFFF59E0B),
+    "hook" to Color(0xFFEC4899),
+    "opencode" to Color(0xFF06B6D4)
+)
+
 @Composable
 fun SkillsScreen(
     viewModel: SkillsViewModel = viewModel(factory = SkillsViewModel.Factory),
@@ -70,14 +99,14 @@ fun SkillsScreen(
     ) {
         item {
             Text(
-                text = "Active Capabilities",
+                text = SECTION_ACTIVE,
                 style = MaterialTheme.typography.headlineMedium,
                 color = OmniClawTextPrimary,
                 fontWeight = FontWeight.Bold
             )
             Spacer(modifier = Modifier.height(4.dp))
             Text(
-                text = "Installed agents, tools, and extension modules",
+                text = SUBTITLE_CAPABILITIES,
                 style = MaterialTheme.typography.bodyMedium,
                 color = OmniClawTextSecondary
             )
@@ -85,7 +114,7 @@ fun SkillsScreen(
 
         item {
             Text(
-                text = "Agents",
+                text = SECTION_AGENTS,
                 style = MaterialTheme.typography.titleMedium,
                 color = OmniClawAccent,
                 fontWeight = FontWeight.SemiBold
@@ -96,21 +125,21 @@ fun SkillsScreen(
         items(agents, key = { it.id }) { agent ->
             CapabilityCard(
                 name = agent.name,
-                description = agent.systemPrompt?.take(80) ?: "General-purpose agent",
+                description = agent.systemPrompt?.take(80) ?: DEFAULT_PROMPT_FALLBACK,
                 icon = Icons.Default.Memory,
                 accentColor = OmniClawAccent,
-                status = "Active"
+                status = STATUS_ACTIVE
             )
         }
 
         if (agents.isEmpty()) {
             item {
                 CapabilityCard(
-                    name = "Default Agent",
-                    description = "General-purpose AI orchestration agent",
+                    name = DEFAULT_AGENT_NAME,
+                    description = DEFAULT_AGENT_DESC,
                     icon = Icons.Default.Memory,
                     accentColor = OmniClawAccent,
-                    status = "Ready"
+                    status = STATUS_READY
                 )
             }
         }
@@ -118,7 +147,7 @@ fun SkillsScreen(
         item {
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = "Registered Tools",
+                text = SECTION_TOOLS,
                 style = MaterialTheme.typography.titleMedium,
                 color = OmniClawAccentSecondary,
                 fontWeight = FontWeight.SemiBold
@@ -141,7 +170,7 @@ fun SkillsScreen(
                         description = desc,
                         icon = Icons.Default.Build,
                         accentColor = OmniClawAccentSecondary,
-                        status = "Available"
+                        status = STATUS_AVAILABLE
                     )
                 }
             }
@@ -150,14 +179,14 @@ fun SkillsScreen(
         item {
             Spacer(modifier = Modifier.height(16.dp))
             Text(
-                text = "OpenCode Marketplace",
+                text = SECTION_MARKETPLACE,
                 style = MaterialTheme.typography.titleLarge,
                 color = OmniClawAccent,
                 fontWeight = FontWeight.Bold
             )
             Spacer(modifier = Modifier.height(4.dp))
             Text(
-                text = "Download community agents and tools from the OpenCode registry",
+                text = SUBTITLE_MARKETPLACE,
                 style = MaterialTheme.typography.bodyMedium,
                 color = OmniClawTextSecondary
             )
@@ -247,11 +276,11 @@ private fun DownloadButton(
             ) {
                 Icon(
                     imageVector = Icons.Default.CloudDownload,
-                    contentDescription = "Download",
+                    contentDescription = CD_DOWNLOAD,
                     modifier = Modifier.size(18.dp)
                 )
                 Spacer(modifier = Modifier.width(6.dp))
-                Text("Get", style = MaterialTheme.typography.labelMedium)
+                Text(CD_GET, style = MaterialTheme.typography.labelMedium)
             }
         }
         is DownloadState.Requesting -> {
@@ -280,12 +309,12 @@ private fun DownloadButton(
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Icon(
                     imageVector = Icons.Default.CheckCircle,
-                    contentDescription = "Downloaded",
+                    contentDescription = CD_DOWNLOADED,
                     modifier = Modifier.size(28.dp),
                     tint = OmniClawSuccess
                 )
                 Text(
-                    text = "Installed",
+                    text = CD_INSTALLED,
                     style = MaterialTheme.typography.labelSmall,
                     color = OmniClawSuccess
                 )
@@ -294,7 +323,7 @@ private fun DownloadButton(
         is DownloadState.Error -> {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(
-                    text = "Failed",
+                    text = CD_FAILED,
                     style = MaterialTheme.typography.labelSmall,
                     color = OmniClawWarning
                 )
@@ -305,23 +334,15 @@ private fun DownloadButton(
                     shape = RoundedCornerShape(10.dp),
                     contentPadding = ButtonDefaults.TextButtonContentPadding
                 ) {
-                    Text("Retry", style = MaterialTheme.typography.labelMedium)
+                    Text(CD_RETRY, style = MaterialTheme.typography.labelMedium)
                 }
             }
         }
     }
 }
 
-private fun agentAccent(agent: DownloadableAgent): Color = when (agent.iconName) {
-    "terminal" -> Color(0xFF34D399)
-    "code" -> Color(0xFF3B82F6)
-    "eye" -> Color(0xFF8B5CF6)
-    "radar" -> Color(0xFFF97316)
-    "database" -> Color(0xFFF59E0B)
-    "hook" -> Color(0xFFEC4899)
-    "opencode" -> Color(0xFF06B6D4)
-    else -> OmniClawAccent
-}
+private fun agentAccent(agent: DownloadableAgent): Color =
+    AGENT_ACCENT_COLORS[agent.iconName] ?: OmniClawAccent
 
 @Composable
 private fun CapabilityCard(

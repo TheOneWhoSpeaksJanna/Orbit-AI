@@ -17,9 +17,7 @@ class OmniClawRuntimeManager(private val context: Context) {
 
     init {
         listOf(runtimeDir, binDir, tmpDir, packagesDir, downloadsDir, agentsDir, logsDir, environmentsDir).forEach {
-            if (!it.exists()) {
-                it.mkdirs()
-            }
+            it.mkdirs()
         }
     }
 

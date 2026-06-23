@@ -46,7 +46,12 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-private val DATE_HISTORY_FORMAT = SimpleDateFormat("MMM dd, yyyy · HH:mm", Locale.getDefault())
+private val DATE_HISTORY_FORMAT = SimpleDateFormat("MMM dd, yyyy \u00b7 HH:mm", Locale.getDefault())
+
+private const val TITLE = "Session History"
+private const val SUBTITLE = "Browse past conversations and command logs"
+private const val EMPTY_TITLE = "No session history yet"
+private const val EMPTY_SUBTITLE = "Start a conversation to see it here"
 
 @Composable
 fun HistoryScreen(
@@ -62,14 +67,14 @@ fun HistoryScreen(
             .padding(horizontal = 20.dp, vertical = 16.dp)
     ) {
         Text(
-            text = "Session History",
+            text = TITLE,
             style = MaterialTheme.typography.headlineMedium,
             color = OmniClawTextPrimary,
             fontWeight = FontWeight.Bold
         )
         Spacer(modifier = Modifier.height(4.dp))
         Text(
-            text = "Browse past conversations and command logs",
+            text = SUBTITLE,
             style = MaterialTheme.typography.bodyMedium,
             color = OmniClawTextSecondary
         )
@@ -89,13 +94,13 @@ fun HistoryScreen(
                     )
                     Spacer(modifier = Modifier.height(12.dp))
                     Text(
-                        text = "No session history yet",
+                        text = EMPTY_TITLE,
                         style = MaterialTheme.typography.bodyLarge,
                         color = OmniClawTextSecondary
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = "Start a conversation to see it here",
+                        text = EMPTY_SUBTITLE,
                         style = MaterialTheme.typography.bodySmall,
                         color = OmniClawTextTertiary
                     )

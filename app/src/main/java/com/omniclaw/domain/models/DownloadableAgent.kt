@@ -5,11 +5,22 @@ data class DownloadableAgent(
     val name: String,
     val description: String,
     val category: AgentCategory,
-    val downloadUrl: String,
+    val downloadUrl: String = "",
     val source: DownloadSource = DownloadSource.OPENCODE,
     val iconName: String = "default",
     val version: String = "1.0.0",
-    val fileSize: Long = 0L
+    val fileSize: Long = 0L,
+    val systemPrompt: String = "",
+    val installCommand: String = "",
+    val runCommand: String = ""
+)
+
+fun DownloadableAgent.toAgent() = Agent(
+    id = id,
+    name = name,
+    description = description,
+    systemPrompt = systemPrompt,
+    runCommand = runCommand
 )
 
 enum class AgentCategory(val displayName: String) {

@@ -19,6 +19,11 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
+private const val AVATAR_SIZE_DP = 48
+private const val STROKE_BORDER = 1.5f
+private const val STROKE_REGULAR = 2f
+private const val STROKE_LARGE = 2.5f
+
 /**
  * Unique illustrative avatar for each downloadable agent.
  * Draws a gradient-background circle with a distinctive agent icon on top.
@@ -27,7 +32,7 @@ import androidx.compose.ui.unit.dp
 fun AgentAvatar(
     iconName: String,
     accentColor: Color,
-    size: Dp = 48.dp,
+    size: Dp = AVATAR_SIZE_DP.dp,
     modifier: Modifier = Modifier
 ) {
     Canvas(
@@ -37,7 +42,6 @@ fun AgentAvatar(
     ) {
         val r = size.toPx() / 2f
 
-        // Gradient background
         drawCircle(
             brush = Brush.radialGradient(
                 colors = listOf(
@@ -48,14 +52,12 @@ fun AgentAvatar(
                 radius = r
             )
         )
-        // Subtle border
         drawCircle(
             color = accentColor.copy(alpha = 0.2f),
-            style = Stroke(width = 1.5f)
+            style = Stroke(width = STROKE_BORDER)
         )
 
-        // Agent-specific illustration
-        val iconScale = size.toPx() / 48f
+        val iconScale = size.toPx() / AVATAR_SIZE_DP.toFloat()
         when (iconName) {
             "terminal" -> drawTerminalIcon(accentColor, iconScale)
             "code" -> drawCodeIcon(accentColor, iconScale)
@@ -68,19 +70,12 @@ fun AgentAvatar(
     }
 }
 
-// ── Agent icon drawings ──────────────────────────────────────────────────────
-
-/** Bash Automation — terminal prompt with `>_` cursor */
 private fun DrawScope.drawTerminalIcon(color: Color, s: Float) {
-    val stroke = Stroke(width = 2f * s, cap = StrokeCap.Round, join = StrokeJoin.Round)
-    // Shell prompt line
-    drawLine(color, Offset(12f * s, 18f * s), Offset(30f * s, 18f * s), strokeWidth = 2f * s)
-    // Second line
-    drawLine(color, Offset(12f * s, 28f * s), Offset(24f * s, 28f * s), strokeWidth = 2f * s)
-    // Prompt symbol
-    drawLine(color, Offset(16f * s, 14f * s), Offset(20f * s, 18f * s), strokeWidth = 2f * s)
-    drawLine(color, Offset(16f * s, 22f * s), Offset(20f * s, 18f * s), strokeWidth = 2f * s)
-    // Blinking cursor block
+    val stroke = Stroke(width = STROKE_REGULAR * s, cap = StrokeCap.Round, join = StrokeJoin.Round)
+    drawLine(color, Offset(12f * s, 18f * s), Offset(30f * s, 18f * s), strokeWidth = STROKE_REGULAR * s)
+    drawLine(color, Offset(12f * s, 28f * s), Offset(24f * s, 28f * s), strokeWidth = STROKE_REGULAR * s)
+    drawLine(color, Offset(16f * s, 14f * s), Offset(20f * s, 18f * s), strokeWidth = STROKE_REGULAR * s)
+    drawLine(color, Offset(16f * s, 22f * s), Offset(20f * s, 18f * s), strokeWidth = STROKE_REGULAR * s)
     drawRect(
         color = color.copy(alpha = 0.7f),
         topLeft = Offset(32f * s, 14f * s),
@@ -88,36 +83,32 @@ private fun DrawScope.drawTerminalIcon(color: Color, s: Float) {
     )
 }
 
-/** Code Analyzer — magnifying glass over code brackets */
 private fun DrawScope.drawCodeIcon(color: Color, s: Float) {
-    // Magnifier glass
     drawCircle(
         color = color,
         radius = 10f * s,
         center = Offset(20f * s, 18f * s),
-        style = Stroke(width = 2.5f * s)
+        style = Stroke(width = STROKE_LARGE * s)
     )
-    // Handle
     drawLine(
         color,
         Offset(27f * s, 25f * s),
         Offset(34f * s, 32f * s),
-        strokeWidth = 2.5f * s,
+        strokeWidth = STROKE_LARGE * s,
         cap = StrokeCap.Round
     )
-    // Code brackets inside glass
-    val cx = 20f * s; val cy = 18f * s
-    drawLine(color, Offset(cx - 4f * s, cy - 3f * s), Offset(cx - 4f * s, cy), strokeWidth = 1.8f * s)
-    drawLine(color, Offset(cx - 4f * s, cy), Offset(cx - 4f * s, cy + 3f * s), strokeWidth = 1.8f * s)
-    drawLine(color, Offset(cx + 4f * s, cy - 3f * s), Offset(cx + 4f * s, cy), strokeWidth = 1.8f * s)
-    drawLine(color, Offset(cx + 4f * s, cy), Offset(cx + 4f * s, cy + 3f * s), strokeWidth = 1.8f * s)
-    drawLine(color, Offset(cx - 1f * s, cy - 1f * s), Offset(cx + 1f * s, cy), strokeWidth = 1.8f * s)
-    drawLine(color, Offset(cx - 1f * s, cy + 1f * s), Offset(cx + 1f * s, cy), strokeWidth = 1.8f * s)
+    val cx = 20f * s
+    val cy = 18f * s
+    val codeStroke = 1.8f * s
+    drawLine(color, Offset(cx - 4f * s, cy - 3f * s), Offset(cx - 4f * s, cy), strokeWidth = codeStroke)
+    drawLine(color, Offset(cx - 4f * s, cy), Offset(cx - 4f * s, cy + 3f * s), strokeWidth = codeStroke)
+    drawLine(color, Offset(cx + 4f * s, cy - 3f * s), Offset(cx + 4f * s, cy), strokeWidth = codeStroke)
+    drawLine(color, Offset(cx + 4f * s, cy), Offset(cx + 4f * s, cy + 3f * s), strokeWidth = codeStroke)
+    drawLine(color, Offset(cx - 1f * s, cy - 1f * s), Offset(cx + 1f * s, cy), strokeWidth = codeStroke)
+    drawLine(color, Offset(cx - 1f * s, cy + 1f * s), Offset(cx + 1f * s, cy), strokeWidth = codeStroke)
 }
 
-/** File Watcher — eye over document */
 private fun DrawScope.drawEyeIcon(color: Color, s: Float) {
-    // Document shape
     val docPath = Path().apply {
         moveTo(14f * s, 10f * s)
         lineTo(28f * s, 10f * s)
@@ -126,18 +117,16 @@ private fun DrawScope.drawEyeIcon(color: Color, s: Float) {
         lineTo(12f * s, 16f * s)
         close()
     }
-    drawPath(docPath, color, style = Stroke(width = 2f * s, join = StrokeJoin.Round))
+    drawPath(docPath, color, style = Stroke(width = STROKE_REGULAR * s, join = StrokeJoin.Round))
 
-    // Eye shape over document
     drawOval(
         color,
         topLeft = Offset(14f * s, 19f * s),
         size = Size(12f * s, 8f * s),
-        style = Stroke(width = 2f * s)
+        style = Stroke(width = STROKE_REGULAR * s)
     )
     drawCircle(color, radius = 2.5f * s, center = Offset(20f * s, 23f * s))
 
-    // Fold corner
     val foldPath = Path().apply {
         moveTo(14f * s, 16f * s)
         lineTo(20f * s, 16f * s)
@@ -147,11 +136,10 @@ private fun DrawScope.drawEyeIcon(color: Color, s: Float) {
     drawPath(foldPath, color.copy(alpha = 0.5f), style = Fill)
 }
 
-/** Network Scanner — concentric radar arcs with ping dots */
 private fun DrawScope.drawRadarIcon(color: Color, s: Float) {
-    val cx = 20f * s; val cy = 22f * s
+    val cx = 20f * s
+    val cy = 22f * s
 
-    // Concentric arcs
     for (i in 1..3) {
         val r = i * 7f * s
         drawArc(
@@ -165,22 +153,20 @@ private fun DrawScope.drawRadarIcon(color: Color, s: Float) {
         )
     }
 
-    // Sweep line
     drawLine(color, Offset(cx, cy), Offset(cx + 17f * s, cy - 10f * s), strokeWidth = 1.5f * s)
 
-    // Ping dots
     drawCircle(color, radius = 2.5f * s, center = Offset(cx + 10f * s, cy - 5f * s))
     drawCircle(color.copy(alpha = 0.6f), radius = 2f * s, center = Offset(cx - 6f * s, cy + 11f * s))
 
-    // Center point
     drawCircle(color, radius = 2f * s, center = Offset(cx, cy))
 }
 
-/** Data Pipeline — database stack with arrows */
 private fun DrawScope.drawDatabaseIcon(color: Color, s: Float) {
-    val dbLeft = 13f * s; val dbTop = 12f * s; val dbW = 16f * s; val dbH = 8f * s
+    val dbLeft = 13f * s
+    val dbTop = 12f * s
+    val dbW = 16f * s
+    val dbH = 8f * s
 
-    // Three stacked database disks
     for (i in 0..2) {
         val y = dbTop + i * 7f * s
         drawOval(
@@ -190,24 +176,20 @@ private fun DrawScope.drawDatabaseIcon(color: Color, s: Float) {
             style = Stroke(width = 1.8f * s)
         )
         if (i == 0) {
-            // Body lines
             drawLine(color.copy(alpha = 0.7f), Offset(dbLeft, y + dbH * 0.25f * s), Offset(dbLeft, y + 2f * s), strokeWidth = 1.5f * s)
             drawLine(color.copy(alpha = 0.7f), Offset(dbLeft + dbW, y + dbH * 0.25f * s), Offset(dbLeft + dbW, y + 2f * s), strokeWidth = 1.5f * s)
         }
     }
 
-    // Flow arrow right
     val arrowY = 22f * s
-    drawLine(color, Offset(32f * s, arrowY), Offset(40f * s, arrowY), strokeWidth = 2f * s)
-    drawLine(color, Offset(37f * s, arrowY - 3f * s), Offset(40f * s, arrowY), strokeWidth = 2f * s)
-    drawLine(color, Offset(37f * s, arrowY + 3f * s), Offset(40f * s, arrowY), strokeWidth = 2f * s)
+    drawLine(color, Offset(32f * s, arrowY), Offset(40f * s, arrowY), strokeWidth = STROKE_REGULAR * s)
+    drawLine(color, Offset(37f * s, arrowY - 3f * s), Offset(40f * s, arrowY), strokeWidth = STROKE_REGULAR * s)
+    drawLine(color, Offset(37f * s, arrowY + 3f * s), Offset(40f * s, arrowY), strokeWidth = STROKE_REGULAR * s)
 }
 
-/** Custom Hook Runner — chain link / hook shape */
 private fun DrawScope.drawHookIcon(color: Color, s: Float) {
-    val stroke = Stroke(width = 2.5f * s, cap = StrokeCap.Round, join = StrokeJoin.Round)
+    val stroke = Stroke(width = STROKE_LARGE * s, cap = StrokeCap.Round, join = StrokeJoin.Round)
 
-    // Open hook / J-curve
     val hookPath = Path().apply {
         moveTo(14f * s, 12f * s)
         cubicTo(14f * s, 12f * s, 32f * s, 12f * s, 32f * s, 20f * s)
@@ -215,21 +197,17 @@ private fun DrawScope.drawHookIcon(color: Color, s: Float) {
     }
     drawPath(hookPath, color, style = stroke)
 
-    // Arrow point on hook end
-    drawLine(color, Offset(20f * s, 24f * s), Offset(16f * s, 24f * s), strokeWidth = 2.5f * s, cap = StrokeCap.Round)
+    drawLine(color, Offset(20f * s, 24f * s), Offset(16f * s, 24f * s), strokeWidth = STROKE_LARGE * s, cap = StrokeCap.Round)
 
-    // Chain link above
     drawOval(
         color.copy(alpha = 0.7f),
         topLeft = Offset(10f * s, 9f * s),
         size = Size(10f * s, 6f * s),
-        style = Stroke(width = 2f * s)
+        style = Stroke(width = STROKE_REGULAR * s)
     )
 }
 
-/** OpenCode Agent — infinity symbol with code spark */
 private fun DrawScope.drawOpenCodeIcon(color: Color, s: Float) {
-    // Infinity symbol (horizontal figure-8)
     val infinityPath = Path().apply {
         moveTo(14f * s, 24f * s)
         cubicTo(12f * s, 22f * s, 12f * s, 18f * s, 16f * s, 16f * s)
@@ -240,15 +218,13 @@ private fun DrawScope.drawOpenCodeIcon(color: Color, s: Float) {
     drawPath(
         infinityPath,
         color,
-        style = Stroke(width = 2.5f * s, cap = StrokeCap.Round, join = StrokeJoin.Round)
+        style = Stroke(width = STROKE_LARGE * s, cap = StrokeCap.Round, join = StrokeJoin.Round)
     )
 
-    // Spark / code bracket above the infinity
-    drawLine(color, Offset(26f * s, 12f * s), Offset(26f * s, 12f * s), strokeWidth = 2f * s, cap = StrokeCap.Round)
-    drawLine(color, Offset(24f * s, 10f * s), Offset(28f * s, 10f * s), strokeWidth = 2f * s, cap = StrokeCap.Round)
-    drawLine(color, Offset(24f * s, 14f * s), Offset(28f * s, 14f * s), strokeWidth = 2f * s, cap = StrokeCap.Round)
+    drawLine(color, Offset(26f * s, 12f * s), Offset(26f * s, 12f * s), strokeWidth = STROKE_REGULAR * s, cap = StrokeCap.Round)
+    drawLine(color, Offset(24f * s, 10f * s), Offset(28f * s, 10f * s), strokeWidth = STROKE_REGULAR * s, cap = StrokeCap.Round)
+    drawLine(color, Offset(24f * s, 14f * s), Offset(28f * s, 14f * s), strokeWidth = STROKE_REGULAR * s, cap = StrokeCap.Round)
 
-    // Small dot at each infinity center
     drawCircle(color.copy(alpha = 0.5f), radius = 1.5f * s, center = Offset(20f * s, 22f * s))
     drawCircle(color.copy(alpha = 0.5f), radius = 1.5f * s, center = Offset(28f * s, 22f * s))
 }

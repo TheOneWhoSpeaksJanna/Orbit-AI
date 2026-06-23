@@ -8,14 +8,14 @@ interface AiProvider {
         sessionId: String? = null,
         prompt: String,
         apiKey: String,
-        provider: String = "Gemini",
+        provider: String = DEFAULT_PROVIDER,
         model: String = ""
     ): Flow<AiEvent>
 
     suspend fun generateContent(
         prompt: String,
         apiKey: String,
-        provider: String = "Gemini",
+        provider: String = DEFAULT_PROVIDER,
         model: String = ""
     ): AiResult
 
@@ -29,6 +29,10 @@ interface AiProvider {
     fun getModels(providerName: String): List<String>
 
     suspend fun fetchDetailedModels(providerName: String, apiKey: String): List<DetailedModelInfo> = emptyList()
+
+    companion object {
+        const val DEFAULT_PROVIDER = "Gemini"
+    }
 }
 
 sealed class AiResult {

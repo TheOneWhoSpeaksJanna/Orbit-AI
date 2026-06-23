@@ -2,7 +2,6 @@ package com.omniclaw.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-// ─── Base ──────────────────────────────────────────────────────
 val OmniClawBgDark = Color(0xFF0A0E1A)
 val OmniClawSurfaceDark = Color(0xFF141A2E)
 val OmniClawSurfaceElevated = Color(0xFF1C2340)
@@ -19,7 +18,6 @@ val OmniClawTextPrimaryLight = Color(0xFF1F2937)
 val OmniClawTextSecondaryLight = Color(0xFF6B7280)
 val OmniClawTextTertiaryLight = Color(0xFF9CA3B2)
 
-// ─── Cosmic Accent Palette ─────────────────────────────────────
 val OmniClawPrimary = Color(0xFF6C63FF)
 val OmniClawPrimaryDark = Color(0xFF5046E5)
 val OmniClawPrimaryLight = Color(0xFF8B85FF)
@@ -35,7 +33,6 @@ val OmniClawTertiaryDark = Color(0xFFC026D3)
 val OmniClawTertiaryLight = Color(0xFFE879F9)
 val OmniClawTertiaryGlow = Color(0x40D946EF)
 
-// ─── Glass ──────────────────────────────────────────────────────
 val OmniClawGlassBorder = Color(0xFF2E3440)
 val OmniClawGlassBorderLight = Color(0xFFD1D5DB)
 val OmniClawGlassOverlay = Color(0x1AFFFFFF)
@@ -43,16 +40,13 @@ val OmniClawGlassOverlayDeep = Color(0x0DFFFFFF)
 val OmniClawGlassOverlayPressed = Color(0x26FFFFFF)
 val OmniClawGlassShadow = Color(0x40000000)
 
-// ─── Obsidian ──────────────────────────────────────────────────
 val OmniClawObsidianBase = Color(0xFF06080F)
 val OmniClawObsidianSurface = Color(0xFF0A0E1A)
 val OmniClawObsidianElevated = Color(0xFF0F1423)
 
-// ─── Status ────────────────────────────────────────────────────
 val OmniClawSuccess = Color(0xFF22C55E)
 val OmniClawWarning = Color(0xFFF59E0B)
 val OmniClawError = Color(0xFFEF4444)
 
-// ─── Backward-Compatible Aliases ────────────────────────────
 val OmniClawAccent = OmniClawSecondary
 val OmniClawAccentSecondary = OmniClawPrimary

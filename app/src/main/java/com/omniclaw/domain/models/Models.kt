@@ -30,7 +30,8 @@ data class Agent(
     val id: String,
     val name: String,
     val description: String,
-    val systemPrompt: String
+    val systemPrompt: String,
+    val runCommand: String = ""
 )
 
 data class TermuxLog(

@@ -10,7 +10,6 @@ import com.omniclaw.core.di.AppContainer
 import com.omniclaw.domain.models.TermuxLog
 import com.omniclaw.domain.repository.OmniClawRepository
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -18,9 +17,16 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
+private const val PKG_INSTALL_PREFIX = "omniclaw-pkg install "
+private const val INSTALL_START_PREFIX = "Starting installation of "
+private const val INSTALL_SUFFIX = " via OmniClaw Package Manager...\n"
+private const val SUCCESS_PREFIX = "Successfully installed "
+private const val FAILURE_PREFIX = "Failed to install "
+private const val SUDO_PREFIX = "sudo "
+
 data class DownloadProgress(
     val title: String,
-    val progress: Float, // 0.0 to 1.0
+    val progress: Float,
     val mbPerSecond: Float,
     val timeRemainingSeconds: Int,
     val isActive: Boolean
@@ -44,18 +50,18 @@ class TermuxViewModel(
     fun installTool(toolName: String) {
         viewModelScope.launch(Dispatchers.IO) {
             val logId = java.util.UUID.randomUUID().toString()
-            var currentLogOutput = "Starting installation of $toolName via OmniClaw Package Manager...\n"
-            
+            var currentLogOutput = "$INSTALL_START_PREFIX$toolName$INSTALL_SUFFIX"
+
             repository.insertTermuxLog(
                 TermuxLog(
                     id = logId,
-                    command = "omniclaw-pkg install $toolName",
+                    command = "$PKG_INSTALL_PREFIX$toolName",
                     output = currentLogOutput,
                     exitCode = -1,
                     timestamp = System.currentTimeMillis()
                 )
             )
-            
+
             val success = appContainer.packageInstaller.installPackage(toolName) { progress, status ->
                 _downloadProgress.value = DownloadProgress(
                     title = status,
@@ -64,23 +70,21 @@ class TermuxViewModel(
                     timeRemainingSeconds = 0,
                     isActive = progress < 1f
                 )
-                
-                // Update log occasionally (to not spam the DB, but okay for a simple impl)
             }
-            
-            val finalStatus = if (success) "Successfully installed $toolName." else "Failed to install $toolName."
+
+            val finalStatus = if (success) "$SUCCESS_PREFIX$toolName." else "$FAILURE_PREFIX$toolName."
             currentLogOutput += finalStatus
-            
+
             repository.insertTermuxLog(
                 TermuxLog(
                     id = logId,
-                    command = "omniclaw-pkg install $toolName",
+                    command = "$PKG_INSTALL_PREFIX$toolName",
                     output = currentLogOutput,
                     exitCode = if (success) 0 else 1,
                     timestamp = System.currentTimeMillis()
                 )
             )
-            
+
             _downloadProgress.value = null
         }
     }
@@ -104,7 +108,7 @@ class TermuxViewModel(
             val executionResult = appContainer.localCommandRunner.executePrivilegedCommand(command)
             val log = TermuxLog(
                 id = java.util.UUID.randomUUID().toString(),
-                command = "sudo $command",
+                command = "$SUDO_PREFIX$command",
                 output = executionResult.output,
                 exitCode = executionResult.exitCode,
                 timestamp = System.currentTimeMillis()

@@ -15,8 +15,8 @@ import java.util.concurrent.TimeUnit
 class AgentDownloaderImpl(
     private val downloadDir: File,
     private val client: OkHttpClient = OkHttpClient.Builder()
-        .connectTimeout(30, TimeUnit.SECONDS)
-        .readTimeout(120, TimeUnit.SECONDS)
+        .connectTimeout(CONNECT_TIMEOUT, TimeUnit.SECONDS)
+        .readTimeout(READ_TIMEOUT, TimeUnit.SECONDS)
         .followRedirects(true)
         .build()
 ) : AgentDownloader {
@@ -50,7 +50,7 @@ class AgentDownloaderImpl(
             withContext(Dispatchers.IO) {
                 downloadDir.mkdirs()
                 FileOutputStream(outputFile).use { output ->
-                    val buffer = ByteArray(8192)
+                    val buffer = ByteArray(BUFFER_SIZE)
                     var bytesRead: Long = 0
                     var lastEmittedProgress = -1
                     var read: Int
@@ -60,7 +60,7 @@ class AgentDownloaderImpl(
                         bytesRead += read
 
                         if (contentLength > 0) {
-                            val progress = (bytesRead.toFloat() / contentLength)
+                            val progress = bytesRead.toFloat() / contentLength
                             val progressPct = (progress * 100).toInt()
                             if (progressPct != lastEmittedProgress) {
                                 lastEmittedProgress = progressPct
@@ -79,5 +79,11 @@ class AgentDownloaderImpl(
         } catch (e: Exception) {
             emit(DownloadState.Error(e.message ?: "Download failed"))
         }
+    }
+
+    companion object {
+        private const val CONNECT_TIMEOUT = 30L
+        private const val READ_TIMEOUT = 120L
+        private const val BUFFER_SIZE = 8192
     }
 }

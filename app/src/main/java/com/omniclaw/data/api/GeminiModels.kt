@@ -1,12 +1,9 @@
 package com.omniclaw.data.api
 
-import retrofit2.Response
 import retrofit2.http.Body
 import retrofit2.http.POST
 import retrofit2.http.Path
 import retrofit2.http.Query
-
-// ─── Request Models ───────────────────────────────────────────────
 
 data class GeminiRequest(
     val contents: List<GeminiRequest.Content>
@@ -19,8 +16,6 @@ data class GeminiRequest(
         val text: String
     )
 }
-
-// ─── Response Models ──────────────────────────────────────────────
 
 data class GeminiResponse(
     val candidates: List<Candidate>?
@@ -38,8 +33,6 @@ data class GeminiResponseContent(
 data class GeminiResponsePart(
     val text: String?
 )
-
-// ─── Retrofit Service ─────────────────────────────────────────────
 
 interface GeminiService {
     @POST("v1beta/models/{model}:generateContent")

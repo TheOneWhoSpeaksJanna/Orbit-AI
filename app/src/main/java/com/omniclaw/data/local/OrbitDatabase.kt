@@ -7,15 +7,19 @@ import com.omniclaw.data.local.entity.*
 
 @Database(
     entities = [
-        ProjectEntity::class, 
-        SessionEntity::class, 
-        MessageEntity::class, 
-        AgentEntity::class, 
+        ProjectEntity::class,
+        SessionEntity::class,
+        MessageEntity::class,
+        AgentEntity::class,
         TermuxLogEntity::class
-    ], 
-    version = 2, 
+    ],
+    version = DATABASE_VERSION,
     exportSchema = false
 )
 abstract class OmniClawDatabase : RoomDatabase() {
     abstract fun dao(): OmniClawDao
+
+    companion object {
+        private const val DATABASE_VERSION = 2
+    }
 }

@@ -20,14 +20,13 @@ import retrofit2.Retrofit
 import retrofit2.converter.moshi.MoshiConverterFactory
 import com.squareup.moshi.Moshi
 
-class GeminiProvider(okHttpClient: OkHttpClient) : AiProvider {
+class GeminiProvider(private val httpClient: OkHttpClient) : AiProvider {
 
     private val moshi = Moshi.Builder().build()
     private val jsonMediaType = "application/json; charset=utf-8".toMediaType()
-    private val httpClient = okHttpClient
 
     private val retrofit = Retrofit.Builder()
-        .baseUrl("https://generativelanguage.googleapis.com/")
+        .baseUrl(API_BASE_URL)
         .addConverterFactory(MoshiConverterFactory.create(moshi))
         .client(httpClient)
         .build()
@@ -39,7 +38,7 @@ class GeminiProvider(okHttpClient: OkHttpClient) : AiProvider {
             emit(AiEvent.Error("API Key is missing."))
             return@flow
         }
-        val requestModel = if (model.isNotBlank()) model else "gemini-2.0-flash-exp"
+        val requestModel = if (model.isNotBlank()) model else DEFAULT_MODEL
         val jsonBody = JSONObject().apply {
             val contents = org.json.JSONArray().apply {
                 put(JSONObject().apply {
@@ -103,7 +102,7 @@ class GeminiProvider(okHttpClient: OkHttpClient) : AiProvider {
                 if (apiKey.isBlank()) {
                     return@withContext AiResult.Error("API Key is missing.")
                 }
-                val requestModel = if (model.isNotBlank()) model else "gemini-2.0-flash-exp"
+                val requestModel = if (model.isNotBlank()) model else DEFAULT_MODEL
                 val request = GeminiRequest(
                     contents = listOf(GeminiRequest.Content(parts = listOf(GeminiRequest.Part(text = prompt))))
                 )
@@ -130,25 +129,30 @@ class GeminiProvider(okHttpClient: OkHttpClient) : AiProvider {
     override val metadata: ProviderMetadata = ProviderMetadata(
         name = "Gemini",
         displayName = "Google Gemini",
-        models = listOf("gemini-2.0-flash-exp", "gemini-1.5-pro-latest", "gemini-1.5-flash-latest"),
+        models = listOf(DEFAULT_MODEL, "gemini-1.5-pro-latest", "gemini-1.5-flash-latest"),
         supportsStreaming = true,
         requiresApiKey = true,
-        defaultModel = "gemini-2.0-flash-exp"
+        defaultModel = DEFAULT_MODEL
     )
 
     override suspend fun testConnection(provider: String, apiKey: String, model: String): Boolean {
         return withContext(Dispatchers.IO) {
             try {
                 if (apiKey.isBlank()) return@withContext false
-                val requestModel = if (model.isNotBlank()) model else "gemini-2.0-flash-exp"
+                val requestModel = if (model.isNotBlank()) model else DEFAULT_MODEL
                 val request = GeminiRequest(
                     contents = listOf(GeminiRequest.Content(parts = listOf(GeminiRequest.Part(text = "Hi"))))
                 )
                 service.generateContent(model = requestModel, apiKey = apiKey, request = request)
                 true
-            } catch (e: Exception) {
+            } catch (_: Exception) {
                 false
             }
         }
+    }
+
+    companion object {
+        private const val DEFAULT_MODEL = "gemini-2.0-flash-exp"
+        private const val API_BASE_URL = "https://generativelanguage.googleapis.com/"
     }
 }

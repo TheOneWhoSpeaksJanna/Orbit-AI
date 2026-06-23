@@ -1,6 +1,5 @@
 package com.omniclaw.ui.components
 
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -9,23 +8,15 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.Terminal
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontFamily
@@ -41,6 +32,26 @@ import com.omniclaw.ui.theme.OmniClawSurfaceElevated
 import com.omniclaw.ui.theme.OmniClawTextPrimary
 import com.omniclaw.ui.theme.OmniClawTextSecondary
 
+private const val SECTION_SPACING_DP = 10
+private const val CARD_PADDING_DP = 12
+private const val ROW_SPACING_DP = 8
+private const val ROW_SPACING_SMALL_DP = 6
+private const val ICON_SIZE_SMALL_DP = 14
+private const val ICON_SIZE_TOOL_DP = 16
+private const val TOP_PADDING_DP = 4
+private const val PREVIEW_MAX_LENGTH = 60
+private const val TOOL_TAKE_LAST = 5
+private const val TERMINAL_TAKE_LAST = 3
+private const val FONT_SIZE_OUTPUT_SP = 12
+private const val FONT_SIZE_EXIT_SP = 10
+private const val FONT_SIZE_PREVIEW_SP = 10
+
+private const val HEADING_CODEX = "Codex"
+private const val HEADING_TOOL_EXECUTIONS = "Tool Executions"
+private const val HEADING_TERMINAL_HISTORY = "Terminal History"
+private const val LABEL_UNCOMMITTED_CHANGES = "Uncommitted changes"
+private const val LABEL_NO_CHANGES = "No uncommitted changes"
+
 @Composable
 fun CodexSection(
     toolCallRecords: List<ToolCallRecord>,
@@ -50,10 +61,10 @@ fun CodexSection(
 ) {
     Column(
         modifier = modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(10.dp)
+        verticalArrangement = Arrangement.spacedBy(SECTION_SPACING_DP.dp)
     ) {
         Text(
-            text = "Codex",
+            text = HEADING_CODEX,
             style = MaterialTheme.typography.titleMedium,
             color = OmniClawAccent,
             fontWeight = FontWeight.Bold
@@ -64,16 +75,16 @@ fun CodexSection(
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    horizontalArrangement = Arrangement.spacedBy(ROW_SPACING_SMALL_DP.dp)
                 ) {
                     Icon(
                         Icons.Default.Info,
                         contentDescription = null,
                         tint = OmniClawAccent,
-                        modifier = Modifier.size(14.dp)
+                        modifier = Modifier.size(ICON_SIZE_SMALL_DP.dp)
                     )
                     Text(
-                        text = "Uncommitted changes (${lines.size} files)",
+                        text = "$LABEL_UNCOMMITTED_CHANGES (${lines.size} files)",
                         style = MaterialTheme.typography.labelSmall,
                         color = OmniClawTextSecondary
                     )
@@ -85,16 +96,16 @@ fun CodexSection(
         } else {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                horizontalArrangement = Arrangement.spacedBy(ROW_SPACING_SMALL_DP.dp)
             ) {
                 Icon(
                     Icons.Default.Info,
                     contentDescription = null,
                     tint = OmniClawTextSecondary,
-                    modifier = Modifier.size(14.dp)
+                    modifier = Modifier.size(ICON_SIZE_SMALL_DP.dp)
                 )
                 Text(
-                    text = "No uncommitted changes",
+                    text = LABEL_NO_CHANGES,
                     style = MaterialTheme.typography.labelSmall,
                     color = OmniClawTextSecondary
                 )
@@ -103,22 +114,22 @@ fun CodexSection(
 
         if (toolCallRecords.isNotEmpty()) {
             Text(
-                text = "Tool Executions",
+                text = HEADING_TOOL_EXECUTIONS,
                 style = MaterialTheme.typography.labelLarge,
                 color = OmniClawTextPrimary
             )
-            toolCallRecords.takeLast(5).reversed().forEach { record ->
+            toolCallRecords.takeLast(TOOL_TAKE_LAST).reversed().forEach { record ->
                 ToolExecutionCard(record)
             }
         }
 
         if (termuxLogs.isNotEmpty()) {
             Text(
-                text = "Terminal History",
+                text = HEADING_TERMINAL_HISTORY,
                 style = MaterialTheme.typography.labelLarge,
                 color = OmniClawTextPrimary
             )
-            termuxLogs.takeLast(3).reversed().forEach { log ->
+            termuxLogs.takeLast(TERMINAL_TAKE_LAST).reversed().forEach { log ->
                 TerminalBlock(log = log)
             }
         }
@@ -130,7 +141,7 @@ private fun ToolExecutionCard(
     record: ToolCallRecord
 ) {
     val isError = record.exitCode != 0
-    val preview = record.output.take(60).replace("\n", " ")
+    val preview = record.output.take(PREVIEW_MAX_LENGTH).replace("\n", " ")
 
     Card(
         colors = CardDefaults.cardColors(
@@ -138,21 +149,21 @@ private fun ToolExecutionCard(
         ),
         modifier = Modifier.fillMaxWidth()
     ) {
-        Column(modifier = Modifier.padding(12.dp)) {
+        Column(modifier = Modifier.padding(CARD_PADDING_DP.dp)) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                horizontalArrangement = Arrangement.spacedBy(ROW_SPACING_DP.dp)
             ) {
                 Icon(
                     Icons.Default.Code,
                     contentDescription = null,
                     tint = if (isError) OmniClawError else OmniClawSuccess,
-                    modifier = Modifier.size(16.dp)
+                    modifier = Modifier.size(ICON_SIZE_TOOL_DP.dp)
                 )
                 Text(
                     text = "\$ ${record.command}",
                     fontFamily = FontFamily.Monospace,
-                    fontSize = 12.sp,
+                    fontSize = FONT_SIZE_OUTPUT_SP.sp,
                     color = OmniClawAccent,
                     fontWeight = FontWeight.Medium,
                     maxLines = 1
@@ -160,19 +171,19 @@ private fun ToolExecutionCard(
                 Spacer(Modifier.weight(1f))
                 Text(
                     text = "exit ${record.exitCode}",
-                    fontSize = 10.sp,
+                    fontSize = FONT_SIZE_EXIT_SP.sp,
                     color = if (isError) OmniClawError else OmniClawTextSecondary
                 )
             }
             if (preview.isNotEmpty()) {
                 Text(
-                    text = preview.ifEmpty { "(empty)" },
+                    text = preview,
                     style = MaterialTheme.typography.bodySmall,
                     color = OmniClawTextSecondary,
                     fontFamily = FontFamily.Monospace,
-                    fontSize = 10.sp,
+                    fontSize = FONT_SIZE_PREVIEW_SP.sp,
                     maxLines = 2,
-                    modifier = Modifier.padding(top = 4.dp)
+                    modifier = Modifier.padding(top = TOP_PADDING_DP.dp)
                 )
             }
         }

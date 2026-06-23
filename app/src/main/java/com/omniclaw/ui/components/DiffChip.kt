@@ -5,7 +5,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -16,8 +15,17 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.omniclaw.ui.theme.OmniClawAccent
+import com.omniclaw.ui.theme.OmniClawError
 import com.omniclaw.ui.theme.OmniClawSuccess
 import com.omniclaw.ui.theme.OmniClawTextSecondary
+
+private const val CHIP_SHAPE_RADIUS_DP = 6
+private const val CHIP_HORIZONTAL_PADDING_DP = 10
+private const val CHIP_VERTICAL_PADDING_DP = 6
+private const val CHIP_SPACING_DP = 6
+private const val CHIP_BORDER_DP = 1
+private const val CHIP_FONT_SIZE_SP = 11
+private const val BORDER_ALPHA = 0.2f
 
 @Composable
 fun DiffChip(
@@ -34,8 +42,8 @@ fun DiffChip(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .border(1.dp, OmniClawTextSecondary.copy(alpha = 0.2f), RoundedCornerShape(6.dp))
-            .padding(horizontal = 10.dp, vertical = 6.dp),
+            .border(CHIP_BORDER_DP.dp, OmniClawTextSecondary.copy(alpha = BORDER_ALPHA), RoundedCornerShape(CHIP_SHAPE_RADIUS_DP.dp))
+            .padding(horizontal = CHIP_HORIZONTAL_PADDING_DP.dp, vertical = CHIP_VERTICAL_PADDING_DP.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -45,20 +53,20 @@ fun DiffChip(
             color = OmniClawAccent,
             modifier = Modifier.weight(1f)
         )
-        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(CHIP_SPACING_DP.dp)) {
             if (insertions > 0 || deletions == 0) {
                 Text(
                     text = "+$insertions",
                     color = OmniClawSuccess,
-                    fontSize = 11.sp,
+                    fontSize = CHIP_FONT_SIZE_SP.sp,
                     fontWeight = FontWeight.SemiBold
                 )
             }
             if (deletions > 0) {
                 Text(
                     text = "-$deletions",
-                    color = com.omniclaw.ui.theme.OmniClawError,
-                    fontSize = 11.sp,
+                    color = OmniClawError,
+                    fontSize = CHIP_FONT_SIZE_SP.sp,
                     fontWeight = FontWeight.SemiBold
                 )
             }

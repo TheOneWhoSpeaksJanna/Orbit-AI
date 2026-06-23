@@ -1,43 +1,55 @@
 package com.omniclaw.data.local.runner
 
+import com.omniclaw.data.local.runtime.OmniClawRuntimeManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import rikka.shizuku.Shizuku
 import java.io.BufferedReader
 import java.io.InputStreamReader
 
+private const val ERROR_EXIT_CODE = -1
+
+private const val SHIZUKU_NOT_RUNNING = "Shizuku is not running or unavailable."
+private const val SHIZUKU_API_CHANGED = "Shizuku API changed \u2014 newProcess method not found. Please update the app."
+private const val SHIZUKU_PERMISSION_DENIED = "Shizuku permission denied. Grant permission in the Shizuku app."
+private const val ERROR_COMMAND_PREFIX = "Error executing local command: "
+private const val ERROR_PRIVILEGED_PREFIX = "Error executing privileged command via Shizuku: "
+
 data class CommandResult(val output: String, val exitCode: Int, val command: String)
 
-class LocalCommandRunner(    private val runtimeManager: com.omniclaw.data.local.runtime.OmniClawRuntimeManager) {
+class LocalCommandRunner(
+    private val runtimeManager: OmniClawRuntimeManager
+) {
+
+    private fun setupProcessBuilder(command: String): ProcessBuilder {
+        val processBuilder = ProcessBuilder("sh", "-c", command)
+        processBuilder.directory(runtimeManager.runtimeDir)
+        val env = processBuilder.environment()
+        val currentPath = env["PATH"] ?: ""
+        env["PATH"] = "${runtimeManager.binDir.absolutePath}:$currentPath"
+        return processBuilder
+    }
 
     suspend fun executeCommandStreamed(command: String, onOutput: (String) -> Unit): CommandResult =
         withContext(Dispatchers.IO) {
             try {
-                val processBuilder = ProcessBuilder("sh", "-c", command)
-                processBuilder.directory(runtimeManager.runtimeDir)
-                val env = processBuilder.environment()
-                val currentPath = env["PATH"] ?: ""
-                env["PATH"] = "${runtimeManager.binDir.absolutePath}:$currentPath"
-
-                val process = processBuilder.start()
+                val process = setupProcessBuilder(command).start()
                 val outputBuilder = StringBuilder()
 
                 val stdInThread = Thread {
                     BufferedReader(InputStreamReader(process.inputStream)).use { reader ->
-                        var line: String?
-                        while (reader.readLine().also { line = it } != null) {
+                        generateSequence { reader.readLine() }.forEach { line ->
                             outputBuilder.appendLine(line)
-                            onOutput(line ?: "")
+                            onOutput(line)
                         }
                     }
                 }
 
                 val stdErrThread = Thread {
                     BufferedReader(InputStreamReader(process.errorStream)).use { reader ->
-                        var line: String?
-                        while (reader.readLine().also { line = it } != null) {
+                        generateSequence { reader.readLine() }.forEach { line ->
                             outputBuilder.appendLine(line)
-                            onOutput(line ?: "")
+                            onOutput(line)
                         }
                     }
                 }
@@ -51,31 +63,23 @@ class LocalCommandRunner(    private val runtimeManager: com.omniclaw.data.local
 
                 CommandResult(outputBuilder.toString().trim(), process.exitValue(), command)
             } catch (e: Exception) {
-                val errorMsg = "Error executing local command: ${e.message}"
+                val errorMsg = "$ERROR_COMMAND_PREFIX${e.message}"
                 onOutput(errorMsg)
-                CommandResult(errorMsg, -1, command)
+                CommandResult(errorMsg, ERROR_EXIT_CODE, command)
             }
         }
 
     suspend fun executeCommand(command: String): CommandResult = withContext(Dispatchers.IO) {
         try {
-            val processBuilder = ProcessBuilder("sh", "-c", command)
-            processBuilder.directory(runtimeManager.runtimeDir)
-            val env = processBuilder.environment()
-            val currentPath = env["PATH"] ?: ""
-            env["PATH"] = "${runtimeManager.binDir.absolutePath}:$currentPath"
-
-            val process = processBuilder.start()
+            val process = setupProcessBuilder(command).start()
             val output = buildString {
                 BufferedReader(InputStreamReader(process.inputStream)).use { reader ->
-                    var line: String?
-                    while (reader.readLine().also { line = it } != null) {
+                    generateSequence { reader.readLine() }.forEach { line ->
                         appendLine(line)
                     }
                 }
                 BufferedReader(InputStreamReader(process.errorStream)).use { reader ->
-                    var line: String?
-                    while (reader.readLine().also { line = it } != null) {
+                    generateSequence { reader.readLine() }.forEach { line ->
                         appendLine(line)
                     }
                 }
@@ -83,13 +87,13 @@ class LocalCommandRunner(    private val runtimeManager: com.omniclaw.data.local
             process.waitFor()
             CommandResult(output.trim(), process.exitValue(), command)
         } catch (e: Exception) {
-            CommandResult("Error executing local command: ${e.message}", -1, command)
+            CommandResult("$ERROR_COMMAND_PREFIX${e.message}", ERROR_EXIT_CODE, command)
         }
     }
 
     suspend fun executePrivilegedCommand(command: String): CommandResult = withContext(Dispatchers.IO) {
         if (!Shizuku.pingBinder()) {
-            return@withContext CommandResult("Shizuku is not running or unavailable.", -1, command)
+            return@withContext CommandResult(SHIZUKU_NOT_RUNNING, ERROR_EXIT_CODE, command)
         }
         try {
             val newProcessMethod = Shizuku::class.java.getDeclaredMethod(
@@ -105,14 +109,12 @@ class LocalCommandRunner(    private val runtimeManager: com.omniclaw.data.local
 
             val output = buildString {
                 BufferedReader(InputStreamReader(process.inputStream)).use { reader ->
-                    var line: String?
-                    while (reader.readLine().also { line = it } != null) {
+                    generateSequence { reader.readLine() }.forEach { line ->
                         appendLine(line)
                     }
                 }
                 BufferedReader(InputStreamReader(process.errorStream)).use { reader ->
-                    var line: String?
-                    while (reader.readLine().also { line = it } != null) {
+                    generateSequence { reader.readLine() }.forEach { line ->
                         appendLine(line)
                     }
                 }
@@ -120,15 +122,11 @@ class LocalCommandRunner(    private val runtimeManager: com.omniclaw.data.local
             process.waitFor()
             CommandResult(output.trim(), process.exitValue(), command)
         } catch (e: NoSuchMethodException) {
-            CommandResult(
-                "Shizuku API changed — newProcess method not found. Please update the app.", -1, command
-            )
+            CommandResult(SHIZUKU_API_CHANGED, ERROR_EXIT_CODE, command)
         } catch (e: SecurityException) {
-            CommandResult(
-                "Shizuku permission denied. Grant permission in the Shizuku app.", -1, command
-            )
+            CommandResult(SHIZUKU_PERMISSION_DENIED, ERROR_EXIT_CODE, command)
         } catch (e: Exception) {
-            CommandResult("Error executing privileged command via Shizuku: ${e.message}", -1, command)
+            CommandResult("$ERROR_PRIVILEGED_PREFIX${e.message}", ERROR_EXIT_CODE, command)
         }
     }
 }

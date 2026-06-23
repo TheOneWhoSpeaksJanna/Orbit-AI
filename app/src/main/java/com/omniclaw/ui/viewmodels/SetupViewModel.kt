@@ -25,6 +25,43 @@ import java.io.File
 import java.net.URL
 import java.util.zip.ZipInputStream
 
+private const val DEFAULT_THEME = "System"
+private const val DEFAULT_AGENT = "Hermes"
+private const val DEFAULT_PROVIDER = "Gemini"
+private const val AGENT_HERMES = "Hermes"
+private const val AGENT_OPENCLAUDE = "OpenClaude"
+private const val AGENT_CLAUDE_CODE = "Claude Code"
+private const val GITHUB_REPO_URL = "https://github.com/Gitlawb/openclaude.git"
+private const val CONNECT_TIMEOUT_MS = 15000
+private const val READ_TIMEOUT_MS = 60000
+private const val AGENT_DESC = "Agent provisioned during setup"
+private const val STATUS_STARTING = "Starting installation..."
+private const val STATUS_CHECKING = "Checking prerequisites..."
+private const val STATUS_DOWNLOADING = "Downloading "
+private const val STATUS_INSTALLING_DEPS = "Installing dependencies..."
+private const val STATUS_BUILDING = "Building "
+private const val STATUS_CREATING_SCRIPT = "Creating run script..."
+private const val STATUS_INSTALLED = " installed successfully!"
+private const val STATUS_FAILED = "Installation failed: "
+
+private val DIST_CANDIDATES = listOf("dist/cli.js", "dist/index.js", "cli.js", "index.js", "bin/cli.js")
+
+private val AGENT_INSTALL_DIRS = mapOf(
+    AGENT_HERMES to "hermes",
+    AGENT_OPENCLAUDE to "openclaude",
+    AGENT_CLAUDE_CODE to "claude_code"
+)
+
+private val AGENT_WRAPPER_NAMES = mapOf(
+    AGENT_CLAUDE_CODE to "claude-code"
+)
+
+private val SYSTEM_PROMPTS = mapOf(
+    AGENT_HERMES to "You are Hermes, a local execution agent. You can execute shell commands locally. If the user asks you to run a command, output exactly [RUN: command] or [SUDO: command] to execute as root via Shizuku. Do not wrap in markdown, just the raw tag if you need to execute. If you just want to talk, respond normally.",
+    AGENT_OPENCLAUDE to "You are OpenClaude, an open-source Claude integration with full tool use.",
+    AGENT_CLAUDE_CODE to "You are Claude Code, a specialized coding agent with codebase awareness."
+)
+
 enum class SetupStep(@StringRes val labelResId: Int) {
     Welcome(R.string.step_welcome),
     Theme(R.string.step_theme),
@@ -45,16 +82,16 @@ class SetupViewModel(
     private val _currentStep = MutableStateFlow(0)
     val currentStep: StateFlow<Int> = _currentStep.asStateFlow()
 
-    private val _theme = MutableStateFlow("System")
+    private val _theme = MutableStateFlow(DEFAULT_THEME)
     val theme: StateFlow<String> = _theme.asStateFlow()
 
     private val _shizukuEnabled = MutableStateFlow(false)
     val shizukuEnabled: StateFlow<Boolean> = _shizukuEnabled.asStateFlow()
 
-    private val _selectedAgent = MutableStateFlow("Hermes")
+    private val _selectedAgent = MutableStateFlow(DEFAULT_AGENT)
     val selectedAgent: StateFlow<String> = _selectedAgent.asStateFlow()
 
-    private val _selectedProvider = MutableStateFlow("Gemini")
+    private val _selectedProvider = MutableStateFlow(DEFAULT_PROVIDER)
     val selectedProvider: StateFlow<String> = _selectedProvider.asStateFlow()
 
     private val _selectedModel = MutableStateFlow("")
@@ -72,7 +109,6 @@ class SetupViewModel(
     private val _testConnectionError = MutableStateFlow<String?>(null)
     val testConnectionError: StateFlow<String?> = _testConnectionError.asStateFlow()
 
-    // Per-agent install state
     data class AgentInstallState(
         val isInstalling: Boolean = false,
         val progress: Float = 0f,
@@ -82,9 +118,9 @@ class SetupViewModel(
 
     private val _agentInstallStates = MutableStateFlow(
         mapOf(
-            "Hermes" to AgentInstallState(),
-            "OpenClaude" to AgentInstallState(),
-            "Claude Code" to AgentInstallState()
+            AGENT_HERMES to AgentInstallState(),
+            AGENT_OPENCLAUDE to AgentInstallState(),
+            AGENT_CLAUDE_CODE to AgentInstallState()
         )
     )
     val agentInstallStates: StateFlow<Map<String, AgentInstallState>> = _agentInstallStates.asStateFlow()
@@ -156,58 +192,46 @@ class SetupViewModel(
         }
     }
 
-    fun installOpenClaude() = installAgent("OpenClaude")
-    fun installHermes() = installAgent("Hermes")
-    fun installClaudeCode() = installAgent("Claude Code")
+    fun installOpenClaude() = installAgent(AGENT_OPENCLAUDE)
+    fun installHermes() = installAgent(AGENT_HERMES)
+    fun installClaudeCode() = installAgent(AGENT_CLAUDE_CODE)
 
     fun installAgent(agentName: String) {
-        val repoUrl = "https://github.com/Gitlawb/openclaude.git"
-        val targetDirName = when (agentName) {
-            "OpenClaude" -> "openclaude"
-            "Hermes" -> "hermes"
-            "Claude Code" -> "claude_code"
-            else -> agentName.lowercase().replace(" ", "_")
-        }
+        val targetDirName = AGENT_INSTALL_DIRS[agentName] ?: agentName.lowercase().replace(" ", "_")
         val targetDir = File(runtimeManager.agentsDir, targetDirName)
         val binDir = runtimeManager.binDir
-        val wrapperName = when (agentName) {
-            "Claude Code" -> "claude-code"
-            else -> agentName.lowercase()
-        }
+        val wrapperName = AGENT_WRAPPER_NAMES[agentName] ?: agentName.lowercase()
         val wrapperFile = File(binDir, wrapperName)
 
         viewModelScope.launch {
             _agentInstallStates.value = _agentInstallStates.value + (agentName to AgentInstallState(
                 isInstalling = true,
                 progress = 0f,
-                status = "Starting installation...",
+                status = STATUS_STARTING,
                 isInstalled = false
             ))
 
             try {
-                // Step 1: Check prerequisites
-                updateInstallState(agentName, status = "Checking prerequisites...")
+                updateInstallState(agentName, status = STATUS_CHECKING)
                 withContext(Dispatchers.IO) {
                     localCommandRunner.executeCommand(
                         "mkdir -p ${runtimeManager.agentsDir.absolutePath} ${binDir.absolutePath}"
                     )
                 }
 
-                // Step 2: Download repository as ZIP archive
-                updateInstallState(agentName, progress = 0.1f, status = "Downloading $agentName...")
+                updateInstallState(agentName, progress = 0.1f, status = "$STATUS_DOWNLOADING$agentName...")
 
                 if (targetDir.exists()) {
                     targetDir.deleteRecursively()
                 }
 
                 withContext(Dispatchers.IO) {
-                    // Convert git URL to ZIP download URL
-                    val zipUrl = repoUrl
+                    val zipUrl = GITHUB_REPO_URL
                         .removeSuffix(".git") + "/archive/refs/heads/main.zip"
 
                     val connection = URL(zipUrl).openConnection()
-                    connection.connectTimeout = 15000
-                    connection.readTimeout = 60000
+                    connection.connectTimeout = CONNECT_TIMEOUT_MS
+                    connection.readTimeout = READ_TIMEOUT_MS
 
                     val tempDir = File(runtimeManager.tmpDir, "agent_$targetDirName")
                     tempDir.deleteRecursively()
@@ -230,7 +254,6 @@ class SetupViewModel(
                         }
                     }
 
-                    // GitHub ZIPs have a root directory: owner-repo-commit
                     val rootDir = tempDir.listFiles()?.firstOrNull { it.isDirectory }
                     if (rootDir != null) {
                         rootDir.copyRecursively(targetDir, overwrite = true)
@@ -240,9 +263,8 @@ class SetupViewModel(
                     tempDir.deleteRecursively()
                 }
 
-                updateInstallState(agentName, progress = 0.4f, status = "Installing dependencies...")
+                updateInstallState(agentName, progress = 0.4f, status = STATUS_INSTALLING_DEPS)
 
-                // Step 3: Install npm dependencies (non-fatal if unavailable)
                 withContext(Dispatchers.IO) {
                     try {
                         localCommandRunner.executeCommand(
@@ -251,9 +273,8 @@ class SetupViewModel(
                     } catch (_: Exception) { }
                 }
 
-                updateInstallState(agentName, progress = 0.7f, status = "Building $agentName...")
+                updateInstallState(agentName, progress = 0.7f, status = "$STATUS_BUILDING$agentName...")
 
-                // Step 4: Build (non-fatal if unavailable)
                 withContext(Dispatchers.IO) {
                     try {
                         localCommandRunner.executeCommand(
@@ -262,11 +283,9 @@ class SetupViewModel(
                     } catch (_: Exception) { }
                 }
 
-                updateInstallState(agentName, progress = 0.9f, status = "Creating run script...")
+                updateInstallState(agentName, progress = 0.9f, status = STATUS_CREATING_SCRIPT)
 
-                // Step 5: Create wrapper script
-                val distFiles = listOf("dist/cli.js", "dist/index.js", "cli.js", "index.js", "bin/cli.js")
-                val entryPoint = distFiles.firstOrNull { File(targetDir, it).exists() } ?: "index.js"
+                val entryPoint = DIST_CANDIDATES.firstOrNull { File(targetDir, it).exists() } ?: "index.js"
 
                 val wrapperScript = """
                     #!/data/data/com.termux/files/usr/bin/bash
@@ -279,10 +298,10 @@ class SetupViewModel(
                     wrapperFile.setExecutable(true)
                 }
 
-                updateInstallState(agentName, progress = 1f, status = "$agentName installed successfully!", isInstalled = true)
+                updateInstallState(agentName, progress = 1f, status = "$agentName$STATUS_INSTALLED", isInstalled = true)
 
             } catch (e: Exception) {
-                updateInstallState(agentName, status = "Installation failed: ${e.message}", isInstalled = false)
+                updateInstallState(agentName, status = "$STATUS_FAILED${e.message}", isInstalled = false)
             } finally {
                 _agentInstallStates.value = _agentInstallStates.value + (agentName to _agentInstallStates.value[agentName]!!.copy(isInstalling = false))
             }
@@ -306,21 +325,15 @@ class SetupViewModel(
             prefsManager.setSelectedProvider(_selectedProvider.value)
             prefsManager.setSelectedModel(_selectedModel.value)
 
-            // Save API key to the correct provider slot
             prefsManager.setApiKeyForProvider(_selectedProvider.value, _apiKey.value)
 
             val agentName = _selectedAgent.value
-            val sysPrompt = when (agentName) {
-                "Hermes" -> "You are Hermes, a local execution agent. You can execute shell commands locally. If the user asks you to run a command, output exactly [RUN: command] or [SUDO: command] to execute as root via Shizuku. Do not wrap in markdown, just the raw tag if you need to execute. If you just want to talk, respond normally."
-                "OpenClaude" -> "You are OpenClaude, an open-source Claude integration with full tool use."
-                "Claude Code" -> "You are Claude Code, a specialized coding agent with codebase awareness."
-                else -> "You are an expert AI assistant."
-            }
+            val sysPrompt = SYSTEM_PROMPTS[agentName] ?: "You are an expert AI assistant."
 
             val agent = Agent(
                 id = agentName.lowercase().replace(" ", "_"),
                 name = agentName,
-                description = "Agent provisioned during setup",
+                description = AGENT_DESC,
                 systemPrompt = sysPrompt
             )
             repository.insertAgent(agent)

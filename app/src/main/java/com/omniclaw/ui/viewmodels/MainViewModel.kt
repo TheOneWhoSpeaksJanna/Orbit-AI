@@ -13,13 +13,18 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 
+private const val ROUTE_DASHBOARD = "dashboard"
+private const val ROUTE_SETUP = "setup"
+private const val THEME_LIGHT = "LIGHT"
+private const val THEME_DARK = "DARK"
+
 class MainViewModel(
     private val prefsManager: PreferencesManager
 ) : ViewModel() {
 
     val startDestination: StateFlow<String?> = prefsManager.isOnboardingComplete
         .map { isComplete ->
-            if (isComplete) "dashboard" else "setup"
+            if (isComplete) ROUTE_DASHBOARD else ROUTE_SETUP
         }
         .stateIn(
             scope = viewModelScope,
@@ -30,8 +35,8 @@ class MainViewModel(
     val themeMode: StateFlow<OmniClawThemeMode> = prefsManager.themeMode
         .map { raw ->
             when (raw) {
-                "LIGHT" -> OmniClawThemeMode.LIGHT
-                "DARK" -> OmniClawThemeMode.DARK
+                THEME_LIGHT -> OmniClawThemeMode.LIGHT
+                THEME_DARK -> OmniClawThemeMode.DARK
                 else -> OmniClawThemeMode.SYSTEM
             }
         }

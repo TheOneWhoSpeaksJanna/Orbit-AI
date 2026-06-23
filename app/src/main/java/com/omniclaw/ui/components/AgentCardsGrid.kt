@@ -1,5 +1,6 @@
 package com.omniclaw.ui.components
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -22,6 +23,14 @@ import com.omniclaw.ui.theme.OmniClawAccent
 import com.omniclaw.ui.theme.OmniClawSurfaceElevated
 import com.omniclaw.ui.theme.OmniClawTextSecondary
 
+private const val GRID_SPACING_DP = 12
+private const val CARD_PADDING_DP = 12
+private const val SPACER_HEIGHT_DP = 4
+private const val BORDER_WIDTH_DP = 1
+private const val INITIALS_LENGTH = 2
+private const val ACTIVE_BACKGROUND_ALPHA = 0.15f
+private const val ACTIVE_BORDER_ALPHA = 0.5f
+
 @Composable
 fun AgentCardsGrid(
     agents: List<Agent>,
@@ -31,7 +40,7 @@ fun AgentCardsGrid(
 ) {
     Row(
         modifier = modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
+        horizontalArrangement = Arrangement.spacedBy(GRID_SPACING_DP.dp)
     ) {
         agents.take(3).forEach { agent ->
             val isActive = agent.name == activeAgentName
@@ -40,23 +49,23 @@ fun AgentCardsGrid(
                     .weight(1f)
                     .clickable { onAgentSelected(agent) },
                 colors = CardDefaults.cardColors(
-                    containerColor = if (isActive) OmniClawAccent.copy(alpha = 0.15f) else OmniClawSurfaceElevated
+                    containerColor = if (isActive) OmniClawAccent.copy(alpha = ACTIVE_BACKGROUND_ALPHA) else OmniClawSurfaceElevated
                 ),
-                border = if (isActive) androidx.compose.foundation.BorderStroke(
-                    1.dp, OmniClawAccent.copy(alpha = 0.5f)
+                border = if (isActive) BorderStroke(
+                    BORDER_WIDTH_DP.dp, OmniClawAccent.copy(alpha = ACTIVE_BORDER_ALPHA)
                 ) else null
             ) {
                 Column(
-                    modifier = Modifier.padding(12.dp),
+                    modifier = Modifier.padding(CARD_PADDING_DP.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Text(
-                        text = agent.name.take(2).uppercase(),
+                        text = agent.name.take(INITIALS_LENGTH).uppercase(),
                         style = MaterialTheme.typography.titleLarge,
                         color = OmniClawAccent,
                         fontWeight = FontWeight.Bold
                     )
-                    Spacer(Modifier.height(4.dp))
+                    Spacer(Modifier.height(SPACER_HEIGHT_DP.dp))
                     Text(
                         text = agent.name,
                         style = MaterialTheme.typography.labelSmall,

@@ -3,7 +3,6 @@ package com.omniclaw.ui.components
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -18,6 +17,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.omniclaw.ui.theme.OmniClawAccent
 
+private const val BAR_SPACING_DP = 8
+private const val ICON_SIZE_DP = 18
+private const val LABEL_NEW_SESSION = "New Session"
+private const val LABEL_TERMINAL = "Terminal"
+private const val LABEL_SETTINGS = "Settings"
+
 @Composable
 fun QuickActionsBar(
     onNewSession: () -> Unit,
@@ -27,40 +32,40 @@ fun QuickActionsBar(
 ) {
     Row(
         modifier = modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
+        horizontalArrangement = Arrangement.spacedBy(BAR_SPACING_DP.dp)
     ) {
         AssistChip(
             onClick = onNewSession,
-            label = { Text("New Session") },
+            label = { Text(LABEL_NEW_SESSION) },
             leadingIcon = {
                 Icon(
                     Icons.Default.Add,
                     contentDescription = null,
-                    modifier = Modifier.size(18.dp),
+                    modifier = Modifier.size(ICON_SIZE_DP.dp),
                     tint = OmniClawAccent
                 )
             }
         )
         AssistChip(
             onClick = onOpenTerminal,
-            label = { Text("Terminal") },
+            label = { Text(LABEL_TERMINAL) },
             leadingIcon = {
                 Icon(
                     Icons.Default.Terminal,
                     contentDescription = null,
-                    modifier = Modifier.size(18.dp),
+                    modifier = Modifier.size(ICON_SIZE_DP.dp),
                     tint = OmniClawAccent
                 )
             }
         )
         AssistChip(
             onClick = onOpenSettings,
-            label = { Text("Settings") },
+            label = { Text(LABEL_SETTINGS) },
             leadingIcon = {
                 Icon(
                     Icons.Default.Settings,
                     contentDescription = null,
-                    modifier = Modifier.size(18.dp),
+                    modifier = Modifier.size(ICON_SIZE_DP.dp),
                     tint = OmniClawAccent
                 )
             }

@@ -1,6 +1,5 @@
 package com.omniclaw.data.local.runtime
 
-import com.omniclaw.domain.models.OmniClawPackage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
@@ -10,7 +9,13 @@ import org.json.JSONObject
 import java.io.File
 import java.io.FileOutputStream
 import java.io.RandomAccessFile
-import java.security.MessageDigest
+
+private const val ARCH = "aarch64"
+private const val CHECKSUM_SKIP = "skip"
+private const val FAIL_PREFIX = "FAIL: "
+private const val PROGRESS_START = 0f
+private const val PROGRESS_COMPLETE = 1f
+private const val BUFFER_SIZE = 4096
 
 class PackageInstaller(
     private val runtimeManager: OmniClawRuntimeManager,
@@ -27,9 +32,9 @@ class PackageInstaller(
                 put(JSONObject().apply {
                     put("name", "git")
                     put("type", "deb")
-                    put("arch", "aarch64")
+                    put("arch", ARCH)
                     put("url", "https://packages.termux.dev/apt/termux-main/pool/main/g/git/git_2.45.2_aarch64.deb")
-                    put("checksum", "skip")
+                    put("checksum", CHECKSUM_SKIP)
                     put("install_method", "deb_extract")
                     put("test_command", "git --version")
                     put("validation_rules", JSONObject().put("must_pass_exit_code", 0).put("must_contain_output", "git"))
@@ -37,9 +42,9 @@ class PackageInstaller(
                 put(JSONObject().apply {
                     put("name", "python")
                     put("type", "tar.gz")
-                    put("arch", "aarch64")
+                    put("arch", ARCH)
                     put("url", "https://github.com/astral-sh/python-build-standalone/releases/download/20240415/cpython-3.12.3+20240415-aarch64-unknown-linux-musl-install_only.tar.gz")
-                    put("checksum", "skip")
+                    put("checksum", CHECKSUM_SKIP)
                     put("install_method", "tar_extract")
                     put("test_command", "python3 --version")
                     put("validation_rules", JSONObject().put("must_pass_exit_code", 0).put("must_contain_output", "Python"))
@@ -47,9 +52,9 @@ class PackageInstaller(
                 put(JSONObject().apply {
                     put("name", "curl")
                     put("type", "binary")
-                    put("arch", "aarch64")
+                    put("arch", ARCH)
                     put("url", "https://github.com/moparisthebest/static-curl/releases/download/v8.7.1/curl-aarch64")
-                    put("checksum", "skip")
+                    put("checksum", CHECKSUM_SKIP)
                     put("install_method", "binary_copy")
                     put("test_command", "curl --version")
                     put("validation_rules", JSONObject().put("must_pass_exit_code", 0).put("must_contain_output", "curl"))
@@ -57,9 +62,9 @@ class PackageInstaller(
                 put(JSONObject().apply {
                     put("name", "nodejs")
                     put("type", "deb")
-                    put("arch", "aarch64")
+                    put("arch", ARCH)
                     put("url", "https://packages.termux.dev/apt/termux-main/pool/main/n/nodejs/nodejs_22.2.0_aarch64.deb")
-                    put("checksum", "skip")
+                    put("checksum", CHECKSUM_SKIP)
                     put("install_method", "deb_extract")
                     put("test_command", "node --version")
                     put("validation_rules", JSONObject().put("must_pass_exit_code", 0).put("must_contain_output", "v22"))
@@ -67,9 +72,9 @@ class PackageInstaller(
                 put(JSONObject().apply {
                     put("name", "wget")
                     put("type", "binary")
-                    put("arch", "aarch64")
+                    put("arch", ARCH)
                     put("url", "https://busybox.net/downloads/binaries/1.31.0-defconfig-multiarch-musl/busybox-armv8l")
-                    put("checksum", "skip")
+                    put("checksum", CHECKSUM_SKIP)
                     put("install_method", "binary_copy")
                     put("test_command", "wget --help")
                     put("validation_rules", JSONObject().put("must_pass_exit_code", 0).put("must_contain_output", "wget"))
@@ -93,49 +98,39 @@ class PackageInstaller(
         onProgress: (progress: Float, status: String) -> Unit
     ): Boolean = withContext(Dispatchers.IO) {
         val pkg = loadRegistry().find { it.getString("name") == packageId } ?: return@withContext false
-        
+
         try {
             val url = pkg.getString("url")
             val type = pkg.getString("type")
             val installMethod = pkg.getString("install_method")
             val name = pkg.getString("name")
-            
-            // 1. Download
-            onProgress(0f, "Downloading $name...")
+
+            onProgress(PROGRESS_START, "Downloading $name...")
             val request = Request.Builder().url(url).build()
             val response = httpClient.newCall(request).execute()
-            
+
             if (!response.isSuccessful) {
-                onProgress(0f, "FAIL: DOWNLOAD_404")
+                onProgress(PROGRESS_START, "${FAIL_PREFIX}DOWNLOAD_404")
                 return@withContext false
             }
 
             val body = response.body ?: return@withContext false
             val downloadFile = File(runtimeManager.downloadsDir, "$name.$type")
-            
+
             body.byteStream().use { input ->
                 FileOutputStream(downloadFile).use { output ->
                     input.copyTo(output)
                 }
             }
 
-            // 2. Validate Architecture
-            val processFile = ProcessBuilder("file", downloadFile.absolutePath).start()
-            val fileOut = processFile.inputStream.bufferedReader().readText()
-            processFile.waitFor()
-            if (type == "binary" || type == "deb") {
-                // we assume Termux deb contains aarch64
-            }
-            
             val processElf = ProcessBuilder("readelf", "-h", downloadFile.absolutePath).start()
             val elfOut = processElf.inputStream.bufferedReader().readText()
             processElf.waitFor()
             if (type == "binary" && elfOut.contains("ld-linux")) {
-                onProgress(0f, "FAIL: GLIBC_INCOMPATIBLE")
+                onProgress(PROGRESS_START, "${FAIL_PREFIX}GLIBC_INCOMPATIBLE")
                 return@withContext false
             }
 
-            // 3. Extract
             val installDir = File(runtimeManager.packagesDir, name)
             if (installDir.exists()) installDir.deleteRecursively()
             installDir.mkdirs()
@@ -151,7 +146,6 @@ class PackageInstaller(
                     target.setExecutable(true)
                 }
                 "deb_extract" -> {
-                    // ar logic
                     val raf = RandomAccessFile(downloadFile, "r")
                     val magic = ByteArray(8)
                     raf.readFully(magic)
@@ -165,7 +159,7 @@ class PackageInstaller(
                             if (entryName.startsWith("data.tar")) {
                                 dataTarFile = File(runtimeManager.downloadsDir, entryName.trim('/'))
                                 val out = FileOutputStream(dataTarFile)
-                                val buffer = ByteArray(4096)
+                                val buffer = ByteArray(BUFFER_SIZE)
                                 var remaining = size
                                 while (remaining > 0) {
                                     val toRead = minOf(buffer.size.toLong(), remaining).toInt()
@@ -187,39 +181,37 @@ class PackageInstaller(
                     }
                 }
             }
-            
-            // 4. Wrapper
+
             val actualBinary = if (installMethod == "binary_copy") File(installDir, name) else File(installDir, "usr/bin/$name")
             val backupBinary = File(installDir, "bin/$name")
             val binToUse = if (actualBinary.exists()) actualBinary else backupBinary
-            
+
             binToUse.setExecutable(true)
-            
+
             val wrapper = File(runtimeManager.binDir, name)
             val libDir = File(installDir, "usr/lib")
             val ldLibraryPathEnv = if (libDir.exists()) "export LD_LIBRARY_PATH=\"${libDir.absolutePath}:\$LD_LIBRARY_PATH\"\n" else ""
-            
+
             wrapper.writeText("#!/system/bin/sh\n$ldLibraryPathEnv\nexec \"${binToUse.absolutePath}\" \"\$@\"\n")
             wrapper.setExecutable(true)
-            
-            // 5. Test Execution
+
             val testCmd = pkg.getString("test_command")
             val rules = pkg.getJSONObject("validation_rules")
-            
+
             val tProcess = ProcessBuilder(testCmd.split(" ")).start()
             val tOut = tProcess.inputStream.bufferedReader().readText()
             tProcess.waitFor()
-            
+
             if (tProcess.exitValue() == rules.getInt("must_pass_exit_code") && tOut.contains(rules.getString("must_contain_output"))) {
-                onProgress(1f, "PASS")
+                onProgress(PROGRESS_COMPLETE, "PASS")
                 return@withContext true
             } else {
-                onProgress(1f, "FAIL: Execution Test Failed")
+                onProgress(PROGRESS_COMPLETE, "${FAIL_PREFIX}Execution Test Failed")
                 return@withContext false
             }
 
         } catch (e: Exception) {
-            onProgress(0f, "FAIL: Exception ${e.message}")
+            onProgress(PROGRESS_START, "${FAIL_PREFIX}Exception ${e.message}")
             return@withContext false
         }
     }

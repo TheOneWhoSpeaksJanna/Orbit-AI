@@ -39,6 +39,8 @@ sealed class ChatViewState {
     data class ActiveChat(val sessionId: String) : ChatViewState()
 }
 
+private const val TAB_INDICATOR_ALPHA = 0.15f
+
 @Composable
 fun AppShell() {
     var selectedTab by remember { mutableStateOf(BottomNavTab.HOME) }
@@ -67,7 +69,7 @@ fun AppShell() {
                             selectedTextColor = OmniClawAccent,
                             unselectedIconColor = OmniClawTextSecondary,
                             unselectedTextColor = OmniClawTextSecondary,
-                            indicatorColor = OmniClawAccent.copy(alpha = 0.15f)
+                            indicatorColor = OmniClawAccent.copy(alpha = TAB_INDICATOR_ALPHA)
                         )
                     )
                 }

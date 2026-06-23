@@ -35,6 +35,15 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import rikka.shizuku.Shizuku
 
+private val THEME_OPTIONS = listOf("System", "Dark", "Light")
+private val AGENT_OPTIONS = listOf("Hermes", "OpenClaude", "Claude Code")
+private val PROVIDER_OPTIONS = listOf("Claude", "OpenRouter", "OpenAI", "Gemini")
+
+private const val AGENT_INSTALLED_FORMAT = "%s Installed"
+private const val AGENT_READY_DESC = "Ready to use with this device."
+private const val AGENT_INSTALL_PREFIX = "Install "
+private const val AGENT_INSTALL_DESC_FORMAT = "Downloads and installs %s on this device"
+
 @OptIn(ExperimentalAnimationApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun SetupWizardScreen(
@@ -166,7 +175,6 @@ fun WelcomeStep() {
 @Composable
 fun ThemeSelectionStep(viewModel: SetupViewModel) {
     val theme by viewModel.theme.collectAsState()
-    val themes = listOf("System", "Dark", "Light")
 
     Column(
         modifier = Modifier
@@ -183,7 +191,7 @@ fun ThemeSelectionStep(viewModel: SetupViewModel) {
         )
         Spacer(modifier = Modifier.height(24.dp))
 
-        themes.forEach { text ->
+        THEME_OPTIONS.forEach { text ->
             val isSelected = text == theme
             Spacer(modifier = Modifier.height(12.dp))
             AnimatedGlassCard(
@@ -224,7 +232,6 @@ fun ThemeSelectionStep(viewModel: SetupViewModel) {
 fun AgentSelectionStep(viewModel: SetupViewModel) {
     val selectedAgent by viewModel.selectedAgent.collectAsState()
     val agentInstallStates by viewModel.agentInstallStates.collectAsState()
-    val agents = listOf("Hermes", "OpenClaude", "Claude Code")
 
     Column(
         modifier = Modifier
@@ -241,7 +248,7 @@ fun AgentSelectionStep(viewModel: SetupViewModel) {
         )
         Spacer(modifier = Modifier.height(20.dp))
 
-        agents.forEach { agent ->
+        AGENT_OPTIONS.forEach { agent ->
             val isSelected = agent == selectedAgent
             Spacer(modifier = Modifier.height(12.dp))
             AnimatedGlassCard(
@@ -290,7 +297,6 @@ fun AgentSelectionStep(viewModel: SetupViewModel) {
             }
         }
 
-        // Agent install section (shown for selected agent)
         val agentState = agentInstallStates[selectedAgent] ?: SetupViewModel.AgentInstallState()
         Spacer(modifier = Modifier.height(24.dp))
         when {
@@ -314,7 +320,7 @@ fun AgentSelectionStep(viewModel: SetupViewModel) {
             agentState.isInstalled -> {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        text = "$selectedAgent Installed",
+                        text = AGENT_INSTALLED_FORMAT.format(selectedAgent),
                         style = MaterialTheme.typography.titleSmall,
                         color = MaterialTheme.colorScheme.primary,
                         fontWeight = FontWeight.SemiBold
@@ -329,7 +335,7 @@ fun AgentSelectionStep(viewModel: SetupViewModel) {
                 }
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = "Ready to use with this device.",
+                    text = AGENT_READY_DESC,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -343,13 +349,13 @@ fun AgentSelectionStep(viewModel: SetupViewModel) {
                     )
                 ) {
                     Text(
-                        "Install $selectedAgent",
+                        "$AGENT_INSTALL_PREFIX$selectedAgent",
                         fontWeight = FontWeight.SemiBold
                     )
                 }
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = "Downloads and installs $selectedAgent on this device",
+                    text = AGENT_INSTALL_DESC_FORMAT.format(selectedAgent),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -366,7 +372,6 @@ fun ProviderSelectionStep(viewModel: SetupViewModel) {
     val isTesting by viewModel.isTestingConnection.collectAsState()
     val success by viewModel.testConnectionSuccess.collectAsState()
     val testError by viewModel.testConnectionError.collectAsState()
-    val providers = listOf("Claude", "OpenRouter", "OpenAI", "Gemini")
 
     Column(
         modifier = Modifier
@@ -383,7 +388,7 @@ fun ProviderSelectionStep(viewModel: SetupViewModel) {
         )
         Spacer(modifier = Modifier.height(16.dp))
 
-        providers.forEach { provider ->
+        PROVIDER_OPTIONS.forEach { provider ->
             val isSelected = provider == selectedProvider
             Spacer(modifier = Modifier.height(10.dp))
             AnimatedGlassCard(
@@ -678,7 +683,6 @@ private fun GlassPageIndicator(totalSteps: Int, currentStep: Int) {
             val isActive = index == currentStep
             val isCompleted = index < currentStep
 
-            // Animated dot
             val animatedSize by animateFloatAsState(
                 targetValue = if (isActive) 12f else 8f,
                 animationSpec = spring(dampingRatio = 0.5f),

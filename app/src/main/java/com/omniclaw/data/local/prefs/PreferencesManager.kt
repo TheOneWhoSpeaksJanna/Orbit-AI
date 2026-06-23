@@ -20,12 +20,16 @@ class PreferencesManager(private val context: Context) {
         val SELECTED_PROVIDER = stringPreferencesKey("selected_provider")
         val SELECTED_MODEL = stringPreferencesKey("selected_model")
 
-        // Per-provider API keys
         val GEMINI_API_KEY = stringPreferencesKey("gemini_api_key")
         val OPENAI_API_KEY = stringPreferencesKey("openai_api_key")
         val CLAUDE_API_KEY = stringPreferencesKey("claude_api_key")
         val OPENROUTER_API_KEY = stringPreferencesKey("openrouter_api_key")
         val GITHUB_TOKEN = stringPreferencesKey("github_token")
+
+        private const val PROVIDER_GEMINI = "gemini"
+        private const val PROVIDER_OPENAI = "openai"
+        private const val PROVIDER_CLAUDE = "claude"
+        private const val PROVIDER_OPENROUTER = "openrouter"
     }
 
     val themeMode: Flow<String?> = context.dataStore.data.map { prefs ->
@@ -52,7 +56,6 @@ class PreferencesManager(private val context: Context) {
         prefs[SELECTED_MODEL]
     }
 
-    // Per-provider API key flows
     val geminiApiKey: Flow<String?> = context.dataStore.data.map { prefs ->
         prefs[GEMINI_API_KEY]
     }
@@ -73,13 +76,12 @@ class PreferencesManager(private val context: Context) {
         prefs[GITHUB_TOKEN]
     }
 
-    // Unified: get API key for the currently selected provider
     fun getApiKeyForProvider(provider: String): Flow<String?> {
         return when (provider.lowercase()) {
-            "gemini" -> geminiApiKey
-            "openai" -> openAiApiKey
-            "claude" -> claudeApiKey
-            "openrouter" -> openRouterApiKey
+            PROVIDER_GEMINI -> geminiApiKey
+            PROVIDER_OPENAI -> openAiApiKey
+            PROVIDER_CLAUDE -> claudeApiKey
+            PROVIDER_OPENROUTER -> openRouterApiKey
             else -> geminiApiKey
         }
     }
@@ -130,10 +132,10 @@ class PreferencesManager(private val context: Context) {
 
     suspend fun setApiKeyForProvider(provider: String, key: String) {
         when (provider.lowercase()) {
-            "gemini" -> setGeminiApiKey(key)
-            "openai" -> setOpenAiApiKey(key)
-            "claude" -> setClaudeApiKey(key)
-            "openrouter" -> setOpenRouterApiKey(key)
+            PROVIDER_GEMINI -> setGeminiApiKey(key)
+            PROVIDER_OPENAI -> setOpenAiApiKey(key)
+            PROVIDER_CLAUDE -> setClaudeApiKey(key)
+            PROVIDER_OPENROUTER -> setOpenRouterApiKey(key)
             else -> setGeminiApiKey(key)
         }
     }

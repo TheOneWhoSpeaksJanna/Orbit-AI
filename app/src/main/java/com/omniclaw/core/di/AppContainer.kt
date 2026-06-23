@@ -7,7 +7,6 @@ import com.omniclaw.data.api.tools.ExecuteCommandTool
 import com.omniclaw.data.api.tools.SudoCommandTool
 import com.omniclaw.data.api.tools.ToolRegistry
 import com.omniclaw.data.local.OmniClawDatabase
-import com.omniclaw.data.local.prefs.CredentialsStore
 import com.omniclaw.data.local.updater.UpdateManager
 import com.omniclaw.data.local.prefs.PreferencesManager
 import com.omniclaw.data.local.runner.LocalCommandRunner
@@ -38,7 +37,7 @@ interface AppContainer {
 
 class DefaultAppContainer(private val context: Context) : AppContainer {
     private val database: OmniClawDatabase by lazy {
-        Room.databaseBuilder(context, OmniClawDatabase::class.java, "omniclaw_database")
+        Room.databaseBuilder(context, OmniClawDatabase::class.java, DATABASE_NAME)
             .fallbackToDestructiveMigration()
             .build()
     }
@@ -57,10 +56,10 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
 
     override val okHttpClient: OkHttpClient by lazy {
         OkHttpClient.Builder()
-            .connectTimeout(30, TimeUnit.SECONDS)
-            .readTimeout(60, TimeUnit.SECONDS)
-            .writeTimeout(60, TimeUnit.SECONDS)
-            .connectionPool(okhttp3.ConnectionPool(5, 30, TimeUnit.SECONDS))
+            .connectTimeout(CONNECT_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+            .readTimeout(READ_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+            .writeTimeout(WRITE_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+            .connectionPool(okhttp3.ConnectionPool(POOL_SIZE, POOL_KEEPALIVE_SECONDS, TimeUnit.SECONDS))
             .build()
     }
 
@@ -97,7 +96,7 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
     }
 
     private val downloadDir: File by lazy {
-        File(context.filesDir, "opencode_agents").also { it.mkdirs() }
+        File(context.filesDir, DOWNLOAD_DIR_NAME).also { it.mkdirs() }
     }
 
     override val openCodeRepository: OpenCodeRepository by lazy {
@@ -106,5 +105,15 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
 
     override val agentDownloader: AgentDownloader by lazy {
         AgentDownloaderImpl(downloadDir)
+    }
+
+    companion object {
+        private const val DATABASE_NAME = "omniclaw_database"
+        private const val DOWNLOAD_DIR_NAME = "opencode_agents"
+        private const val CONNECT_TIMEOUT_SECONDS = 30L
+        private const val READ_TIMEOUT_SECONDS = 60L
+        private const val WRITE_TIMEOUT_SECONDS = 60L
+        private const val POOL_SIZE = 5
+        private const val POOL_KEEPALIVE_SECONDS = 30L
     }
 }

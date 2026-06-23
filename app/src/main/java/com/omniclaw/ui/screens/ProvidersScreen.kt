@@ -53,6 +53,38 @@ import com.omniclaw.ui.theme.OmniClawTextSecondary
 import com.omniclaw.ui.theme.OmniClawTextTertiary
 import com.omniclaw.ui.theme.OmniClawWarning
 
+private const val TITLE = "API Providers"
+private const val SUBTITLE = "Verify connectivity and manage endpoint configurations"
+private const val NO_API_KEY_LABEL = "No API key configured"
+private const val CD_VERIFY = "Verify"
+private const val CD_TESTING = "Testing"
+private const val STATUS_NOT_VERIFIED = "Not verified"
+private const val STATUS_VERIFYING = "Verifying connection..."
+private const val STATUS_CONNECTED = "Connected"
+private const val STATUS_OFFLINE = "Offline / No connection"
+
+private val ERROR_RED = Color(0xFFEF4444)
+
+private val PROVIDER_COLORS = mapOf(
+    "Claude" to Color(0xFFCC7832),
+    "OpenAI" to Color(0xFF10A37F),
+    "Gemini" to Color(0xFF4285F4),
+    "OpenRouter" to Color(0xFFFF6B35),
+    "DeepSeek" to Color(0xFF4F6CF7),
+    "Groq" to Color(0xFFF97316),
+    "Ollama" to Color(0xFF8B5CF6)
+)
+
+private val PROVIDER_ICONS = mapOf(
+    "Claude" to BrandIcons.Claude,
+    "OpenAI" to BrandIcons.OpenAI,
+    "Gemini" to BrandIcons.Gemini,
+    "OpenRouter" to BrandIcons.OpenRouter,
+    "DeepSeek" to BrandIcons.DeepSeek,
+    "Groq" to BrandIcons.Groq,
+    "Ollama" to BrandIcons.Ollama
+)
+
 @Composable
 fun ProvidersScreen(
     viewModel: ProvidersViewModel = viewModel(factory = ProvidersViewModel.Factory)
@@ -68,14 +100,14 @@ fun ProvidersScreen(
     ) {
         item {
             Text(
-                text = "API Providers",
+                text = TITLE,
                 style = MaterialTheme.typography.headlineMedium,
                 color = OmniClawTextPrimary,
                 fontWeight = FontWeight.Bold
             )
             Spacer(modifier = Modifier.height(4.dp))
             Text(
-                text = "Verify connectivity and manage endpoint configurations",
+                text = SUBTITLE,
                 style = MaterialTheme.typography.bodyMedium,
                 color = OmniClawTextSecondary
             )
@@ -155,7 +187,7 @@ private fun ProviderHealthCard(
                 if (!provider.apiKeyConfigured) {
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
-                        text = "No API key configured",
+                        text = NO_API_KEY_LABEL,
                         style = MaterialTheme.typography.labelSmall,
                         color = OmniClawWarning
                     )
@@ -188,7 +220,7 @@ private fun ProviderHealthCard(
                     Spacer(modifier = Modifier.width(4.dp))
                 }
                 Text(
-                    text = if (isVerifying) "Testing" else "Verify",
+                    text = if (isVerifying) CD_TESTING else CD_VERIFY,
                     style = MaterialTheme.typography.labelMedium
                 )
             }
@@ -196,42 +228,26 @@ private fun ProviderHealthCard(
     }
 }
 
-private fun providerAccent(name: String): Color = when (name) {
-    "Claude" -> Color(0xFFCC7832)
-    "OpenAI" -> Color(0xFF10A37F)
-    "Gemini" -> Color(0xFF4285F4)
-    "OpenRouter" -> Color(0xFFFF6B35)
-    "DeepSeek" -> Color(0xFF4F6CF7)
-    "Groq" -> Color(0xFFF97316)
-    "Ollama" -> Color(0xFF8B5CF6)
-    else -> OmniClawAccent
-}
+private fun providerAccent(name: String): Color =
+    PROVIDER_COLORS[name] ?: OmniClawAccent
 
-private fun providerIcon(name: String): androidx.compose.ui.graphics.vector.ImageVector = when (name) {
-    "Claude" -> BrandIcons.Claude
-    "OpenAI" -> BrandIcons.OpenAI
-    "Gemini" -> BrandIcons.Gemini
-    "OpenRouter" -> BrandIcons.OpenRouter
-    "DeepSeek" -> BrandIcons.DeepSeek
-    "Groq" -> BrandIcons.Groq
-    "Ollama" -> BrandIcons.Ollama
-    else -> BrandIcons.OpenRouter
-}
+private fun providerIcon(name: String): androidx.compose.ui.graphics.vector.ImageVector =
+    PROVIDER_ICONS[name] ?: BrandIcons.OpenRouter
 
 private fun ConnectionState.statusColor(): Color = when (this) {
     is ConnectionState.Idle -> OmniClawTextTertiary
     is ConnectionState.Verifying -> OmniClawAccent
     is ConnectionState.Connected -> OmniClawSuccess
     is ConnectionState.Unauthorized -> OmniClawWarning
-    is ConnectionState.Offline -> Color(0xFFEF4444)
-    is ConnectionState.Error -> Color(0xFFEF4444)
+    is ConnectionState.Offline -> ERROR_RED
+    is ConnectionState.Error -> ERROR_RED
 }
 
 private fun ConnectionState.statusText(): String = when (this) {
-    is ConnectionState.Idle -> "Not verified"
-    is ConnectionState.Verifying -> "Verifying connection..."
-    is ConnectionState.Connected -> "Connected"
+    is ConnectionState.Idle -> STATUS_NOT_VERIFIED
+    is ConnectionState.Verifying -> STATUS_VERIFYING
+    is ConnectionState.Connected -> STATUS_CONNECTED
     is ConnectionState.Unauthorized -> this.message
-    is ConnectionState.Offline -> "Offline / No connection"
+    is ConnectionState.Offline -> STATUS_OFFLINE
     is ConnectionState.Error -> this.message
 }

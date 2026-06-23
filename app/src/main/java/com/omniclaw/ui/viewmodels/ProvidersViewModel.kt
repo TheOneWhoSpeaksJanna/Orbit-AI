@@ -23,6 +23,15 @@ import java.net.SocketTimeoutException
 import java.net.UnknownHostException
 import java.util.concurrent.TimeUnit
 
+private const val TIMEOUT_SECONDS = 10L
+private const val CONTENT_TYPE_JSON = "application/json; charset=utf-8"
+private const val NO_API_KEY_MSG = "No API key configured"
+private const val INVALID_API_KEY = "Invalid API key"
+private const val CLIENT_ERROR = "Client error"
+private const val SERVER_ERROR = "Server error"
+private const val UNEXPECTED_CODE = "Unexpected"
+private const val OLLAMA_PROVIDER = "Ollama"
+
 data class ProviderConfig(
     val name: String,
     val apiKeyConfigured: Boolean,
@@ -43,18 +52,18 @@ class ProvidersViewModel(
 ) : ViewModel() {
 
     private val _providers = MutableStateFlow(
-        listOf("Claude", "OpenAI", "Gemini", "OpenRouter", "DeepSeek", "Groq", "Ollama").map { name ->
+        KNOWN_PROVIDERS.map { name ->
             ProviderConfig(name = name, apiKeyConfigured = false)
         }
     )
     val providers: StateFlow<List<ProviderConfig>> = _providers.asStateFlow()
 
     private val httpClient = OkHttpClient.Builder()
-        .connectTimeout(10, TimeUnit.SECONDS)
-        .readTimeout(10, TimeUnit.SECONDS)
+        .connectTimeout(TIMEOUT_SECONDS, TimeUnit.SECONDS)
+        .readTimeout(TIMEOUT_SECONDS, TimeUnit.SECONDS)
         .build()
 
-    private val jsonMediaType = "application/json; charset=utf-8".toMediaType()
+    private val jsonMediaType = CONTENT_TYPE_JSON.toMediaType()
 
     init {
         loadApiKeyStatus()
@@ -72,8 +81,7 @@ class ProvidersViewModel(
 
     fun verifyConnection(providerName: String) {
         viewModelScope.launch {
-            // Ollama is localhost — no API key needed
-            if (providerName == "Ollama") {
+            if (providerName == OLLAMA_PROVIDER) {
                 updateProviderState(providerName, ConnectionState.Verifying)
                 val result = withContext(Dispatchers.IO) {
                     performHealthCheck(providerName, "")
@@ -86,14 +94,14 @@ class ProvidersViewModel(
             val key = keyFlow.firstOrNull()
 
             if (key.isNullOrBlank()) {
-                updateProviderState(providerName, ConnectionState.Unauthorized("No API key configured"))
+                updateProviderState(providerName, ConnectionState.Unauthorized(NO_API_KEY_MSG))
                 return@launch
             }
 
             updateProviderState(providerName, ConnectionState.Verifying)
 
             val result = withContext(Dispatchers.IO) {
-                performHealthCheck(providerName, key ?: "")
+                performHealthCheck(providerName, key)
             }
 
             updateProviderState(providerName, result)
@@ -112,19 +120,19 @@ class ProvidersViewModel(
                 }
                 401, 403 -> {
                     response.close()
-                    ConnectionState.Unauthorized("Invalid API key (${response.code})")
+                    ConnectionState.Unauthorized("$INVALID_API_KEY (${response.code})")
                 }
                 in 400..499 -> {
                     response.close()
-                    ConnectionState.Error("Client error: ${response.code}")
+                    ConnectionState.Error("$CLIENT_ERROR: ${response.code}")
                 }
                 in 500..599 -> {
                     response.close()
-                    ConnectionState.Error("Server error: ${response.code}")
+                    ConnectionState.Error("$SERVER_ERROR: ${response.code}")
                 }
                 else -> {
                     response.close()
-                    ConnectionState.Error("Unexpected: ${response.code}")
+                    ConnectionState.Error("$UNEXPECTED_CODE: ${response.code}")
                 }
             }
         } catch (e: SocketTimeoutException) {
@@ -145,10 +153,7 @@ class ProvidersViewModel(
                 .header("x-api-key", apiKey)
                 .header("anthropic-version", "2023-06-01")
                 .header("content-type", "application/json")
-                .post(
-                    """{"model":"claude-sonnet-4-20250514","max_tokens":1,"messages":[{"role":"user","content":"."}]}"""
-                        .toRequestBody(jsonMediaType)
-                )
+                .post(CLAUDE_HEALTH_CHECK_BODY.toRequestBody(jsonMediaType))
                 .build()
 
             "OpenAI" -> Request.Builder()
@@ -180,7 +185,7 @@ class ProvidersViewModel(
                 .get()
                 .build()
 
-            "Ollama" -> Request.Builder()
+            OLLAMA_PROVIDER -> Request.Builder()
                 .url("http://localhost:11434/api/tags")
                 .get()
                 .build()
@@ -196,6 +201,9 @@ class ProvidersViewModel(
     }
 
     companion object {
+        val KNOWN_PROVIDERS = listOf("Claude", "OpenAI", "Gemini", "OpenRouter", "DeepSeek", "Groq", "Ollama")
+        private const val CLAUDE_HEALTH_CHECK_BODY = """{"model":"claude-sonnet-4-20250514","max_tokens":1,"messages":[{"role":"user","content":"."}]}"""
+
         val Factory: ViewModelProvider.Factory = object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
             override fun <T : ViewModel> create(modelClass: Class<T>, extras: CreationExtras): T {

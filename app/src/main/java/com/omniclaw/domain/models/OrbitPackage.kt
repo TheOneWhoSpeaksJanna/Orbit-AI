@@ -6,7 +6,7 @@ data class OmniClawPackage(
     val version: String,
     val downloadUrl: String,
     val binaryNames: List<String>,
-    val binRelativePath: String, // Folder inside the extracted package where binaries live
+    val binRelativePath: String,
     val isArchive: Boolean = true
 )
 

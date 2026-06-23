@@ -17,6 +17,6 @@ enum class BottomNavTab(
     CHAT("Chat", Icons.Default.Chat),
     HISTORY("History", Icons.Default.History),
     SKILLS("Skills", Icons.Default.Extension),
-    PROVIDERS("Providers", Icons.Default.Cloud),
+    PROVIDERS("Provider", Icons.Default.Cloud),
     SETTINGS("Settings", Icons.Default.Settings)
 }

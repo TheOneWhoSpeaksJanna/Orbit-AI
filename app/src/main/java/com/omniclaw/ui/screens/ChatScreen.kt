@@ -12,6 +12,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -25,9 +26,25 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.omniclaw.domain.models.MessageRole
-import com.omniclaw.domain.models.DetailedModelInfo
 import com.omniclaw.ui.components.ModelBrowserSheet
 import com.omniclaw.ui.viewmodels.ChatViewModel
+
+private const val DEFAULT_TITLE = "Chat"
+private const val MESSAGE_PLACEHOLDER = "Message..."
+private const val WELCOME_TITLE = "What can I help with?"
+private const val WELCOME_SUBTITLE = "Ask anything \u2014 research, code, writing, or just a question."
+private const val NO_AGENT_TITLE = "No Agent Selected"
+private const val NO_AGENT_SUBTITLE = "Install an agent from Skills to start chatting."
+private const val CD_BACK = "Back"
+private const val CD_SELECT_MODEL = "Select model"
+private const val CD_SEND = "Send"
+private const val ANIMATION_DURATION_MS = 900
+private val BUBBLE_MAX_WIDTH = 480.dp
+
+private val FALLBACK_MODELS = listOf(
+    "gemini-2.0-flash-exp", "gpt-4o", "claude-sonnet-4-20250514"
+)
+private val ANIMATION_DELAYS = listOf(0, 150, 300)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -41,11 +58,13 @@ fun ChatScreen(
     val isLoading by viewModel.isLoading.collectAsState()
     val availableModels by viewModel.availableModels.collectAsState()
     val selectedModel by viewModel.selectedModel.collectAsState()
+    val useLocalMode by viewModel.useLocalMode.collectAsState()
     var inputText by remember { mutableStateOf("") }
     var showModelDropdown by remember { mutableStateOf(false) }
     val listState = rememberLazyListState()
     val detailedModels by viewModel.detailedModels.collectAsState()
     val isFetchingModels by viewModel.isFetchingModels.collectAsState()
+    val hasAgent by viewModel.hasAgent.collectAsState()
     var showModelBrowser by remember { mutableStateOf(false) }
 
     LaunchedEffect(sessionId) {
@@ -58,7 +77,6 @@ fun ChatScreen(
         }
     }
 
-    // Auto-scroll to latest
     LaunchedEffect(messages.size) {
         if (messages.isNotEmpty()) {
             listState.animateScrollToItem(messages.size - 1)
@@ -71,49 +89,59 @@ fun ChatScreen(
                 title = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
-                            currentSession?.title ?: "Chat",
+                            currentSession?.title ?: DEFAULT_TITLE,
                             fontWeight = FontWeight.SemiBold,
                             style = MaterialTheme.typography.titleMedium
                         )
-                        Spacer(Modifier.width(6.dp))
-                        // Model selector
-                        if (availableModels.isNotEmpty()) {
-                            Row(
-                                modifier = Modifier
-                                    .clickable {
-                                        if (detailedModels.isNotEmpty()) {
-                                            showModelBrowser = true
-                                        } else {
-                                            showModelDropdown = true
-                                        }
-                                    },
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
+                        Spacer(Modifier.width(4.dp))
+                        SuggestionChip(
+                            onClick = { viewModel.toggleLocalMode() },
+                            label = {
                                 Text(
-                                    text = selectedModel.ifBlank { availableModels.first() },
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.primary
+                                    if (useLocalMode) "Local" else "Cloud",
+                                    style = MaterialTheme.typography.labelSmall
                                 )
-                                Icon(
-                                    Icons.Default.ArrowDropDown,
-                                    contentDescription = "Select model",
-                                    modifier = Modifier.size(14.dp),
-                                    tint = MaterialTheme.colorScheme.primary
-                                )
-                                if (detailedModels.isEmpty()) {
-                                    DropdownMenu(
-                                        expanded = showModelDropdown,
-                                        onDismissRequest = { showModelDropdown = false }
-                                    ) {
-                                        availableModels.forEach { model ->
-                                            DropdownMenuItem(
-                                                text = { Text(model) },
-                                                onClick = {
-                                                    viewModel.setSelectedModel(model)
-                                                    showModelDropdown = false
-                                                }
-                                            )
-                                        }
+                            },
+                            modifier = Modifier.height(24.dp),
+                            shape = RoundedCornerShape(12.dp)
+                        )
+                        Spacer(Modifier.width(4.dp))
+                        val displayModels = availableModels.ifEmpty { FALLBACK_MODELS }
+                        Row(
+                            modifier = Modifier
+                                .clickable {
+                                    if (detailedModels.isNotEmpty()) {
+                                        showModelBrowser = true
+                                    } else {
+                                        showModelDropdown = true
+                                    }
+                                },
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = selectedModel.ifBlank { displayModels.first() },
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            Icon(
+                                Icons.Default.ArrowDropDown,
+                                contentDescription = CD_SELECT_MODEL,
+                                modifier = Modifier.size(14.dp),
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                            if (detailedModels.isEmpty()) {
+                                DropdownMenu(
+                                    expanded = showModelDropdown,
+                                    onDismissRequest = { showModelDropdown = false }
+                                ) {
+                                    displayModels.forEach { model ->
+                                        DropdownMenuItem(
+                                            text = { Text(model) },
+                                            onClick = {
+                                                viewModel.setSelectedModel(model)
+                                                showModelDropdown = false
+                                            }
+                                        )
                                     }
                                 }
                             }
@@ -122,7 +150,7 @@ fun ChatScreen(
                 },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = CD_BACK)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -137,96 +165,98 @@ fun ChatScreen(
                 .fillMaxSize()
                 .padding(padding)
         ) {
-            // Messages
-            LazyColumn(
-                state = listState,
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth(),
-                contentPadding = PaddingValues(vertical = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                if (messages.isEmpty() && !isLoading) {
-                    item {
-                        WelcomePlaceholder()
-                    }
-                }
-                items(messages, key = { it.id }) { message ->
-                    MessageBubble(
-                        content = message.content,
-                        isUser = message.role == MessageRole.USER
-                    )
-                }
-                if (isLoading) {
-                    item {
-                        LoadingBubble()
-                    }
-                }
-            }
-
-            // Input Area
-            Surface(
-                color = MaterialTheme.colorScheme.background,
-                tonalElevation = 0.dp
-            ) {
-                Row(
+            if (hasAgent) {
+                LazyColumn(
+                    state = listState,
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 12.dp, vertical = 10.dp)
-                        .padding(bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding().coerceAtMost(8.dp)),
-                    verticalAlignment = Alignment.CenterVertically
+                        .weight(1f)
+                        .fillMaxWidth(),
+                    contentPadding = PaddingValues(vertical = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    OutlinedTextField(
-                        value = inputText,
-                        onValueChange = { inputText = it },
-                        placeholder = {
-                            Text(
-                                "Message...",
-                                style = MaterialTheme.typography.bodyMedium
-                            )
-                        },
-                        modifier = Modifier
-                            .weight(1f)
-                            .clip(RoundedCornerShape(24.dp)),
-                        shape = RoundedCornerShape(24.dp),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = Color.Transparent,
-                            unfocusedBorderColor = Color.Transparent,
-                            focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
-                            unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
-                        ),
-                        singleLine = true,
-                        maxLines = 1,
-                        textStyle = MaterialTheme.typography.bodyMedium
-                    )
-                    Spacer(Modifier.width(8.dp))
-                    Surface(
-                        shape = RoundedCornerShape(12.dp),
-                        color = if (inputText.isNotBlank())
-                            MaterialTheme.colorScheme.primary
-                        else
-                            MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f)
-                    ) {
-                        IconButton(
-                            onClick = {
-                                if (inputText.isNotBlank()) {
-                                    viewModel.sendMessage(inputText.trim())
-                                    inputText = ""
-                                }
-                            },
-                            enabled = inputText.isNotBlank()
-                        ) {
-                            Icon(
-                                Icons.AutoMirrored.Filled.Send,
-                                contentDescription = "Send",
-                                tint = if (inputText.isNotBlank())
-                                    MaterialTheme.colorScheme.onPrimary
-                                else
-                                    MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
-                            )
+                    if (messages.isEmpty() && !isLoading) {
+                        item {
+                            WelcomePlaceholder()
+                        }
+                    }
+                    items(messages, key = { it.id }) { message ->
+                        MessageBubble(
+                            content = message.content,
+                            isUser = message.role == MessageRole.USER
+                        )
+                    }
+                    if (isLoading) {
+                        item {
+                            LoadingBubble()
                         }
                     }
                 }
+
+                Surface(
+                    color = MaterialTheme.colorScheme.background,
+                    tonalElevation = 0.dp
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp, vertical = 10.dp)
+                            .padding(bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding().coerceAtMost(8.dp)),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        OutlinedTextField(
+                            value = inputText,
+                            onValueChange = { inputText = it },
+                            placeholder = {
+                                Text(
+                                    MESSAGE_PLACEHOLDER,
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
+                            },
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(24.dp)),
+                            shape = RoundedCornerShape(24.dp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = Color.Transparent,
+                                unfocusedBorderColor = Color.Transparent,
+                                focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+                                unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                            ),
+                            singleLine = true,
+                            maxLines = 1,
+                            textStyle = MaterialTheme.typography.bodyMedium
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = if (inputText.isNotBlank())
+                                MaterialTheme.colorScheme.primary
+                            else
+                                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f)
+                        ) {
+                            IconButton(
+                                onClick = {
+                                    if (inputText.isNotBlank()) {
+                                        viewModel.sendMessage(inputText.trim())
+                                        inputText = ""
+                                    }
+                                },
+                                enabled = inputText.isNotBlank()
+                            ) {
+                                Icon(
+                                    Icons.AutoMirrored.Filled.Send,
+                                    contentDescription = CD_SEND,
+                                    tint = if (inputText.isNotBlank())
+                                        MaterialTheme.colorScheme.onPrimary
+                                    else
+                                        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+                                )
+                            }
+                        }
+                    }
+                }
+            } else {
+                NoAgentPlaceholder()
             }
         }
     }
@@ -259,11 +289,10 @@ private fun MessageBubble(content: String, isUser: Boolean) {
         horizontalAlignment = if (isUser) Alignment.End else Alignment.Start
     ) {
         if (isUser) {
-            // User message: solid bubble, right-aligned
             Surface(
                 color = MaterialTheme.colorScheme.primary,
                 shape = RoundedCornerShape(20.dp, 20.dp, 4.dp, 20.dp),
-                modifier = Modifier.widthIn(max = 480.dp)
+                modifier = Modifier.widthIn(max = BUBBLE_MAX_WIDTH)
             ) {
                 Text(
                     text = content,
@@ -274,11 +303,10 @@ private fun MessageBubble(content: String, isUser: Boolean) {
                 )
             }
         } else {
-            // AI message: subtle bubble, left-aligned
             Surface(
                 color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
                 shape = RoundedCornerShape(20.dp, 20.dp, 20.dp, 4.dp),
-                modifier = Modifier.widthIn(max = 480.dp)
+                modifier = Modifier.widthIn(max = BUBBLE_MAX_WIDTH)
             ) {
                 Text(
                     text = content,
@@ -295,7 +323,6 @@ private fun MessageBubble(content: String, isUser: Boolean) {
 @Composable
 private fun LoadingBubble() {
     val infiniteTransition = rememberInfiniteTransition(label = "loadingDots")
-    val delays = listOf(0, 150, 300)
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -311,16 +338,16 @@ private fun LoadingBubble() {
                 horizontalArrangement = Arrangement.spacedBy(5.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                delays.forEach { delayMs ->
+                ANIMATION_DELAYS.forEach {
                     val alpha by infiniteTransition.animateFloat(
                         initialValue = 0.3f,
                         targetValue = 1.0f,
                         animationSpec = infiniteRepeatable(
                             animation = keyframes {
-                                durationMillis = 900
+                                durationMillis = ANIMATION_DURATION_MS
                                 0.3f at 0
                                 1.0f at 450
-                                0.3f at 900
+                                0.3f at ANIMATION_DURATION_MS
                             }
                         ),
                         label = "dotAlpha"
@@ -348,7 +375,7 @@ private fun WelcomePlaceholder() {
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text(
-            "What can I help with?",
+            WELCOME_TITLE,
             style = MaterialTheme.typography.headlineMedium,
             fontWeight = FontWeight.SemiBold,
             color = MaterialTheme.colorScheme.onBackground,
@@ -356,7 +383,40 @@ private fun WelcomePlaceholder() {
         )
         Spacer(Modifier.height(8.dp))
         Text(
-            "Ask anything — research, code, writing, or just a question.",
+            WELCOME_SUBTITLE,
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+}
+
+@Composable
+private fun NoAgentPlaceholder() {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .fillMaxHeight()
+            .padding(horizontal = 32.dp),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Icon(
+            imageVector = Icons.Default.SmartToy,
+            contentDescription = null,
+            modifier = Modifier.size(64.dp),
+            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+        )
+        Spacer(Modifier.height(16.dp))
+        Text(
+            NO_AGENT_TITLE,
+            style = MaterialTheme.typography.headlineMedium,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onBackground,
+            letterSpacing = (-0.5).sp
+        )
+        Spacer(Modifier.height(8.dp))
+        Text(
+            NO_AGENT_SUBTITLE,
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )

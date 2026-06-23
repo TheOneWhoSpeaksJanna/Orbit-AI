@@ -43,7 +43,8 @@ data class AgentEntity(
     @PrimaryKey val id: String,
     val name: String,
     val description: String,
-    val systemPrompt: String
+    val systemPrompt: String,
+    val runCommand: String = ""
 )
 
 @Entity(tableName = "termux_logs")
@@ -55,7 +56,6 @@ data class TermuxLogEntity(
     val timestamp: Long
 )
 
-// Mappers
 fun ProjectEntity.toProject() = Project(id, name, description, createdAt, updatedAt)
 fun Project.toEntity() = ProjectEntity(id, name, description, createdAt, updatedAt)
 
@@ -65,8 +65,8 @@ fun ChatSession.toEntity() = SessionEntity(id, projectId, title, createdAt, upda
 fun MessageEntity.toMessage() = Message(id, sessionId, MessageRole.valueOf(role), content, timestamp)
 fun Message.toEntity() = MessageEntity(id, sessionId, role.name, content, timestamp)
 
-fun AgentEntity.toAgent() = Agent(id, name, description, systemPrompt)
-fun Agent.toEntity() = AgentEntity(id, name, description, systemPrompt)
+fun AgentEntity.toAgent() = Agent(id, name, description, systemPrompt, runCommand)
+fun Agent.toEntity() = AgentEntity(id, name, description, systemPrompt, runCommand)
 
 fun TermuxLogEntity.toTermuxLog() = TermuxLog(id, command, output, exitCode, timestamp)
 fun TermuxLog.toEntity() = TermuxLogEntity(id, command, output, exitCode, timestamp)

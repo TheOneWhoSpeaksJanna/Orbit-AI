@@ -13,7 +13,7 @@ enum class OmniClawThemeMode {
 
 private val DarkColorScheme = darkColorScheme(
     primary = OmniClawPrimary,
-    onPrimary = Color(0xFF06080F),
+    onPrimary = OmniClawObsidianBase,
     primaryContainer = OmniClawPrimaryGlow,
     onPrimaryContainer = OmniClawPrimaryLight,
     secondary = OmniClawSecondary,
@@ -34,7 +34,7 @@ private val DarkColorScheme = darkColorScheme(
     inverseSurface = OmniClawSurfaceLight,
     inverseOnSurface = OmniClawTextPrimaryLight,
     outline = OmniClawGlassBorder,
-    outlineVariant = Color(0xFF1C2340),
+    outlineVariant = OmniClawSurfaceElevated,
     error = OmniClawError,
     onError = OmniClawTextPrimary,
     errorContainer = Color(0x40EF4444),
@@ -70,7 +70,7 @@ private val LightColorScheme = lightColorScheme(
     onError = Color.White,
     errorContainer = Color(0xFFFEE2E2),
     onErrorContainer = Color(0xFF991B1B),
-    scrim = Color(0xFF000000),
+    scrim = Color.Black,
 )
 
 @Composable

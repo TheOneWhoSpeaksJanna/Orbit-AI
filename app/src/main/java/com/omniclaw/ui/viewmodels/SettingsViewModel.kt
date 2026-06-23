@@ -8,14 +8,20 @@ import androidx.lifecycle.viewmodel.CreationExtras
 import com.omniclaw.OmniClawApplication
 import com.omniclaw.data.local.prefs.PreferencesManager
 import com.omniclaw.data.local.updater.UpdateManager
-import com.omniclaw.data.local.updater.UpdateState
 import com.omniclaw.data.local.updater.UpdateInfo
+import com.omniclaw.data.local.updater.UpdateState
 import com.omniclaw.BuildConfig
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.launch
+
+private const val PROVIDER_GEMINI = "Gemini"
+private const val PROVIDER_OPENAI = "OpenAI"
+private const val PROVIDER_CLAUDE = "Claude"
+private const val PROVIDER_OPENROUTER = "OpenRouter"
+private const val THEME_DEFAULT = "system"
 
 class SettingsViewModel(
     private val prefsManager: PreferencesManager,
@@ -37,7 +43,7 @@ class SettingsViewModel(
     private val _githubToken = MutableStateFlow("")
     val githubToken: StateFlow<String> = _githubToken.asStateFlow()
 
-    private val _themeMode = MutableStateFlow("system")
+    private val _themeMode = MutableStateFlow(THEME_DEFAULT)
     val themeMode: StateFlow<String> = _themeMode.asStateFlow()
 
     init {
@@ -46,33 +52,33 @@ class SettingsViewModel(
 
     private fun loadApiKeys() {
         viewModelScope.launch {
-            _geminiApiKey.value = prefsManager.getApiKeyForProvider("Gemini").firstOrNull() ?: ""
-            _openAiApiKey.value = prefsManager.getApiKeyForProvider("OpenAI").firstOrNull() ?: ""
-            _claudeApiKey.value = prefsManager.getApiKeyForProvider("Claude").firstOrNull() ?: ""
-            _openRouterApiKey.value = prefsManager.getApiKeyForProvider("OpenRouter").firstOrNull() ?: ""
+            _geminiApiKey.value = prefsManager.getApiKeyForProvider(PROVIDER_GEMINI).firstOrNull() ?: ""
+            _openAiApiKey.value = prefsManager.getApiKeyForProvider(PROVIDER_OPENAI).firstOrNull() ?: ""
+            _claudeApiKey.value = prefsManager.getApiKeyForProvider(PROVIDER_CLAUDE).firstOrNull() ?: ""
+            _openRouterApiKey.value = prefsManager.getApiKeyForProvider(PROVIDER_OPENROUTER).firstOrNull() ?: ""
             _githubToken.value = prefsManager.githubToken.firstOrNull() ?: ""
-            _themeMode.value = prefsManager.themeMode.firstOrNull() ?: "system"
+            _themeMode.value = prefsManager.themeMode.firstOrNull() ?: THEME_DEFAULT
         }
     }
 
     fun updateGeminiApiKey(key: String) {
         _geminiApiKey.value = key
-        viewModelScope.launch { prefsManager.setApiKeyForProvider("Gemini", key) }
+        viewModelScope.launch { prefsManager.setApiKeyForProvider(PROVIDER_GEMINI, key) }
     }
 
     fun updateOpenAiApiKey(key: String) {
         _openAiApiKey.value = key
-        viewModelScope.launch { prefsManager.setApiKeyForProvider("OpenAI", key) }
+        viewModelScope.launch { prefsManager.setApiKeyForProvider(PROVIDER_OPENAI, key) }
     }
 
     fun updateClaudeApiKey(key: String) {
         _claudeApiKey.value = key
-        viewModelScope.launch { prefsManager.setApiKeyForProvider("Claude", key) }
+        viewModelScope.launch { prefsManager.setApiKeyForProvider(PROVIDER_CLAUDE, key) }
     }
 
     fun updateOpenRouterApiKey(key: String) {
         _openRouterApiKey.value = key
-        viewModelScope.launch { prefsManager.setApiKeyForProvider("OpenRouter", key) }
+        viewModelScope.launch { prefsManager.setApiKeyForProvider(PROVIDER_OPENROUTER, key) }
     }
 
     fun updateGithubToken(token: String) {
@@ -85,7 +91,6 @@ class SettingsViewModel(
         viewModelScope.launch { prefsManager.setThemeMode(mode) }
     }
 
-    // Update management
     val appVersion: String = BuildConfig.VERSION_NAME
     val updateState: StateFlow<UpdateState> = updateManager.updateState
 

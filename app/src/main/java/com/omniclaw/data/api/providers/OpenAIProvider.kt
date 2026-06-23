@@ -15,9 +15,8 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONArray
 import org.json.JSONObject
 
-class OpenAIProvider(okHttpClient: OkHttpClient) : AiProvider {
+class OpenAIProvider(private val httpClient: OkHttpClient) : AiProvider {
 
-    private val httpClient = okHttpClient
     private val jsonMediaType = "application/json; charset=utf-8".toMediaType()
 
     override fun generateContentStream(sessionId: String?, prompt: String, apiKey: String, provider: String, model: String): Flow<AiEvent> = flow {
@@ -33,8 +32,8 @@ class OpenAIProvider(okHttpClient: OkHttpClient) : AiProvider {
             try {
                 if (apiKey.isBlank()) return@withContext AiResult.Error("API Key is missing.")
 
-                val requestModel = if (model.isNotBlank()) model else "gpt-4o"
-                
+                val requestModel = if (model.isNotBlank()) model else DEFAULT_MODEL
+
                 val jsonBody = JSONObject().apply {
                     put("model", requestModel)
                     val messages = JSONArray().apply {
@@ -47,7 +46,7 @@ class OpenAIProvider(okHttpClient: OkHttpClient) : AiProvider {
                 }
 
                 val request = Request.Builder()
-                    .url("https://api.openai.com/v1/chat/completions")
+                    .url(API_BASE_URL)
                     .header("Authorization", "Bearer $apiKey")
                     .post(jsonBody.toString().toRequestBody(jsonMediaType))
                     .build()
@@ -59,7 +58,7 @@ class OpenAIProvider(okHttpClient: OkHttpClient) : AiProvider {
                     val jsonResponse = JSONObject(responseBody)
                     val choices = jsonResponse.optJSONArray("choices")
                     val text = choices?.optJSONObject(0)?.optJSONObject("message")?.optString("content")
-                    
+
                     if (!text.isNullOrBlank()) {
                         AiResult.Success(text)
                     } else {
@@ -82,10 +81,10 @@ class OpenAIProvider(okHttpClient: OkHttpClient) : AiProvider {
     override val metadata: ProviderMetadata = ProviderMetadata(
         name = "OpenAI",
         displayName = "OpenAI",
-        models = listOf("gpt-4o", "gpt-4o-mini", "gpt-4-turbo"),
+        models = listOf(DEFAULT_MODEL, "gpt-4o-mini", "gpt-4-turbo"),
         supportsStreaming = true,
         requiresApiKey = true,
-        defaultModel = "gpt-4o"
+        defaultModel = DEFAULT_MODEL
     )
 
     override suspend fun testConnection(provider: String, apiKey: String, model: String): Boolean {
@@ -93,5 +92,10 @@ class OpenAIProvider(okHttpClient: OkHttpClient) : AiProvider {
             val result = generateContent("Hi", apiKey, provider, model)
             result is AiResult.Success
         }
+    }
+
+    companion object {
+        private const val DEFAULT_MODEL = "gpt-4o"
+        private const val API_BASE_URL = "https://api.openai.com/v1/chat/completions"
     }
 }
