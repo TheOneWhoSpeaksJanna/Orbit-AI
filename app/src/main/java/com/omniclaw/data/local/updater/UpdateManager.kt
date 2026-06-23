@@ -2,7 +2,6 @@ package com.omniclaw.data.local.updater
 
 import android.content.Context
 import android.content.Intent
-import android.os.Build
 import androidx.core.content.FileProvider
 import com.omniclaw.BuildConfig
 import com.omniclaw.data.local.prefs.PreferencesManager
@@ -166,12 +165,10 @@ class UpdateManager(
                 file
             )
 
-            val intent = Intent(Intent.ACTION_VIEW).apply {
-                setDataAndType(apkUri, "application/vnd.android.package-archive")
+            val intent = Intent(Intent.ACTION_INSTALL_PACKAGE).apply {
+                data = apkUri
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    putExtra(Intent.EXTRA_NOT_UNKNOWN_SOURCE, true)
-                }
+                putExtra(Intent.EXTRA_RETURN_RESULT, true)
             }
             context.startActivity(intent)
         } catch (e: Exception) {
