@@ -26,7 +26,8 @@ data class UpdateInfo(
     val latestVersion: String,
     val downloadUrl: String,
     val releaseNotes: String,
-    val isNewer: Boolean
+    val isNewer: Boolean,
+    val assetId: Long = 0
 )
 
 sealed class UpdateState {
@@ -127,8 +128,14 @@ class UpdateManager(
                 val file = File(downloadsDir, "Orbit-AI-${info.latestVersion}.apk")
 
                 val token = githubToken()
+                // Use the API endpoint instead of browser_download_url —
+                // github.com URLs accept cookies, not Bearer tokens.
+                // api.github.com accepts Bearer tokens and returns a 302
+                // redirect to a pre-signed CDN URL that needs no auth.
+                val apiUrl = "https://api.github.com/repos/$repoOwner/$repoName/releases/assets/${info.assetId}"
                 val requestBuilder = Request.Builder()
-                    .url(info.downloadUrl)
+                    .url(apiUrl)
+                    .header("Accept", "application/octet-stream")
                 if (!token.isNullOrBlank()) {
                     requestBuilder.header("Authorization", "Bearer $token")
                 }
@@ -204,6 +211,7 @@ class UpdateManager(
         val releaseNotes = if (rawNotes == "null" || rawNotes.isBlank()) "" else rawNotes
         val assets = json.optJSONArray("assets")
         var downloadUrl = ""
+        var assetId = 0L
 
         if (assets != null) {
             for (i in 0 until assets.length()) {
@@ -211,6 +219,7 @@ class UpdateManager(
                 val name = asset.optString("name", "")
                 if (name.endsWith(".apk")) {
                     downloadUrl = asset.optString("browser_download_url", "")
+                    assetId = asset.optLong("id", 0)
                     break
                 }
             }
@@ -223,7 +232,8 @@ class UpdateManager(
             latestVersion = tagName,
             downloadUrl = downloadUrl,
             releaseNotes = releaseNotes,
-            isNewer = isNewer
+            isNewer = isNewer,
+            assetId = assetId
         )
     }
 }
