@@ -126,9 +126,13 @@ class UpdateManager(
                 downloadsDir.mkdirs()
                 val file = File(downloadsDir, "Orbit-AI-${info.latestVersion}.apk")
 
-                val request = Request.Builder()
+                val token = githubToken()
+                val requestBuilder = Request.Builder()
                     .url(info.downloadUrl)
-                    .build()
+                if (!token.isNullOrBlank()) {
+                    requestBuilder.header("Authorization", "Bearer $token")
+                }
+                val request = requestBuilder.build()
 
                 val response = httpClient.newCall(request).execute()
                 if (!response.isSuccessful) throw Exception("Download failed: ${response.code}")
@@ -196,7 +200,8 @@ class UpdateManager(
 
     private fun parseReleaseJson(json: JSONObject): UpdateInfo {
         val tagName = json.optString("tag_name", "").removePrefix("v")
-        val releaseNotes = json.optString("body", "")
+        val rawNotes = json.optString("body", "")
+        val releaseNotes = if (rawNotes == "null" || rawNotes.isBlank()) "" else rawNotes
         val assets = json.optJSONArray("assets")
         var downloadUrl = ""
 
