@@ -196,19 +196,32 @@ class UpdateManager(
         var downloadUrl = ""
         var assetId = 0L
 
+        val currentFlavor = BuildConfig.FLAVOR
+
         if (assets != null) {
             for (i in 0 until assets.length()) {
                 val asset = assets.getJSONObject(i)
                 val name = asset.optString("name", "")
-                if (name.endsWith(".apk")) {
+                if (name.endsWith(".apk") && name.contains(currentFlavor)) {
                     downloadUrl = asset.optString("browser_download_url", "")
                     assetId = asset.optLong("id", 0)
                     break
                 }
             }
+            if (downloadUrl.isBlank()) {
+                for (i in 0 until assets.length()) {
+                    val asset = assets.getJSONObject(i)
+                    val name = asset.optString("name", "")
+                    if (name.endsWith(".apk")) {
+                        downloadUrl = asset.optString("browser_download_url", "")
+                        assetId = asset.optLong("id", 0)
+                        break
+                    }
+                }
+            }
         }
 
-        val currentVersion = BuildConfig.VERSION_NAME
+        val currentVersion = BuildConfig.VERSION_NAME.split("-").first()
         val isNewer = compareVersions(tagName, currentVersion) > 0
 
         return UpdateInfo(
