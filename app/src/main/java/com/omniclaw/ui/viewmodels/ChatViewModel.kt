@@ -284,6 +284,17 @@ class ChatViewModel(
             val promptBuilder = StringBuilder()
             promptBuilder.append("$systemPrompt\n\n")
 
+            // Append enabled skills
+            val skills = repository.getAllSkills().firstOrNull().orEmpty()
+            val enabledSkills = skills.filter { it.enabled && it.content.isNotBlank() }
+            if (enabledSkills.isNotEmpty()) {
+                promptBuilder.append("## Active Skills\n\n")
+                for (skill in enabledSkills) {
+                    promptBuilder.append("### ${skill.name}\n")
+                    promptBuilder.append("${skill.content}\n\n")
+                }
+            }
+
             _messages.value.forEach { msg ->
                 promptBuilder.append("${msg.role.name}: ${msg.content}\n")
             }

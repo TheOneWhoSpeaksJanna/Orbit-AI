@@ -25,6 +25,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.omniclaw.ui.viewmodels.SettingsViewModel
 import com.omniclaw.domain.models.AgentPermissionLevel
+import com.omniclaw.domain.models.Skill
 
 private const val GITHUB_TOKEN_LABEL = "GitHub Token"
 private const val THEME_SYSTEM = "System"
@@ -49,6 +50,13 @@ private const val NORMAL_DESC = "Always asks before taking actions"
 private const val RULES_DESC = "Follows defined rules, never asks"
 private const val MID_RULES_DESC = "Asks for sensitive operations only"
 private const val FULL_ACCESS_DESC = "Never asks, full autonomy"
+private const val SECTION_SKILLS = "Skills"
+private const val EDIT_SKILL = "Edit"
+private const val SAVE = "Save"
+private const val CANCEL = "Cancel"
+private const val SKILL_CONTENT_HINT = "Enter skill instructions..."
+private const val ENABLED = "Enabled"
+private const val DISABLED = "Disabled"
 
 private val THEME_OPTIONS = listOf(THEME_SYSTEM, THEME_DARK, THEME_LIGHT)
 
@@ -67,7 +75,12 @@ fun SettingsScreen(
     val agentPermissionLevel by viewModel.agentPermissionLevel.collectAsState()
     val agentRules by viewModel.agentRules.collectAsState()
     val updateState by viewModel.updateState.collectAsState()
+    val skills by viewModel.skills.collectAsState()
     val appVersion = viewModel.appVersion
+
+    var editSkill by remember { mutableStateOf<Skill?>(null) }
+    var editContent by remember { mutableStateOf("") }
+    var expandedSkillId by remember { mutableStateOf<String?>(null) }
 
     var geminiVisible by remember { mutableStateOf(false) }
     var openAiVisible by remember { mutableStateOf(false) }
@@ -258,6 +271,39 @@ fun SettingsScreen(
                 }
             }
 
+            // Skills Card
+            if (skills.isNotEmpty()) {
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                    shape = MaterialTheme.shapes.extraLarge
+                ) {
+                    Column(modifier = Modifier.padding(20.dp).fillMaxWidth()) {
+                        Text(SECTION_SKILLS, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        skills.forEach { skill ->
+                            SkillCard(
+                                skill = skill,
+                                isExpanded = expandedSkillId == skill.id,
+                                onToggleExpanded = {
+                                    expandedSkillId = if (expandedSkillId == skill.id) null else skill.id
+                                },
+                                onToggleEnabled = { enabled ->
+                                    viewModel.toggleSkillEnabled(skill.id, enabled)
+                                },
+                                onEdit = {
+                                    editSkill = skill
+                                    editContent = skill.content
+                                }
+                            )
+                            if (skill != skills.last()) {
+                                Spacer(modifier = Modifier.height(12.dp))
+                            }
+                        }
+                    }
+                }
+            }
+
             Card(
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
                 shape = MaterialTheme.shapes.extraLarge
@@ -377,6 +423,37 @@ fun SettingsScreen(
                 }
             }
         }
+
+        // Skill edit dialog
+        if (editSkill != null) {
+            AlertDialog(
+                onDismissRequest = { editSkill = null },
+                title = { Text("Edit: ${editSkill?.name}") },
+                text = {
+                    Column {
+                        Text("Skill content defines what the AI knows about this capability.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Spacer(Modifier.height(12.dp))
+                        OutlinedTextField(
+                            value = editContent,
+                            onValueChange = { editContent = it },
+                            modifier = Modifier.fillMaxWidth().heightIn(min = 300.dp),
+                            shape = MaterialTheme.shapes.medium,
+                            placeholder = { Text(SKILL_CONTENT_HINT) },
+                            maxLines = 30
+                        )
+                    }
+                },
+                confirmButton = {
+                    Button(onClick = {
+                        editSkill?.let { viewModel.updateSkillContent(it.id, editContent) }
+                        editSkill = null
+                    }) { Text(SAVE) }
+                },
+                dismissButton = {
+                    TextButton(onClick = { editSkill = null }) { Text(CANCEL) }
+                }
+            )
+        }
     }
 }
 
@@ -406,4 +483,63 @@ private fun ApiKeyField(
             }
         }
     )
+}
+
+@Composable
+private fun SkillCard(
+    skill: Skill,
+    isExpanded: Boolean,
+    onToggleExpanded: () -> Unit,
+    onToggleEnabled: (Boolean) -> Unit,
+    onEdit: () -> Unit
+) {
+    Card(
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        shape = MaterialTheme.shapes.medium,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(skill.name, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Medium)
+                    Text(
+                        if (skill.enabled) ENABLED else DISABLED,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (skill.enabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Switch(
+                    checked = skill.enabled,
+                    onCheckedChange = onToggleEnabled
+                )
+            }
+            Spacer(Modifier.height(8.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End
+            ) {
+                TextButton(onClick = onEdit) { Text(EDIT_SKILL) }
+                TextButton(onClick = onToggleExpanded) {
+                    Text(if (isExpanded) "Hide Content" else "View Content")
+                }
+            }
+            if (isExpanded) {
+                Spacer(Modifier.height(8.dp))
+                Surface(
+                    color = MaterialTheme.colorScheme.surfaceVariant,
+                    shape = MaterialTheme.shapes.small,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = skill.content,
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.padding(12.dp)
+                    )
+                }
+            }
+        }
+    }
 }

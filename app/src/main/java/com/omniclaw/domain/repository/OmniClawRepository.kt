@@ -19,4 +19,11 @@ interface OmniClawRepository {
 
     fun getAllTermuxLogs(): Flow<List<TermuxLog>>
     suspend fun insertTermuxLog(log: TermuxLog)
+
+    fun getEnabledSkills(): Flow<List<Skill>>
+    fun getAllSkills(): Flow<List<Skill>>
+    suspend fun insertSkill(skill: Skill)
+    suspend fun setSkillEnabled(skillId: String, enabled: Boolean)
+    suspend fun updateSkillContent(skillId: String, content: String)
+    suspend fun deleteSkill(skill: Skill)
 }

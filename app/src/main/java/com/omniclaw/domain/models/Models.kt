@@ -41,3 +41,10 @@ data class TermuxLog(
     val exitCode: Int,
     val timestamp: Long
 )
+
+data class Skill(
+    val id: String,
+    val name: String,
+    val content: String,
+    val enabled: Boolean = true
+)

@@ -48,4 +48,26 @@ class OmniClawRepositoryImpl(
     override suspend fun insertTermuxLog(log: TermuxLog) {
         dao.insertTermuxLog(log.toEntity())
     }
+
+    override fun getEnabledSkills(): Flow<List<Skill>> =
+        dao.getEnabledSkills().map { list -> list.map { it.toSkill() } }
+
+    override fun getAllSkills(): Flow<List<Skill>> =
+        dao.getAllSkills().map { list -> list.map { it.toSkill() } }
+
+    override suspend fun insertSkill(skill: Skill) {
+        dao.insertSkill(skill.toEntity())
+    }
+
+    override suspend fun setSkillEnabled(skillId: String, enabled: Boolean) {
+        dao.setSkillEnabled(skillId, enabled)
+    }
+
+    override suspend fun updateSkillContent(skillId: String, content: String) {
+        dao.updateSkillContent(skillId, content)
+    }
+
+    override suspend fun deleteSkill(skill: Skill) {
+        dao.deleteSkill(skill.toEntity())
+    }
 }

@@ -10,6 +10,8 @@ import com.omniclaw.data.local.prefs.PreferencesManager
 import com.omniclaw.data.local.updater.UpdateManager
 import com.omniclaw.data.local.updater.UpdateInfo
 import com.omniclaw.data.local.updater.UpdateState
+import com.omniclaw.domain.models.Skill
+import com.omniclaw.domain.repository.OmniClawRepository
 import com.omniclaw.BuildConfig
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -25,7 +27,8 @@ private const val THEME_DEFAULT = "system"
 
 class SettingsViewModel(
     private val prefsManager: PreferencesManager,
-    private val updateManager: UpdateManager
+    private val updateManager: UpdateManager,
+    private val repository: OmniClawRepository
 ) : ViewModel() {
 
     private val _geminiApiKey = MutableStateFlow("")
@@ -52,8 +55,12 @@ class SettingsViewModel(
     private val _agentRules = MutableStateFlow("")
     val agentRules: StateFlow<String> = _agentRules.asStateFlow()
 
+    private val _skills = MutableStateFlow<List<Skill>>(emptyList())
+    val skills: StateFlow<List<Skill>> = _skills.asStateFlow()
+
     init {
         loadApiKeys()
+        loadSkills()
     }
 
     private fun loadApiKeys() {
@@ -124,6 +131,26 @@ class SettingsViewModel(
         updateManager.installApk(filePath)
     }
 
+    fun loadSkills() {
+        viewModelScope.launch {
+            repository.getAllSkills().collect { list ->
+                _skills.value = list
+            }
+        }
+    }
+
+    fun toggleSkillEnabled(skillId: String, enabled: Boolean) {
+        viewModelScope.launch {
+            repository.setSkillEnabled(skillId, enabled)
+        }
+    }
+
+    fun updateSkillContent(skillId: String, content: String) {
+        viewModelScope.launch {
+            repository.updateSkillContent(skillId, content)
+        }
+    }
+
     companion object {
         val Factory: ViewModelProvider.Factory = object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
@@ -131,7 +158,8 @@ class SettingsViewModel(
                 val application = checkNotNull(extras[APPLICATION_KEY]) as OmniClawApplication
                 return SettingsViewModel(
                     application.container.prefsManager,
-                    application.container.updateManager
+                    application.container.updateManager,
+                    application.container.repository
                 ) as T
             }
         }

@@ -12,6 +12,7 @@ import com.omniclaw.data.local.prefs.PreferencesManager
 import com.omniclaw.data.local.runner.LocalCommandRunner
 import com.omniclaw.data.local.runtime.OmniClawRuntimeManager
 import com.omniclaw.domain.models.Agent
+import com.omniclaw.domain.models.Skill
 import com.omniclaw.domain.api.AiProvider
 import com.omniclaw.domain.api.AiResult
 import com.omniclaw.domain.repository.OmniClawRepository
@@ -19,9 +20,11 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.util.UUID
 import java.net.URL
 import java.util.zip.ZipInputStream
 
@@ -46,6 +49,92 @@ private const val STATUS_FAILED = "Installation failed: "
 
 private val DIST_CANDIDATES = listOf("dist/cli.js", "dist/index.js", "cli.js", "index.js", "bin/cli.js")
 
+private const val SHIZUKU_SKILL_ID = "shizuku_phone_control"
+
+private val SHIZUKU_SKILL_CONTENT = """
+# Shizuku Phone Control Skill
+
+You have Shizuku root-level access on this Android device. You can execute system commands
+that normal apps cannot. This skill documents what commands are available for phone control.
+
+## System Settings (settings command)
+Settings are stored in three databases: global, system, secure.
+
+### Dark Mode
+  settings put secure ui_night_mode 0  (off / light mode)
+  settings put secure ui_night_mode 1  (on / dark mode - battery saver)
+  settings put secure ui_night_mode 2  (on / dark mode - always)
+  To check current: settings get secure ui_night_mode
+
+### Screen Brightness
+  settings put system screen_brightness 0-255
+  Auto-brightness: settings put system screen_brightness_mode 0 (manual) / 1 (auto)
+
+### Display
+  settings put global window_animation_scale 0.0-1.0
+  settings put global transition_animation_scale 0.0-1.0
+  settings put global animator_duration_scale 0.0-1.0
+  wm density 420  (change DPI)
+  wm size 1080x2400  (change resolution)
+
+### Screen Timeout
+  settings put system screen_off_timeout 30000  (milliseconds)
+
+### Font Size
+  settings put system font_scale 1.0  (default)
+  settings put system font_scale 1.15 (large)
+
+## Connectivity (svc command)
+  svc wifi enable / svc wifi disable
+  svc bluetooth enable / svc bluetooth disable
+  svc data enable / svc data disable
+  svc nfc enable / svc nfc disable  (if supported)
+
+## Volume Control
+  media volume --show --stream 3 --set 10  (media volume 0-15)
+  Streams: 0=call, 1=system, 2=ring, 3=media, 4=alarm, 5=notification
+
+## App Management (am / pm commands)
+  am start -n com.package.name/.Activity  (open app)
+  am start -a android.intent.action.VIEW -d url  (open URL)
+  am force-stop com.package.name  (force stop app)
+  pm list packages  (list installed packages)
+  pm list packages | grep keyword  (search for app)
+
+## Input Simulation (input command)
+  input tap x y  (simulate tap)
+  input swipe x1 y1 x2 y2  (simulate swipe)
+  input keyevent KEYCODE_HOME  (home button)
+  input keyevent KEYCODE_BACK  (back button)
+  input keyevent KEYCODE_APP_SWITCH  (recent apps)
+  input text "hello"  (type text - requires focused field)
+  Keycodes: 3=HOME, 4=BACK, 5=CALL, 24=VOLUME_UP, 25=VOLUME_DOWN, 26=POWER, 187=APP_SWITCH
+
+## Screenshot
+  screencap /sdcard/Pictures/screenshot.png
+  screenrecord /sdcard/Pictures/record.mp4
+
+## Device Info
+  getprop  (all properties)
+  getprop ro.product.model
+  getprop ro.build.version.sdk
+  dumpsys battery  (battery status)
+  dumpsys window displays  (display info)
+  dumpsys connectivity  (network info)
+
+## Date & Time
+  settings put global auto_time 0 / 1  (auto time)
+  settings put global auto_time_zone 0 / 1  (auto timezone)
+  date +%s -s @TIMESTAMP  (set time - requires root)
+
+## Usage Pattern
+When the user asks you to control the phone:
+1. Determine the appropriate command
+2. Use [SUDO: command] to execute it
+3. Report the result
+""".trimIndent()
+
+
 private val AGENT_INSTALL_DIRS = mapOf(
     AGENT_HERMES to "hermes",
     AGENT_OPENCLAUDE to "openclaude",
@@ -57,7 +146,35 @@ private val AGENT_WRAPPER_NAMES = mapOf(
 )
 
 private val SYSTEM_PROMPTS = mapOf(
-    AGENT_HERMES to "You are Hermes, a local execution agent. You can execute shell commands locally. If the user asks you to run a command, output exactly [RUN: command] or [SUDO: command] to execute as root via Shizuku. Do not wrap in markdown, just the raw tag if you need to execute. If you just want to talk, respond normally.",
+    AGENT_HERMES to """You are Hermes, a local execution agent with Shizuku root access. You can control the Android device.
+
+CAPABILITIES:
+1. Execute shell commands: [RUN: command] - regular shell access
+2. Execute privileged commands: [SUDO: command] - runs via Shizuku (root/system-level access)
+
+PHONE CONTROL EXAMPLES (use [SUDO: ...]):
+- Change dark mode: settings put secure ui_night_mode 2 (dark) / 1 (light)
+- Set brightness: settings put system screen_brightness 200
+- Toggle WiFi: svc wifi enable / svc wifi disable
+- Toggle Bluetooth: svc bluetooth enable / svc bluetooth disable
+- Toggle mobile data: svc data enable / svc data disable
+- Set volume: media volume --stream 3 --set 10
+- Open app: am start -n com.package.name/.ActivityName
+- Take screenshot: screencap /sdcard/screenshot.png
+- List installed apps: pm list packages
+- Get device info: getprop ro.product.model
+- Get battery: dumpsys battery
+- Simulate tap: input tap x y
+- Simulate swipe: input swipe x1 y1 x2 y2
+- Simulate key: input keyevent KEYCODE_HOME
+- Change display density: wm density 420
+- Change display size: wm size 1080x2400
+
+RULES:
+- Output [RUN: ...] or [SUDO: ...] when you need to execute something
+- Do not wrap the tag in markdown, just the raw tag
+- For phone control tasks, prefer [SUDO: ...] since they need system privileges
+- If you just want to talk, respond normally""",
     AGENT_OPENCLAUDE to "You are OpenClaude, an open-source Claude integration with full tool use.",
     AGENT_CLAUDE_CODE to "You are Claude Code, a specialized coding agent with codebase awareness."
 )
@@ -337,6 +454,17 @@ class SetupViewModel(
                 systemPrompt = sysPrompt
             )
             repository.insertAgent(agent)
+
+            // Seed default Shizuku skill if not already present
+            val existingSkills = repository.getAllSkills().firstOrNull().orEmpty()
+            if (existingSkills.none { it.id == SHIZUKU_SKILL_ID }) {
+                repository.insertSkill(Skill(
+                    id = SHIZUKU_SKILL_ID,
+                    name = "Shizuku Phone Control",
+                    content = SHIZUKU_SKILL_CONTENT,
+                    enabled = _shizukuEnabled.value
+                ))
+            }
         }
     }
 

@@ -70,3 +70,14 @@ fun Agent.toEntity() = AgentEntity(id, name, description, systemPrompt, runComma
 
 fun TermuxLogEntity.toTermuxLog() = TermuxLog(id, command, output, exitCode, timestamp)
 fun TermuxLog.toEntity() = TermuxLogEntity(id, command, output, exitCode, timestamp)
+
+@Entity(tableName = "skills")
+data class SkillEntity(
+    @PrimaryKey val id: String,
+    val name: String,
+    val content: String,
+    val enabled: Boolean = true
+)
+
+fun SkillEntity.toSkill() = Skill(id, name, content, enabled)
+fun Skill.toEntity() = SkillEntity(id, name, content, enabled)

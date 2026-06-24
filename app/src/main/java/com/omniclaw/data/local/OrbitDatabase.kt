@@ -11,9 +11,10 @@ import com.omniclaw.data.local.entity.*
         SessionEntity::class,
         MessageEntity::class,
         AgentEntity::class,
-        TermuxLogEntity::class
+        TermuxLogEntity::class,
+        SkillEntity::class
     ],
-    version = 3,
+    version = 4,
     exportSchema = false
 )
 abstract class OmniClawDatabase : RoomDatabase() {

@@ -39,4 +39,22 @@ interface OmniClawDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertTermuxLog(log: TermuxLogEntity)
+
+    @Query("SELECT * FROM skills WHERE enabled = 1")
+    fun getEnabledSkills(): Flow<List<SkillEntity>>
+
+    @Query("SELECT * FROM skills ORDER BY name ASC")
+    fun getAllSkills(): Flow<List<SkillEntity>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertSkill(skill: SkillEntity)
+
+    @Query("UPDATE skills SET enabled = :enabled WHERE id = :skillId")
+    suspend fun setSkillEnabled(skillId: String, enabled: Boolean)
+
+    @Query("UPDATE skills SET content = :content WHERE id = :skillId")
+    suspend fun updateSkillContent(skillId: String, content: String)
+
+    @Delete
+    suspend fun deleteSkill(skill: SkillEntity)
 }
