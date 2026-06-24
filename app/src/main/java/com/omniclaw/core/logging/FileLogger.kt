@@ -15,6 +15,7 @@ object FileLogger {
     private const val LOG_DIR = "logs"
     private const val MAX_LOG_FILES = 7
     private const val MAX_CRASH_FILES = 10
+    private const val TAG = "FileLogger"
 
     private val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.US)
     private val timeFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS", Locale.US)
@@ -33,8 +34,8 @@ object FileLogger {
         }
         isInitialized = true
         installCrashHandler()
-        i("FileLogger initialized at: ${logDir?.absolutePath}")
-        i("App version: ${BuildConfig.VERSION_NAME}, SDK: ${Build.VERSION.SDK_INT}")
+        i(TAG, "FileLogger initialized at: ${logDir?.absolutePath}")
+        i(TAG, "App version: ${BuildConfig.VERSION_NAME}, SDK: ${Build.VERSION.SDK_INT}")
     }
 
     private fun installCrashHandler() {
