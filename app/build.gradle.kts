@@ -105,6 +105,36 @@ android {
     buildConfig = true
   }
   testOptions { unitTests { isIncludeAndroidResources = true } }
+
+  // Agent preparation tasks for flavor-specific pre-bundled agents
+  // Runs the prepare-agent.sh script to download and bundle each agent
+  // as a compressed asset in the flavor's asset directory.
+  applicationVariants.all { variant ->
+    val flavorName = variant.flavorName
+    if (flavorName == "normal") return@all
+
+    val prepareAgent = tasks.register("prepareAgent${variant.name.replaceFirstChar { it.uppercase() }}") {
+      doLast {
+        val script = rootProject.projectDir.resolve("scripts/prepare-agent.sh")
+        val assetDir = projectDir.resolve("src/$flavorName/assets")
+        val archiveFile = assetDir.resolve("agent.tar.gz")
+
+        if (archiveFile.exists() && archiveFile.length() > 0L) {
+          logger.lifecycle("Agent archive exists for $flavorName (${archiveFile.length()} bytes), skipping")
+          logger.lifecycle("  Delete $archiveFile to force rebuild")
+          logger.lifecycle("  Or run: ${script.absolutePath} $flavorName")
+        } else {
+          logger.lifecycle("Preparing agent for $flavorName...")
+          exec {
+            commandLine(script.absolutePath, flavorName)
+          }
+        }
+      }
+    }
+    variant.mergeAssetsProvider.configure {
+      dependsOn(prepareAgent)
+    }
+  }
 }
 
 secrets {

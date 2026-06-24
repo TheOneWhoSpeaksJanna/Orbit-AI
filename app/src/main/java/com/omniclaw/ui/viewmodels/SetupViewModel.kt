@@ -6,6 +6,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.APPLICATION_KEY
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.CreationExtras
+import com.omniclaw.BuildConfig
 import com.omniclaw.OmniClawApplication
 import com.omniclaw.R
 import com.omniclaw.data.local.prefs.PreferencesManager
@@ -336,83 +337,90 @@ class SetupViewModel(
                     )
                 }
 
-                updateInstallState(agentName, progress = 0.1f, status = "$STATUS_DOWNLOADING$agentName...")
-
-                if (targetDir.exists()) {
-                    targetDir.deleteRecursively()
+                // Try extracting from bundled assets first, fall back to GitHub download
+                val installedFromAssets = withContext(Dispatchers.IO) {
+                    tryInstallFromAssets(agentName, targetDir, binDir, wrapperName, wrapperFile)
                 }
 
-                withContext(Dispatchers.IO) {
-                    val zipUrl = GITHUB_REPO_URL
-                        .removeSuffix(".git") + "/archive/refs/heads/main.zip"
+                if (!installedFromAssets) {
+                    updateInstallState(agentName, progress = 0.1f, status = "$STATUS_DOWNLOADING$agentName...")
 
-                    val connection = URL(zipUrl).openConnection()
-                    connection.connectTimeout = CONNECT_TIMEOUT_MS
-                    connection.readTimeout = READ_TIMEOUT_MS
+                    if (targetDir.exists()) {
+                        targetDir.deleteRecursively()
+                    }
 
-                    val tempDir = File(runtimeManager.tmpDir, "agent_$targetDirName")
-                    tempDir.deleteRecursively()
-                    tempDir.mkdirs()
+                    withContext(Dispatchers.IO) {
+                        val zipUrl = GITHUB_REPO_URL
+                            .removeSuffix(".git") + "/archive/refs/heads/main.zip"
 
-                    ZipInputStream(connection.getInputStream()).use { zis ->
-                        var entry = zis.nextEntry
-                        while (entry != null) {
-                            val entryFile = File(tempDir, entry.name)
-                            if (entry.isDirectory) {
-                                entryFile.mkdirs()
-                            } else {
-                                entryFile.parentFile?.mkdirs()
-                                entryFile.outputStream().use { output ->
-                                    zis.copyTo(output)
+                        val connection = URL(zipUrl).openConnection()
+                        connection.connectTimeout = CONNECT_TIMEOUT_MS
+                        connection.readTimeout = READ_TIMEOUT_MS
+
+                        val tempDir = File(runtimeManager.tmpDir, "agent_$targetDirName")
+                        tempDir.deleteRecursively()
+                        tempDir.mkdirs()
+
+                        ZipInputStream(connection.getInputStream()).use { zis ->
+                            var entry = zis.nextEntry
+                            while (entry != null) {
+                                val entryFile = File(tempDir, entry.name)
+                                if (entry.isDirectory) {
+                                    entryFile.mkdirs()
+                                } else {
+                                    entryFile.parentFile?.mkdirs()
+                                    entryFile.outputStream().use { output ->
+                                        zis.copyTo(output)
+                                    }
                                 }
+                                zis.closeEntry()
+                                entry = zis.nextEntry
                             }
-                            zis.closeEntry()
-                            entry = zis.nextEntry
                         }
+
+                        val rootDir = tempDir.listFiles()?.firstOrNull { it.isDirectory }
+                        if (rootDir != null) {
+                            rootDir.copyRecursively(targetDir, overwrite = true)
+                        } else {
+                            tempDir.copyRecursively(targetDir, overwrite = true)
+                        }
+                        tempDir.deleteRecursively()
                     }
 
-                    val rootDir = tempDir.listFiles()?.firstOrNull { it.isDirectory }
-                    if (rootDir != null) {
-                        rootDir.copyRecursively(targetDir, overwrite = true)
-                    } else {
-                        tempDir.copyRecursively(targetDir, overwrite = true)
+                    updateInstallState(agentName, progress = 0.4f, status = STATUS_INSTALLING_DEPS)
+
+                    withContext(Dispatchers.IO) {
+                        try {
+                            localCommandRunner.executeCommand(
+                                "cd ${targetDir.absolutePath} && npm install --production 2>/dev/null || true"
+                            )
+                        } catch (_: Exception) { }
                     }
-                    tempDir.deleteRecursively()
-                }
 
-                updateInstallState(agentName, progress = 0.4f, status = STATUS_INSTALLING_DEPS)
+                    updateInstallState(agentName, progress = 0.7f, status = "$STATUS_BUILDING$agentName...")
 
-                withContext(Dispatchers.IO) {
-                    try {
-                        localCommandRunner.executeCommand(
-                            "cd ${targetDir.absolutePath} && npm install --production 2>/dev/null || true"
-                        )
-                    } catch (_: Exception) { }
-                }
+                    withContext(Dispatchers.IO) {
+                        try {
+                            localCommandRunner.executeCommand(
+                                "cd ${targetDir.absolutePath} && npm run build 2>/dev/null || true"
+                            )
+                        } catch (_: Exception) { }
+                    }
 
-                updateInstallState(agentName, progress = 0.7f, status = "$STATUS_BUILDING$agentName...")
+                    updateInstallState(agentName, progress = 0.9f, status = STATUS_CREATING_SCRIPT)
 
-                withContext(Dispatchers.IO) {
-                    try {
-                        localCommandRunner.executeCommand(
-                            "cd ${targetDir.absolutePath} && npm run build 2>/dev/null || true"
-                        )
-                    } catch (_: Exception) { }
-                }
+                    val entryPoint = DIST_CANDIDATES.firstOrNull { File(targetDir, it).exists() } ?: "index.js"
 
-                updateInstallState(agentName, progress = 0.9f, status = STATUS_CREATING_SCRIPT)
+                    val wrapperScript = """
+                        #!/data/data/com.termux/files/usr/bin/bash
+                        exec node ${targetDir.absolutePath}/${entryPoint} "${'$'}@"
+                    """.trimIndent()
 
-                val entryPoint = DIST_CANDIDATES.firstOrNull { File(targetDir, it).exists() } ?: "index.js"
-
-                val wrapperScript = """
-                    #!/data/data/com.termux/files/usr/bin/bash
-                    exec node ${targetDir.absolutePath}/${entryPoint} "${'$'}@"
-                """.trimIndent()
-
-                withContext(Dispatchers.IO) {
-                    wrapperFile.parentFile?.mkdirs()
-                    wrapperFile.writeText(wrapperScript)
-                    wrapperFile.setExecutable(true)
+                    withContext(Dispatchers.IO) {
+                        wrapperFile.parentFile?.mkdirs()
+                        wrapperFile.writeText(wrapperScript)
+                        wrapperFile.setExecutable(true)
+                    }
                 }
 
                 updateInstallState(agentName, progress = 1f, status = "$agentName$STATUS_INSTALLED", isInstalled = true)
@@ -422,6 +430,65 @@ class SetupViewModel(
             } finally {
                 _agentInstallStates.value = _agentInstallStates.value + (agentName to _agentInstallStates.value[agentName]!!.copy(isInstalling = false))
             }
+        }
+    }
+
+    /**
+     * Try to install agent from pre-bundled APK assets (agent.tar.gz).
+     * Returns true if extracted from assets, false if no bundled archive found.
+     */
+    private fun tryInstallFromAssets(
+        agentName: String,
+        targetDir: File,
+        binDir: File,
+        wrapperName: String,
+        wrapperFile: File
+    ): Boolean {
+        return try {
+            val inputStream = runtimeManager.context.assets.open("agent.tar.gz")
+            val archiveFile = File(runtimeManager.tmpDir, "agent_${wrapperName}_bundled.tar.gz")
+            archiveFile.parentFile?.mkdirs()
+            archiveFile.outputStream().use { output ->
+                inputStream.copyTo(output)
+            }
+            inputStream.close()
+
+            if (!archiveFile.exists() || archiveFile.length() == 0L) {
+                archiveFile.delete()
+                return false
+            }
+
+            if (targetDir.exists()) {
+                targetDir.deleteRecursively()
+            }
+            targetDir.mkdirs()
+
+            localCommandRunner.executeCommand(
+                "tar -xzf ${archiveFile.absolutePath} -C ${targetDir.absolutePath}"
+            )
+
+            archiveFile.delete()
+
+            val entryPoint = DIST_CANDIDATES.firstOrNull { File(targetDir, it).exists() }
+            if (entryPoint == null) {
+                // No entry point found; clean up and fall back to download
+                targetDir.deleteRecursively()
+                return false
+            }
+
+            val wrapperScript = """
+                #!/data/data/com.termux/files/usr/bin/bash
+                exec node ${targetDir.absolutePath}/${entryPoint} "${'$'}@"
+            """.trimIndent()
+
+            wrapperFile.parentFile?.mkdirs()
+            wrapperFile.writeText(wrapperScript)
+            wrapperFile.setExecutable(true)
+
+            true
+        } catch (_: Exception) {
+            // Assets not found or extraction failed; fall back to download
+            false
         }
     }
 
@@ -454,6 +521,12 @@ class SetupViewModel(
                 systemPrompt = sysPrompt
             )
             repository.insertAgent(agent)
+
+            // Auto-install pre-bundled agent for this flavor
+            val presetAgentId = BuildConfig.FLAVOR_PRESET_AGENT_ID
+            if (presetAgentId.isNotBlank() && agent.id == presetAgentId) {
+                installAgent(agentName)
+            }
 
             // Seed default Shizuku skill if not already present
             val existingSkills = repository.getAllSkills().firstOrNull().orEmpty()
