@@ -111,24 +111,28 @@ android {
   // as a compressed asset in the flavor's asset directory.
   androidComponents {
     onVariants { variant ->
-      val p = project
       val flavorName = variant.flavorName ?: return@onVariants
       if (flavorName == "normal") return@onVariants
 
       val prepareAgent = tasks.register("prepareAgent${variant.name.replaceFirstChar { it.uppercase() }}") {
         doLast {
-          val script = p.rootProject.projectDir.resolve("scripts/prepare-agent.sh")
-          val assetDir = p.projectDir.resolve("src/$flavorName/assets")
+          val script = rootProject.projectDir.resolve("scripts/prepare-agent.sh")
+          val assetDir = projectDir.resolve("src/$flavorName/assets")
           val archiveFile = assetDir.resolve("agent.tar.gz")
 
           if (archiveFile.exists() && archiveFile.length() > 0L) {
-            p.logger.lifecycle("Agent archive exists for $flavorName (${archiveFile.length()} bytes), skipping")
-            p.logger.lifecycle("  Delete $archiveFile to force rebuild")
-            p.logger.lifecycle("  Or run: ${script.absolutePath} $flavorName")
+            logger.lifecycle("Agent archive exists for $flavorName (${archiveFile.length()} bytes), skipping")
+            logger.lifecycle("  Delete $archiveFile to force rebuild")
+            logger.lifecycle("  Or run: ${script.absolutePath} $flavorName")
           } else {
-            p.logger.lifecycle("Preparing agent for $flavorName...")
-            p.exec {
-              commandLine(script.absolutePath, flavorName)
+            logger.lifecycle("Preparing agent for $flavorName...")
+            val proc = ProcessBuilder(script.absolutePath, flavorName)
+              .directory(rootProject.projectDir)
+              .inheritIO()
+              .start()
+            val exitCode = proc.waitFor()
+            if (exitCode != 0) {
+              throw GradleException("Agent preparation failed with exit code $exitCode")
             }
           }
         }
