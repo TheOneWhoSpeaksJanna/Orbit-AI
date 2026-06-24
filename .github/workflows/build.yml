@@ -45,18 +45,25 @@ jobs:
     - name: Build with Gradle
       run: ./gradlew assembleDebug --no-daemon
 
-    - name: Rename APK
+    - name: Collect all flavor APKs
       run: |
         mkdir -p release
-        cp app/build/outputs/apk/debug/app-debug.apk release/orbit-ai-debug-${{ github.run_number }}.apk 2>/dev/null || \
-          cp app/build/outputs/apk/debug/*.apk release/orbit-ai-debug-${{ github.run_number }}.apk 2>/dev/null || \
-          echo "APK not found at expected path"
+        # Find all debug APKs across flavor directories
+        for apk in app/build/outputs/apk/*/debug/*.apk; do
+          flavor=$(basename "$(dirname "$(dirname "$apk")")")
+          cp "$apk" "release/orbit-ai-${flavor}-debug-${{ github.run_number }}.apk"
+        done
+        # Fallback for flat layout (no flavors)
+        if [ ! "$(ls -A release 2>/dev/null)" ]; then
+          cp app/build/outputs/apk/debug/*.apk release/ 2>/dev/null || true
+        fi
+        ls -la release/
 
-    - name: Upload artifact
+    - name: Upload artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: orbit-ai-debug-${{ github.run_number }}
-        path: release/orbit-ai-debug-${{ github.run_number }}.apk
+        name: orbit-ai-apks-${{ github.run_number }}
+        path: release/*.apk
 
   release:
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
@@ -69,10 +76,10 @@ jobs:
       - name: Download artifact
         uses: actions/download-artifact@v4
         with:
-          name: orbit-ai-debug-${{ github.run_number }}
+          name: orbit-ai-apks-${{ github.run_number }}
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
           name: Orbit AI ${{ github.ref_name }}
-          files: orbit-ai-debug-${{ github.run_number }}.apk
+          files: "*.apk"

@@ -16,6 +16,7 @@ import com.omniclaw.domain.models.Message
 import com.omniclaw.domain.models.MessageRole
 import com.omniclaw.domain.models.TermuxLog
 import com.omniclaw.domain.repository.OmniClawRepository
+import com.omniclaw.domain.models.AgentPermissionLevel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -34,6 +35,8 @@ private const val DEFAULT_SYSTEM_PROMPT = "System: You are an expert AI assistan
 private const val NO_OUTPUT = "(no output)"
 private const val ERROR_RUNNING_AGENT = "Error running agent: "
 private const val UNKNOWN_ERROR = "Unknown error"
+private const val ACTION_BLOCKED = "Action blocked by permission rules: "
+private val SENSITIVE_COMMANDS = listOf("rm ", "dd ", "mkfs", "mount", "chmod", "chown", "mv ", ">", "|", "reboot", "shutdown", "format", "wipe")
 
 class ChatViewModel(
     private val repository: OmniClawRepository,
@@ -59,6 +62,76 @@ class ChatViewModel(
 
     fun toggleLocalMode() {
         _useLocalMode.value = !_useLocalMode.value
+    }
+
+    data class PendingCommand(
+        val command: String,
+        val isSudo: Boolean
+    )
+
+    // AI loop state
+    private var loopPromptBuilder = StringBuilder()
+    private var loopContinueLooping = false
+    private var loopSessionId = ""
+    private var loopActiveProvider = ""
+    private var loopActiveModelName = ""
+    private var loopApiKey = ""
+
+    private val _pendingCommand = MutableStateFlow<PendingCommand?>(null)
+    val pendingCommand: StateFlow<PendingCommand?> = _pendingCommand.asStateFlow()
+
+    fun confirmPendingCommand() {
+        val pending = _pendingCommand.value ?: return
+        _pendingCommand.value = null
+        viewModelScope.launch {
+            executeCommandAndContinue(pending.command, pending.isSudo)
+        }
+    }
+
+    fun denyPendingCommand() {
+        val pending = _pendingCommand.value ?: return
+        _pendingCommand.value = null
+        viewModelScope.launch {
+            val blockMsg = Message(
+                id = UUID.randomUUID().toString(),
+                sessionId = loopSessionId,
+                role = MessageRole.TOOL,
+                content = "$ACTION_BLOCKED${pending.command}",
+                timestamp = System.currentTimeMillis()
+            )
+            repository.insertMessage(blockMsg)
+            loopPromptBuilder.append("TOOL: $ACTION_BLOCKED${pending.command}\nMODEL: ")
+            loopContinueLooping = true
+            continueAiLoop()
+        }
+    }
+
+    private suspend fun isCommandAllowed(cmd: String, isSudo: Boolean): Boolean {
+        val level = AgentPermissionLevel.fromValue(prefsManager.agentPermissionLevel.firstOrNull() ?: "NORMAL")
+        val rules = prefsManager.agentRules.firstOrNull() ?: ""
+        return when (level) {
+            AgentPermissionLevel.FULL_ACCESS -> true
+            AgentPermissionLevel.NORMAL -> false
+            AgentPermissionLevel.MID_RULES -> {
+                if (isSudo) return false
+                val lower = cmd.lowercase()
+                !SENSITIVE_COMMANDS.any { lower.contains(it) }
+            }
+            AgentPermissionLevel.RULES -> {
+                if (rules.isBlank()) return false
+                val lower = cmd.lowercase()
+                val allowPatterns = rules.lines()
+                    .filter { it.trim().startsWith("can ") || it.trim().startsWith("allow ") }
+                    .map { it.trim().removePrefix("can ").removePrefix("allow ").lowercase() }
+                val denyPatterns = rules.lines()
+                    .filter { it.trim().startsWith("cannot ") || it.trim().startsWith("deny ") }
+                    .map { it.trim().removePrefix("cannot ").removePrefix("deny ").lowercase() }
+                val isDenied = denyPatterns.any { lower.contains(it) }
+                if (isDenied) return false
+                if (allowPatterns.isEmpty()) return false
+                allowPatterns.any { lower.contains(it) }
+            }
+        }
     }
 
     private val _detailedModels = MutableStateFlow<List<DetailedModelInfo>>(emptyList())
@@ -216,10 +289,53 @@ class ChatViewModel(
             }
             promptBuilder.append("USER: $content\nMODEL: ")
 
-            var continueLooping = true
-            while (continueLooping) {
+            loopPromptBuilder = promptBuilder
+            loopContinueLooping = true
+            loopSessionId = session.id
+            loopActiveProvider = activeProvider
+            loopActiveModelName = activeModelName
+            loopApiKey = apiKey
+
+            continueAiLoop()
+        }
+    }
+
+    private suspend fun executeCommandAndContinue(cmd: String, isSudo: Boolean) {
+        loopContinueLooping = true
+        val execResult = if (isSudo) {
+            localCommandRunner.executePrivilegedCommand(cmd)
+        } else {
+            localCommandRunner.executeCommand(cmd)
+        }
+        val toolOutput = "Output: ${execResult.output}\nExitCode: ${execResult.exitCode}"
+
+        repository.insertTermuxLog(
+            TermuxLog(
+                UUID.randomUUID().toString(),
+                if (isSudo) "sudo $cmd" else cmd,
+                execResult.output,
+                execResult.exitCode,
+                System.currentTimeMillis()
+            )
+        )
+
+        val toolMsg = Message(
+            id = UUID.randomUUID().toString(),
+            sessionId = loopSessionId,
+            role = MessageRole.TOOL,
+            content = toolOutput,
+            timestamp = System.currentTimeMillis()
+        )
+        repository.insertMessage(toolMsg)
+        loopPromptBuilder.append("TOOL: $toolOutput\nMODEL: ")
+        continueAiLoop()
+    }
+
+    private fun continueAiLoop() {
+        viewModelScope.launch {
+            while (loopContinueLooping) {
                 val result = aiProvider.generateContent(
-                    promptBuilder.toString(), apiKey, activeProvider, activeModelName
+                    loopPromptBuilder.toString(), loopApiKey, loopActiveProvider, loopActiveModelName
                 )
 
                 val modelText = when (result) {
@@ -233,66 +349,51 @@ class ChatViewModel(
 
                     val actionModelMsg = Message(
                         id = UUID.randomUUID().toString(),
-                        sessionId = session.id,
+                        sessionId = loopSessionId,
                         role = MessageRole.MODEL,
                         content = modelText,
                         timestamp = System.currentTimeMillis()
                     )
                     repository.insertMessage(actionModelMsg)
 
-                    if (runMatch != null) {
-                        val cmd = runMatch.groupValues[1]
-                        val execResult = localCommandRunner.executeCommand(cmd)
-                        val toolOutput = "Output: ${execResult.output}\nExitCode: ${execResult.exitCode}"
+                    val (cmd, isSudo) = when {
+                        runMatch != null -> runMatch.groupValues[1] to false
+                        sudoMatch != null -> sudoMatch.groupValues[1] to true
+                        else -> null to false
+                    } ?: continue
 
-                        repository.insertTermuxLog(
-                            TermuxLog(
-                                UUID.randomUUID().toString(), cmd, execResult.output,
-                                execResult.exitCode, System.currentTimeMillis()
-                            )
-                        )
+                    if (isCommandAllowed(cmd, isSudo)) {
+                        executeCommandAndContinue(cmd, isSudo)
+                        return@launch
+                    }
 
-                        val toolMsg = Message(
+                    val level = AgentPermissionLevel.fromValue(prefsManager.agentPermissionLevel.firstOrNull() ?: "NORMAL")
+                    if (level == AgentPermissionLevel.RULES) {
+                        val blockMsg = Message(
                             id = UUID.randomUUID().toString(),
-                            sessionId = session.id,
+                            sessionId = loopSessionId,
                             role = MessageRole.TOOL,
-                            content = toolOutput,
+                            content = "$ACTION_BLOCKED$cmd",
                             timestamp = System.currentTimeMillis()
                         )
-                        repository.insertMessage(toolMsg)
-                        promptBuilder.append("$modelText\nTOOL: $toolOutput\nMODEL: ")
-                    } else if (sudoMatch != null) {
-                        val cmd = sudoMatch.groupValues[1]
-                        val execResult = localCommandRunner.executePrivilegedCommand(cmd)
-                        val toolOutput = "Output: ${execResult.output}\nExitCode: ${execResult.exitCode}"
-
-                        repository.insertTermuxLog(
-                            TermuxLog(
-                                UUID.randomUUID().toString(), "sudo $cmd", execResult.output,
-                                execResult.exitCode, System.currentTimeMillis()
-                            )
-                        )
-
-                        val toolMsg = Message(
-                            id = UUID.randomUUID().toString(),
-                            sessionId = session.id,
-                            role = MessageRole.TOOL,
-                            content = toolOutput,
-                            timestamp = System.currentTimeMillis()
-                        )
-                        repository.insertMessage(toolMsg)
-                        promptBuilder.append("$modelText\nTOOL: $toolOutput\nMODEL: ")
+                        repository.insertMessage(blockMsg)
+                        loopPromptBuilder.append("TOOL: $ACTION_BLOCKED$cmd\nMODEL: ")
+                    } else {
+                        _pendingCommand.value = PendingCommand(cmd, isSudo)
+                        loopContinueLooping = false
+                        _isLoading.value = false
+                        return@launch
                     }
                 } else {
                     val modelMsg = Message(
                         id = UUID.randomUUID().toString(),
-                        sessionId = session.id,
+                        sessionId = loopSessionId,
                         role = MessageRole.MODEL,
                         content = modelText,
                         timestamp = System.currentTimeMillis()
                     )
                     repository.insertMessage(modelMsg)
-                    continueLooping = false
+                    loopContinueLooping = false
                 }
             }
             _isLoading.value = false

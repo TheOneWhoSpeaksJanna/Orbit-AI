@@ -65,6 +65,7 @@ fun ChatScreen(
     val detailedModels by viewModel.detailedModels.collectAsState()
     val isFetchingModels by viewModel.isFetchingModels.collectAsState()
     val hasAgent by viewModel.hasAgent.collectAsState()
+    val pendingCommand by viewModel.pendingCommand.collectAsState()
     var showModelBrowser by remember { mutableStateOf(false) }
 
     LaunchedEffect(sessionId) {
@@ -277,6 +278,50 @@ fun ChatScreen(
                 onDismiss = { showModelBrowser = false }
             )
         }
+    }
+
+    pendingCommand?.let { pending ->
+        AlertDialog(
+            onDismissRequest = { viewModel.denyPendingCommand() },
+            title = { Text("Allow Command?") },
+            text = {
+                Column {
+                    Text(
+                        "The agent wants to run:",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Surface(
+                        color = MaterialTheme.colorScheme.surfaceVariant,
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Text(
+                            text = pending.command,
+                            modifier = Modifier.padding(12.dp),
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
+                    if (pending.isSudo) {
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            "This command will run with elevated privileges (sudo).",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                Button(onClick = { viewModel.confirmPendingCommand() }) {
+                    Text("Allow")
+                }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { viewModel.denyPendingCommand() }) {
+                    Text("Deny")
+                }
+            }
+        )
     }
 }
 

@@ -24,6 +24,7 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.omniclaw.ui.viewmodels.SettingsViewModel
+import com.omniclaw.domain.models.AgentPermissionLevel
 
 private const val GITHUB_TOKEN_LABEL = "GitHub Token"
 private const val THEME_SYSTEM = "System"
@@ -40,6 +41,14 @@ private const val BTN_RETRY = "Retry"
 private const val MSG_UP_TO_DATE = "You're up to date!"
 private const val MSG_DOWNLOAD_COMPLETE = "Download complete!"
 private const val MSG_DOWNLOADING = "Downloading... "
+private const val SECTION_PERMISSION = "Agent Permissions"
+private const val PERMISSION_LABEL = "Permission Level"
+private const val RULES_LABEL = "Agent Rules"
+private const val RULES_PLACEHOLDER = "Define what the agent can and cannot do..."
+private const val NORMAL_DESC = "Always asks before taking actions"
+private const val RULES_DESC = "Follows defined rules, never asks"
+private const val MID_RULES_DESC = "Asks for sensitive operations only"
+private const val FULL_ACCESS_DESC = "Never asks, full autonomy"
 
 private val THEME_OPTIONS = listOf(THEME_SYSTEM, THEME_DARK, THEME_LIGHT)
 
@@ -55,6 +64,8 @@ fun SettingsScreen(
     val openRouterApiKey by viewModel.openRouterApiKey.collectAsState()
     val githubToken by viewModel.githubToken.collectAsState()
     val themeMode by viewModel.themeMode.collectAsState()
+    val agentPermissionLevel by viewModel.agentPermissionLevel.collectAsState()
+    val agentRules by viewModel.agentRules.collectAsState()
     val updateState by viewModel.updateState.collectAsState()
     val appVersion = viewModel.appVersion
 
@@ -178,6 +189,71 @@ fun SettingsScreen(
                                 )
                             }
                         }
+                    }
+                }
+            }
+
+            Card(
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                shape = MaterialTheme.shapes.extraLarge
+            ) {
+                Column(modifier = Modifier.padding(20.dp).fillMaxWidth()) {
+                    Text(SECTION_PERMISSION, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    var levelExpanded by remember { mutableStateOf(false) }
+                    val permissionOptions = AgentPermissionLevel.entries.toList()
+                    val currentLevel = AgentPermissionLevel.fromValue(agentPermissionLevel)
+
+                    ExposedDropdownMenuBox(
+                        expanded = levelExpanded,
+                        onExpandedChange = { levelExpanded = !levelExpanded }
+                    ) {
+                        OutlinedTextField(
+                            value = currentLevel.label,
+                            onValueChange = {},
+                            readOnly = true,
+                            label = { Text(PERMISSION_LABEL) },
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = levelExpanded) },
+                            modifier = Modifier.menuAnchor().fillMaxWidth(),
+                            shape = MaterialTheme.shapes.medium
+                        )
+                        ExposedDropdownMenu(
+                            expanded = levelExpanded,
+                            onDismissRequest = { levelExpanded = false }
+                        ) {
+                            permissionOptions.forEach { option ->
+                                DropdownMenuItem(
+                                    text = { Text(option.label) },
+                                    onClick = {
+                                        viewModel.updateAgentPermissionLevel(option.name)
+                                        levelExpanded = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+                    val desc = when (currentLevel) {
+                        AgentPermissionLevel.NORMAL -> NORMAL_DESC
+                        AgentPermissionLevel.RULES -> RULES_DESC
+                        AgentPermissionLevel.MID_RULES -> MID_RULES_DESC
+                        AgentPermissionLevel.FULL_ACCESS -> FULL_ACCESS_DESC
+                    }
+                    Text(desc, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+
+                    if (currentLevel == AgentPermissionLevel.RULES) {
+                        Spacer(modifier = Modifier.height(16.dp))
+                        OutlinedTextField(
+                            value = agentRules,
+                            onValueChange = { viewModel.updateAgentRules(it) },
+                            label = { Text(RULES_LABEL) },
+                            placeholder = { Text(RULES_PLACEHOLDER) },
+                            modifier = Modifier.fillMaxWidth().heightIn(min = 120.dp),
+                            shape = MaterialTheme.shapes.medium,
+                            maxLines = 8
+                        )
                     }
                 }
             }

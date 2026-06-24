@@ -20,6 +20,9 @@ class PreferencesManager(private val context: Context) {
         val SELECTED_PROVIDER = stringPreferencesKey("selected_provider")
         val SELECTED_MODEL = stringPreferencesKey("selected_model")
 
+        val AGENT_PERMISSION_LEVEL = stringPreferencesKey("agent_permission_level")
+        val AGENT_RULES = stringPreferencesKey("agent_rules")
+
         val GEMINI_API_KEY = stringPreferencesKey("gemini_api_key")
         val OPENAI_API_KEY = stringPreferencesKey("openai_api_key")
         val CLAUDE_API_KEY = stringPreferencesKey("claude_api_key")
@@ -54,6 +57,14 @@ class PreferencesManager(private val context: Context) {
 
     val selectedModel: Flow<String?> = context.dataStore.data.map { prefs ->
         prefs[SELECTED_MODEL]
+    }
+
+    val agentPermissionLevel: Flow<String> = context.dataStore.data.map { prefs ->
+        prefs[AGENT_PERMISSION_LEVEL] ?: "NORMAL"
+    }
+
+    val agentRules: Flow<String> = context.dataStore.data.map { prefs ->
+        prefs[AGENT_RULES] ?: ""
     }
 
     val geminiApiKey: Flow<String?> = context.dataStore.data.map { prefs ->
@@ -108,6 +119,14 @@ class PreferencesManager(private val context: Context) {
 
     suspend fun setSelectedModel(model: String) {
         context.dataStore.edit { prefs -> prefs[SELECTED_MODEL] = model }
+    }
+
+    suspend fun setAgentPermissionLevel(level: String) {
+        context.dataStore.edit { prefs -> prefs[AGENT_PERMISSION_LEVEL] = level }
+    }
+
+    suspend fun setAgentRules(rules: String) {
+        context.dataStore.edit { prefs -> prefs[AGENT_RULES] = rules }
     }
 
     suspend fun setGeminiApiKey(key: String) {

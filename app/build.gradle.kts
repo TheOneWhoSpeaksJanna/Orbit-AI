@@ -10,12 +10,60 @@ android {
   namespace = "com.omniclaw"
   compileSdk = 36
 
+  flavorDimensions += "agent"
+
+  productFlavors {
+    create("normal") {
+      dimension = "agent"
+      buildConfigField("String", "FLAVOR_PRESET_AGENT_ID", "\"\"")
+      buildConfigField("String", "FLAVOR_PRESET_AGENT_NAME", "\"\"")
+      buildConfigField("String", "FLAVOR_APP_LABEL", "\"OmniClaw\"")
+      manifestPlaceholders["appLabel"] = "OmniClaw"
+    }
+    create("opencode") {
+      dimension = "agent"
+      applicationIdSuffix = ".opencode"
+      versionNameSuffix = "-opencode"
+      buildConfigField("String", "FLAVOR_PRESET_AGENT_ID", "\"opencode\"")
+      buildConfigField("String", "FLAVOR_PRESET_AGENT_NAME", "\"OpenCode\"")
+      buildConfigField("String", "FLAVOR_APP_LABEL", "\"Orbit + OpenCode\"")
+      manifestPlaceholders["appLabel"] = "Orbit + OpenCode"
+    }
+    create("openclaude") {
+      dimension = "agent"
+      applicationIdSuffix = ".openclaude"
+      versionNameSuffix = "-openclaude"
+      buildConfigField("String", "FLAVOR_PRESET_AGENT_ID", "\"openclaude\"")
+      buildConfigField("String", "FLAVOR_PRESET_AGENT_NAME", "\"OpenClaude\"")
+      buildConfigField("String", "FLAVOR_APP_LABEL", "\"Orbit + OpenClaude\"")
+      manifestPlaceholders["appLabel"] = "Orbit + OpenClaude"
+    }
+    create("claudecode") {
+      dimension = "agent"
+      applicationIdSuffix = ".claudecode"
+      versionNameSuffix = "-claudecode"
+      buildConfigField("String", "FLAVOR_PRESET_AGENT_ID", "\"claude-code\"")
+      buildConfigField("String", "FLAVOR_PRESET_AGENT_NAME", "\"Claude Code\"")
+      buildConfigField("String", "FLAVOR_APP_LABEL", "\"Orbit + Claude Code\"")
+      manifestPlaceholders["appLabel"] = "Orbit + Claude Code"
+    }
+    create("codex") {
+      dimension = "agent"
+      applicationIdSuffix = ".codex"
+      versionNameSuffix = "-codex"
+      buildConfigField("String", "FLAVOR_PRESET_AGENT_ID", "\"codex\"")
+      buildConfigField("String", "FLAVOR_PRESET_AGENT_NAME", "\"Codex\"")
+      buildConfigField("String", "FLAVOR_APP_LABEL", "\"Orbit + Codex\"")
+      manifestPlaceholders["appLabel"] = "Orbit + Codex"
+    }
+  }
+
   defaultConfig {
     applicationId = "com.aistudio.orbit.xqwtyz"
     minSdk = 24
     targetSdk = 36
-    versionCode = 11
-    versionName = "1.10"
+    versionCode = 12
+    versionName = "1.11"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }

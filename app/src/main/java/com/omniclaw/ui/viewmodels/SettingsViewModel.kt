@@ -46,6 +46,12 @@ class SettingsViewModel(
     private val _themeMode = MutableStateFlow(THEME_DEFAULT)
     val themeMode: StateFlow<String> = _themeMode.asStateFlow()
 
+    private val _agentPermissionLevel = MutableStateFlow("NORMAL")
+    val agentPermissionLevel: StateFlow<String> = _agentPermissionLevel.asStateFlow()
+
+    private val _agentRules = MutableStateFlow("")
+    val agentRules: StateFlow<String> = _agentRules.asStateFlow()
+
     init {
         loadApiKeys()
     }
@@ -58,6 +64,8 @@ class SettingsViewModel(
             _openRouterApiKey.value = prefsManager.getApiKeyForProvider(PROVIDER_OPENROUTER).firstOrNull() ?: ""
             _githubToken.value = prefsManager.githubToken.firstOrNull() ?: ""
             _themeMode.value = prefsManager.themeMode.firstOrNull() ?: THEME_DEFAULT
+            _agentPermissionLevel.value = prefsManager.agentPermissionLevel.firstOrNull() ?: "NORMAL"
+            _agentRules.value = prefsManager.agentRules.firstOrNull() ?: ""
         }
     }
 
@@ -93,6 +101,16 @@ class SettingsViewModel(
 
     val appVersion: String = BuildConfig.VERSION_NAME
     val updateState: StateFlow<UpdateState> = updateManager.updateState
+
+    fun updateAgentPermissionLevel(level: String) {
+        _agentPermissionLevel.value = level
+        viewModelScope.launch { prefsManager.setAgentPermissionLevel(level) }
+    }
+
+    fun updateAgentRules(rules: String) {
+        _agentRules.value = rules
+        viewModelScope.launch { prefsManager.setAgentRules(rules) }
+    }
 
     fun checkForUpdates() {
         viewModelScope.launch { updateManager.checkForUpdates() }
