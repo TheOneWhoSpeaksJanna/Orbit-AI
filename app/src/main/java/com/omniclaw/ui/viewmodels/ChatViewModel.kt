@@ -27,6 +27,7 @@ import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import java.io.File
 import java.util.UUID
 
 private const val DEFAULT_PROVIDER = "Gemini"
@@ -249,6 +250,20 @@ class ChatViewModel(
 
                 if (runCmd.isNullOrBlank()) {
                     runCmd = activeAgentId
+                }
+
+                // Runtime safety net: ensure the agent binary is executable
+                // File.setExecutable can silently fail on Android due to SELinux
+                runCmd?.let { cmd ->
+                    val cmdFile = File(cmd)
+                    if (cmdFile.isFile && !cmdFile.canExecute()) {
+                        try {
+                            cmdFile.setExecutable(true)
+                            if (!cmdFile.canExecute()) {
+                                Runtime.getRuntime().exec(arrayOf("chmod", "+x", cmdFile.absolutePath)).waitFor()
+                            }
+                        } catch (_: Exception) { /* best effort */ }
+                    }
                 }
 
                 try {

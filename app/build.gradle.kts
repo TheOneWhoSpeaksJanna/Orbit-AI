@@ -213,7 +213,8 @@ val extractSqliteNative by tasks.registering {
   val inputFiles = objects.fileCollection().from(kspFiles)
   inputs.files(inputFiles)
 
-  outputs.upToDateWhen { false }
+  val outputDir = layout.buildDirectory.dir("generated/sqlite-native")
+  outputs.dir(outputDir)
 
   doLast {
     val sqliteJar = inputFiles.files.firstOrNull {
@@ -236,8 +237,7 @@ val extractSqliteNative by tasks.registering {
     }
 
     val nativeDir = "org/sqlite/native/$osPrefix/$archSuffix"
-    val outputDir = layout.buildDirectory.dir("generated/sqlite-native").get().asFile
-    val libDir = outputDir.resolve(nativeDir)
+    val libDir = outputDir.get().asFile.resolve(nativeDir)
     delete(libDir)
     libDir.mkdirs()
 
@@ -245,7 +245,7 @@ val extractSqliteNative by tasks.registering {
       from(zipTree(sqliteJar)) {
         include("$nativeDir/libsqlitejdbc.so")
       }
-      into(outputDir)
+      into(outputDir.get().asFile)
     }
 
     val soFile = libDir.resolve("libsqlitejdbc.so")

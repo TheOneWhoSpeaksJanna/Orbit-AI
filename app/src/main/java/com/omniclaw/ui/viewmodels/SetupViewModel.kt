@@ -441,7 +441,7 @@ class SetupViewModel(
                     withContext(Dispatchers.IO) {
                         wrapperFile.parentFile?.mkdirs()
                         wrapperFile.writeText(wrapperScript)
-                        wrapperFile.setExecutable(true)
+                        makeExecutable(wrapperFile)
                     }
                 }
 
@@ -505,7 +505,7 @@ class SetupViewModel(
 
             wrapperFile.parentFile?.mkdirs()
             wrapperFile.writeText(wrapperScript)
-            wrapperFile.setExecutable(true)
+            makeExecutable(wrapperFile)
 
             true
         } catch (_: Exception) {
@@ -521,6 +521,20 @@ class SetupViewModel(
             status = status ?: current.status,
             isInstalled = isInstalled ?: current.isInstalled
         ))
+    }
+
+    /**
+     * Mark a file as executable. [File.setExecutable] can silently fail on
+     * some Android versions due to SELinux policies, so we fall back to
+     * shell-level chmod +x if the Java API doesn't stick.
+     */
+    private fun makeExecutable(file: File) {
+        file.setExecutable(true)
+        if (!file.canExecute()) {
+            try {
+                Runtime.getRuntime().exec(arrayOf("chmod", "+x", file.absolutePath)).waitFor()
+            } catch (_: Exception) { /* best effort */ }
+        }
     }
 
     fun completeSetup() {

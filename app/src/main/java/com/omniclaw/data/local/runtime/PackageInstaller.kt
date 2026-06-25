@@ -144,6 +144,9 @@ class PackageInstaller(
                     val target = File(installDir, name)
                     downloadFile.copyTo(target)
                     target.setExecutable(true)
+                    if (!target.canExecute()) {
+                        Runtime.getRuntime().exec(arrayOf("chmod", "+x", target.absolutePath)).waitFor()
+                    }
                 }
                 "deb_extract" -> {
                     val raf = RandomAccessFile(downloadFile, "r")
@@ -187,6 +190,9 @@ class PackageInstaller(
             val binToUse = if (actualBinary.exists()) actualBinary else backupBinary
 
             binToUse.setExecutable(true)
+            if (!binToUse.canExecute()) {
+                Runtime.getRuntime().exec(arrayOf("chmod", "+x", binToUse.absolutePath)).waitFor()
+            }
 
             val wrapper = File(runtimeManager.binDir, name)
             val libDir = File(installDir, "usr/lib")
@@ -194,6 +200,9 @@ class PackageInstaller(
 
             wrapper.writeText("#!/system/bin/sh\n$ldLibraryPathEnv\nexec \"${binToUse.absolutePath}\" \"\$@\"\n")
             wrapper.setExecutable(true)
+            if (!wrapper.canExecute()) {
+                Runtime.getRuntime().exec(arrayOf("chmod", "+x", wrapper.absolutePath)).waitFor()
+            }
 
             val testCmd = pkg.getString("test_command")
             val rules = pkg.getJSONObject("validation_rules")
