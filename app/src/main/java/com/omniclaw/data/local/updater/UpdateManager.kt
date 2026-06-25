@@ -206,7 +206,7 @@ class UpdateManager(
 
         partialFile.renameTo(finalFile)
         prefsManager.clearDownloadProgress()
-        finalFile
+        return finalFile
     }
 
     private fun parseContentRange(contentRange: String?): Long {
