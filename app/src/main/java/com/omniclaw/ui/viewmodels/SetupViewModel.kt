@@ -31,7 +31,7 @@ import java.net.URL
 import java.util.zip.ZipInputStream
 
 private const val DEFAULT_THEME = "System"
-private const val DEFAULT_AGENT = "Hermes"
+private const val DEFAULT_AGENT = "OpenClaude"
 private const val DEFAULT_PROVIDER = "Gemini"
 private const val AGENT_HERMES = "Hermes"
 private const val AGENT_OPENCLAUDE = "OpenClaude"
@@ -194,6 +194,7 @@ enum class SetupStep(@StringRes val labelResId: Int) {
     Agent(R.string.step_agent),
     Provider(R.string.step_provider),
     Shizuku(R.string.step_shizuku),
+    Storage(R.string.step_storage),
     Summary(R.string.step_summary);
 }
 
@@ -213,6 +214,13 @@ class SetupViewModel(
 
     private val _shizukuEnabled = MutableStateFlow(false)
     val shizukuEnabled: StateFlow<Boolean> = _shizukuEnabled.asStateFlow()
+
+    private val _storagePermissionGranted = MutableStateFlow(false)
+    val storagePermissionGranted: StateFlow<Boolean> = _storagePermissionGranted.asStateFlow()
+
+    fun setStoragePermissionGranted(granted: Boolean) {
+        _storagePermissionGranted.value = granted
+    }
 
     private val _selectedAgent = MutableStateFlow(
         if (FlavorConfig.presetAgentName.isNotBlank()) FlavorConfig.presetAgentName
@@ -272,6 +280,7 @@ class SetupViewModel(
                 SetupStep.Agent -> _selectedAgent.value.isNotBlank()
                 SetupStep.Provider -> _apiKey.value.isNotBlank()
                 SetupStep.Shizuku -> true
+                SetupStep.Storage -> true
                 SetupStep.Summary -> true
             }
         }
@@ -502,7 +511,7 @@ class SetupViewModel(
             }
 
             val wrapperScript = """
-                #!/data/data/com.termux/files/usr/bin/bash
+                #!/system/bin/sh
                 exec node ${targetDir.absolutePath}/${entryPoint} "${'$'}@"
             """.trimIndent()
 

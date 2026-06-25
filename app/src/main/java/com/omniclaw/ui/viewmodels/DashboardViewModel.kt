@@ -22,9 +22,8 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.util.UUID
 
-private const val DEFAULT_AGENT = "Hermes"
+private const val DEFAULT_AGENT = "OpenClaude"
 private const val DEFAULT_PROVIDER = "Claude"
-private const val GIT_DIFF_COMMAND = "git -C /data/data/com.termux/files/home/project\\ omniclaw diff --stat"
 
 class DashboardViewModel(
     private val repository: OmniClawRepository,
@@ -90,24 +89,6 @@ class DashboardViewModel(
         started = SharingStarted.WhileSubscribed(5000),
         initialValue = emptyList()
     )
-
-    private val _gitDiffResult = MutableStateFlow<String?>(null)
-    val gitDiffResult: StateFlow<String?> = _gitDiffResult.asStateFlow()
-
-    init {
-        loadGitDiff()
-    }
-
-    private fun loadGitDiff() {
-        viewModelScope.launch {
-            val result = appContainer.localCommandRunner.executeCommand(GIT_DIFF_COMMAND)
-            _gitDiffResult.value = if (result.exitCode == 0 && result.output.isNotBlank()) {
-                result.output
-            } else {
-                null
-            }
-        }
-    }
 
     fun createNewProject(name: String, description: String) {
         viewModelScope.launch {

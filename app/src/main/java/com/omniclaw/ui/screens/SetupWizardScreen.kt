@@ -33,10 +33,13 @@ import com.omniclaw.ui.viewmodels.SetupStep
 import com.omniclaw.ui.viewmodels.SetupViewModel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import rikka.shizuku.Shizuku
+import android.content.Intent
+import android.os.Build
+import android.os.Environment
+import android.provider.Settings
 
 private val THEME_OPTIONS = listOf("System", "Dark", "Light")
-private val AGENT_OPTIONS = listOf("Hermes", "OpenClaude", "Claude Code", "OpenCode", "Codex")
+private val AGENT_OPTIONS = listOf("OpenClaude", "Claude Code", "OpenCode", "Codex", "Default")
 private val PROVIDER_OPTIONS = listOf("Claude", "OpenRouter", "OpenAI", "Gemini")
 
 private const val AGENT_INSTALLED_FORMAT = "%s Installed"
@@ -141,6 +144,7 @@ fun SetupWizardScreen(
                         SetupStep.Agent -> AgentSelectionStep(viewModel)
                         SetupStep.Provider -> ProviderSelectionStep(viewModel)
                         SetupStep.Shizuku -> ShizukuStep(viewModel)
+                        SetupStep.Storage -> StoragePermissionStep(viewModel)
                         SetupStep.Summary -> SummaryStep()
                         null -> Unit
                     }
@@ -290,7 +294,7 @@ fun AgentSelectionStep(viewModel: SetupViewModel) {
                     }
                     Spacer(modifier = Modifier.height(4.dp))
                     val desc = when (agent) {
-                        "Hermes" -> stringResource(R.string.agent_hermes)
+                        "Default" -> stringResource(R.string.agent_default)
                         "OpenClaude" -> stringResource(R.string.agent_openclaude)
                         "Claude Code" -> stringResource(R.string.agent_claude_code)
                         "OpenCode" -> stringResource(R.string.agent_opencode)
@@ -597,7 +601,70 @@ fun ShizukuStep(viewModel: SetupViewModel) {
 }
 
 @Composable
-fun SummaryStep() {
+fun StoragePermissionStep(viewModel: SetupViewModel) {
+    val storagePermissionGranted by viewModel.storagePermissionGranted.collectAsState()
+    val context = LocalContext.current
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(24.dp)
+            .verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.Center
+    ) {
+        Text(
+            stringResource(R.string.storage_title),
+            style = MaterialTheme.typography.headlineMedium,
+            color = MaterialTheme.colorScheme.onBackground,
+            fontWeight = FontWeight.Bold
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+        Text(
+            stringResource(R.string.storage_description),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Spacer(modifier = Modifier.height(24.dp))
+
+        if (storagePermissionGranted) {
+            Text(
+                stringResource(R.string.storage_granted),
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.primary,
+                fontWeight = FontWeight.Bold
+            )
+        } else {
+            Button(
+                onClick = {
+                    val intent = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION).apply {
+                        data = android.net.Uri.parse("package:${context.packageName}")
+                    }
+                    context.startActivity(intent)
+                    // Re-check after returning from settings
+                    viewModel.setStoragePermissionGranted(
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                            Environment.isExternalStorageManager()
+                        } else {
+                            context.checkSelfPermission(android.Manifest.permission.WRITE_EXTERNAL_STORAGE) ==
+                                PackageManager.PERMISSION_GRANTED
+                        }
+                    )
+                }
+            ) {
+                Text(stringResource(R.string.storage_grant_button))
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+        Text(
+            stringResource(R.string.storage_skip),
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+}
+
+@Composable
     Column(
         modifier = Modifier
             .fillMaxSize()
