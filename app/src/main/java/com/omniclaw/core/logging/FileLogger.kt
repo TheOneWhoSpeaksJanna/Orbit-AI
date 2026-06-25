@@ -15,7 +15,7 @@ import java.util.concurrent.Executors
 
 object FileLogger {
 
-    private const val LOG_DIR = "logs"
+    private const val LOG_DIR = "omniclaw_logs"
     private const val MAX_LOG_FILES = 7
     private const val MAX_CRASH_FILES = 10
     private const val TAG = "FileLogger"
@@ -34,7 +34,12 @@ object FileLogger {
         appContext = context.applicationContext
         val appCtx = appContext!!
 
-        logDir = appCtx.getExternalFilesDir(LOG_DIR)
+        // Try public external storage: /storage/emulated/0/omniclaw_logs/
+        // Requires MANAGE_EXTERNAL_STORAGE on Android 11+, falls back gracefully
+        logDir = resolvePublicLogDir(appCtx)
+        if (logDir == null || (logDir!!.exists() && !logDir!!.canWrite())) {
+            logDir = appCtx.getExternalFilesDir(LOG_DIR)
+        }
         if (logDir == null) {
             logDir = File(appCtx.cacheDir, LOG_DIR)
         }
@@ -46,6 +51,34 @@ object FileLogger {
         installCrashHandler()
         i(TAG, "FileLogger initialized at: ${logDir?.absolutePath}")
         i(TAG, "App version: ${BuildConfig.VERSION_NAME}, SDK: ${Build.VERSION.SDK_INT}")
+    }
+
+    /**
+     * Attempt to resolve the public log path /storage/emulated/0/omniclaw_logs/.
+     * Checks both the target directory and its parent because the directory may
+     * not exist yet on first launch — we need write access to the parent to
+     * create it. Returns null if the permission is unavailable, so the caller
+     * can fall back to app-private storage.
+     *
+     * Permission requirements by API level:
+     * - API 33+  → MANAGE_EXTERNAL_STORAGE
+     * - API 30-32 → MANAGE_EXTERNAL_STORAGE
+     * - API 29   → WRITE_EXTERNAL_STORAGE
+     * - API 28-   → WRITE_EXTERNAL_STORAGE (auto-granted at install)
+     */
+    private fun resolvePublicLogDir(context: Context): File? {
+        return try {
+            val externalRoot = Environment.getExternalStorageDirectory()
+            if (externalRoot == null || !externalRoot.exists()) return null
+            val publicLogDir = File(externalRoot, LOG_DIR)
+            // Already exists and writable (e.g. permission was granted previously)
+            if (publicLogDir.exists() && publicLogDir.canWrite()) return publicLogDir
+            // Doesn't exist yet but parent is writable — we can create it
+            if (!publicLogDir.exists() && externalRoot.canWrite()) return publicLogDir
+            null
+        } catch (_: Exception) {
+            null
+        }
     }
 
     private fun installCrashHandler() {
@@ -122,7 +155,7 @@ object FileLogger {
                 val contentValues = ContentValues().apply {
                     put(MediaStore.Downloads.DISPLAY_NAME, crashFileName)
                     put(MediaStore.Downloads.MIME_TYPE, "text/plain")
-                    put(MediaStore.Downloads.RELATIVE_PATH, "${Environment.DIRECTORY_DOWNLOADS}/OrbitCrashLogs")
+                    put(MediaStore.Downloads.RELATIVE_PATH, "${Environment.DIRECTORY_DOWNLOADS}/omniclaw_logs")
                     put(MediaStore.Downloads.IS_PENDING, 0)
                 }
                 val uri = ctx.contentResolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, contentValues)
