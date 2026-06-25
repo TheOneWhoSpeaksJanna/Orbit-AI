@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import androidx.core.content.FileProvider
 import com.omniclaw.BuildConfig
+import com.omniclaw.data.local.prefs.DownloadProgress
 import com.omniclaw.data.local.prefs.PreferencesManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -114,46 +115,121 @@ class UpdateManager(
             val apkFile = withContext(Dispatchers.IO) {
                 val downloadsDir = File(context.cacheDir, "updates")
                 downloadsDir.mkdirs()
-                val file = File(downloadsDir, "Orbit-AI-${info.latestVersion}.apk")
+                val fileName = "Orbit-AI-${info.latestVersion}.apk"
+                val finalFile = File(downloadsDir, fileName)
+                val partialFile = File(downloadsDir, "$fileName.partial")
 
+                val savedProgress = prefsManager.getDownloadProgress().first()
+                var resumeBytes = 0L
+                if (savedProgress != null &&
+                    savedProgress.url == info.downloadUrl &&
+                    savedProgress.version == info.latestVersion &&
+                    partialFile.exists()
+                ) {
+                    resumeBytes = partialFile.length()
+                }
+
+                val requestBuilder = Request.Builder().url(info.downloadUrl)
+                if (resumeBytes > 0) {
+                    requestBuilder.header("Range", "bytes=$resumeBytes-")
+                }
                 val token = githubToken()
-                val apiUrl = "$API_BASE_URL/releases/assets/${info.assetId}"
-                val requestBuilder = Request.Builder()
-                    .url(apiUrl)
-                    .header("Accept", "application/octet-stream")
                 if (!token.isNullOrBlank()) {
                     requestBuilder.header("Authorization", "Bearer $token")
                 }
                 val request = requestBuilder.build()
 
                 val response = httpClient.newCall(request).execute()
-                if (!response.isSuccessful) throw Exception("${DOWNLOAD_FAILED_PREFIX}${response.code}")
+                val isResuming = resumeBytes > 0 && response.code == 206
 
-                val body = response.body ?: throw Exception("No response body")
-                val totalBytes = body.contentLength()
-                var downloadedBytes = 0L
-
-                body.byteStream().use { input ->
-                    FileOutputStream(file).use { output ->
-                        val buffer = ByteArray(BUFFER_SIZE)
-                        var bytesRead: Int
-                        while (input.read(buffer).also { bytesRead = it } != -1) {
-                            output.write(buffer, 0, bytesRead)
-                            downloadedBytes += bytesRead
-                            if (totalBytes > 0) {
-                                val progress = downloadedBytes.toFloat() / totalBytes.toFloat()
-                                _updateState.value = UpdateState.Downloading(progress)
-                            }
+                if (!response.isSuccessful && !isResuming) {
+                    response.close()
+                    if (response.code == 416) {
+                        partialFile.delete()
+                        prefsManager.clearDownloadProgress()
+                        val retry = httpClient.newCall(
+                            Request.Builder().url(info.downloadUrl).build()
+                        ).execute()
+                        if (!retry.isSuccessful) {
+                            throw Exception("${DOWNLOAD_FAILED_PREFIX}${retry.code}")
                         }
+                        return@withContext downloadToFile(retry, finalFile, partialFile, info)
                     }
+                    throw Exception("${DOWNLOAD_FAILED_PREFIX}${response.code}")
                 }
-                file
+
+                downloadToFile(response, finalFile, partialFile, info)
             }
 
             _updateState.value = UpdateState.Downloaded(apkFile.absolutePath)
         } catch (e: Exception) {
+            persistProgressForResume(info)
             _updateState.value = UpdateState.Failed("${DOWNLOAD_FAILED_PREFIX}${e.message}")
         }
+    }
+
+    private suspend fun downloadToFile(
+        response: okhttp3.Response,
+        finalFile: File,
+        partialFile: File,
+        info: UpdateInfo
+    ): File {
+        val body = response.body ?: throw Exception("No response body")
+
+        val existingBytes = if (partialFile.exists() && response.code == 206) partialFile.length() else 0L
+        val resumeTotal = parseContentRange(response.header("Content-Range"))
+        val totalBytes = if (response.code == 206 && resumeTotal > 0) resumeTotal else body.contentLength()
+        var downloadedBytes = existingBytes
+
+        val output = if (response.code == 206 && existingBytes > 0) {
+            FileOutputStream(partialFile, true)
+        } else {
+            partialFile.delete()
+            FileOutputStream(partialFile)
+        }
+
+        body.byteStream().use { input ->
+            output.use { out ->
+                val buffer = ByteArray(BUFFER_SIZE)
+                var bytesRead: Int
+                while (input.read(buffer).also { bytesRead = it } != -1) {
+                    out.write(buffer, 0, bytesRead)
+                    downloadedBytes += bytesRead
+                    if (totalBytes > 0) {
+                        _updateState.value = UpdateState.Downloading(
+                            downloadedBytes.toFloat() / totalBytes.toFloat()
+                        )
+                    }
+                }
+            }
+        }
+
+        partialFile.renameTo(finalFile)
+        prefsManager.clearDownloadProgress()
+        finalFile
+    }
+
+    private fun parseContentRange(contentRange: String?): Long {
+        if (contentRange == null) return 0L
+        return try {
+            val total = contentRange.substringAfter("/").toLongOrNull() ?: 0L
+            total
+        } catch (_: Exception) { 0L }
+    }
+
+    private suspend fun persistProgressForResume(info: UpdateInfo) {
+        try {
+            val partialDir = File(context.cacheDir, "updates")
+            val partialFile = File(partialDir, "Orbit-AI-${info.latestVersion}.apk.partial")
+            if (partialFile.exists()) {
+                prefsManager.setDownloadProgress(
+                    url = info.downloadUrl,
+                    filePath = partialFile.absolutePath,
+                    bytes = partialFile.length(),
+                    version = info.latestVersion
+                )
+            }
+        } catch (_: Exception) { /* best effort */ }
     }
 
     fun installApk(filePath: String) {

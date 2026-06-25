@@ -3,10 +3,18 @@ package com.omniclaw.data.local.prefs
 import android.content.Context
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+
+data class DownloadProgress(
+    val url: String,
+    val filePath: String,
+    val bytesDownloaded: Long,
+    val version: String
+)
 
 val Context.dataStore by preferencesDataStore("orbit_prefs")
 
@@ -28,6 +36,11 @@ class PreferencesManager(private val context: Context) {
         val CLAUDE_API_KEY = stringPreferencesKey("claude_api_key")
         val OPENROUTER_API_KEY = stringPreferencesKey("openrouter_api_key")
         val GITHUB_TOKEN = stringPreferencesKey("github_token")
+
+        val DOWNLOAD_URL = stringPreferencesKey("download_url")
+        val DOWNLOAD_FILE = stringPreferencesKey("download_file")
+        val DOWNLOAD_BYTES = longPreferencesKey("download_bytes")
+        val DOWNLOAD_VERSION = stringPreferencesKey("download_version")
 
         private const val PROVIDER_GEMINI = "gemini"
         private const val PROVIDER_OPENAI = "openai"
@@ -161,5 +174,31 @@ class PreferencesManager(private val context: Context) {
 
     suspend fun removeApiKeyForProvider(provider: String) {
         setApiKeyForProvider(provider, "")
+    }
+
+    fun getDownloadProgress(): Flow<DownloadProgress?> = context.dataStore.data.map { prefs ->
+        val url = prefs[DOWNLOAD_URL] ?: return@map null
+        val file = prefs[DOWNLOAD_FILE] ?: return@map null
+        val bytes = prefs[DOWNLOAD_BYTES] ?: 0L
+        val version = prefs[DOWNLOAD_VERSION] ?: ""
+        DownloadProgress(url, file, bytes, version)
+    }
+
+    suspend fun setDownloadProgress(url: String, filePath: String, bytes: Long, version: String) {
+        context.dataStore.edit { prefs ->
+            prefs[DOWNLOAD_URL] = url
+            prefs[DOWNLOAD_FILE] = filePath
+            prefs[DOWNLOAD_BYTES] = bytes
+            prefs[DOWNLOAD_VERSION] = version
+        }
+    }
+
+    suspend fun clearDownloadProgress() {
+        context.dataStore.edit { prefs ->
+            prefs.remove(DOWNLOAD_URL)
+            prefs.remove(DOWNLOAD_FILE)
+            prefs.remove(DOWNLOAD_BYTES)
+            prefs.remove(DOWNLOAD_VERSION)
+        }
     }
 }

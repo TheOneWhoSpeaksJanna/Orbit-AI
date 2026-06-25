@@ -11,8 +11,9 @@ import com.omniclaw.data.local.updater.UpdateManager
 import com.omniclaw.data.local.updater.UpdateInfo
 import com.omniclaw.data.local.updater.UpdateState
 import com.omniclaw.domain.models.Skill
-import com.omniclaw.domain.repository.OmniClawRepository
+import com.omniclaw.service.DownloadForegroundService
 import com.omniclaw.BuildConfig
+import com.omniclaw.domain.repository.OmniClawRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -26,6 +27,7 @@ private const val PROVIDER_OPENROUTER = "OpenRouter"
 private const val THEME_DEFAULT = "system"
 
 class SettingsViewModel(
+    private val appContext: Context,
     private val prefsManager: PreferencesManager,
     private val updateManager: UpdateManager,
     private val repository: OmniClawRepository
@@ -124,7 +126,13 @@ class SettingsViewModel(
     }
 
     fun downloadUpdate(info: UpdateInfo) {
-        viewModelScope.launch { updateManager.downloadUpdate(info) }
+        val intent = Intent(appContext, DownloadForegroundService::class.java).apply {
+            action = DownloadForegroundService.ACTION_DOWNLOAD
+            putExtra(DownloadForegroundService.EXTRA_DOWNLOAD_URL, info.downloadUrl)
+            putExtra(DownloadForegroundService.EXTRA_VERSION, info.latestVersion)
+            putExtra(DownloadForegroundService.EXTRA_RELEASE_NOTES, info.releaseNotes)
+        }
+        appContext.startForegroundService(intent)
     }
 
     fun installUpdate(filePath: String) {
@@ -157,6 +165,7 @@ class SettingsViewModel(
             override fun <T : ViewModel> create(modelClass: Class<T>, extras: CreationExtras): T {
                 val application = checkNotNull(extras[APPLICATION_KEY]) as OmniClawApplication
                 return SettingsViewModel(
+                    application,
                     application.container.prefsManager,
                     application.container.updateManager,
                     application.container.repository
