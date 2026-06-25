@@ -448,7 +448,7 @@ class SetupViewModel(
      * Try to install agent from pre-bundled APK assets (agent.tar.gz).
      * Returns true if extracted from assets, false if no bundled archive found.
      */
-    private fun tryInstallFromAssets(
+    private suspend fun tryInstallFromAssets(
         agentName: String,
         targetDir: File,
         binDir: File,
