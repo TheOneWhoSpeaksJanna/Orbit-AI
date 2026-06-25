@@ -665,6 +665,7 @@ fun StoragePermissionStep(viewModel: SetupViewModel) {
 }
 
 @Composable
+fun SummaryStep() {
     Column(
         modifier = Modifier
             .fillMaxSize()
