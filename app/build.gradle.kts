@@ -78,9 +78,9 @@ android {
     }
     create("ciDebug") {
       storeFile = file("debug.keystore")
-      storePassword = "android"
+      storePassword = System.getenv("CI_DEBUG_STORE_PASSWORD") ?: "android"
       keyAlias = "androiddebugkey"
-      keyPassword = "android"
+      keyPassword = System.getenv("CI_DEBUG_KEY_PASSWORD") ?: "android"
     }
   }
 

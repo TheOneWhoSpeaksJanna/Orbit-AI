@@ -260,7 +260,8 @@ class ChatViewModel(
                         try {
                             cmdFile.setExecutable(true)
                             if (!cmdFile.canExecute()) {
-                                Runtime.getRuntime().exec(arrayOf("chmod", "+x", cmdFile.absolutePath)).waitFor()
+                                // LocalCommandRunner has binDir in PATH so BusyBox chmod resolves
+                                localCommandRunner.executeCommand("chmod +x " + cmdFile.absolutePath)
                             }
                         } catch (_: Exception) { /* best effort */ }
                     }

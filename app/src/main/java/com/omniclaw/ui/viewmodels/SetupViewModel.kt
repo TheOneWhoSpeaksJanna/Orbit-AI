@@ -544,7 +544,16 @@ class SetupViewModel(
         file.setExecutable(true)
         if (!file.canExecute()) {
             try {
-                Runtime.getRuntime().exec(arrayOf("chmod", "+x", file.absolutePath)).waitFor()
+                // Direct BusyBox invocation bypasses shell wrapper PATH issues
+                // and is more reliable than system chmod on SELinux-restricted devices.
+                val busybox = File(runtimeManager.binDir, "busybox")
+                if (busybox.exists()) {
+                    Runtime.getRuntime().exec(arrayOf(
+                        busybox.absolutePath, "chmod", "+x", file.absolutePath
+                    )).waitFor()
+                } else {
+                    Runtime.getRuntime().exec(arrayOf("sh", "-c", "chmod +x " + file.absolutePath)).waitFor()
+                }
             } catch (_: Exception) { /* best effort */ }
         }
     }
