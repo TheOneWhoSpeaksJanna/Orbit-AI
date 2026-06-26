@@ -373,17 +373,16 @@ private fun ProviderHealthCard(
 private fun providerAccent(name: String): Color =
     PROVIDER_COLORS[name] ?: OmniClawAccent
 
-@Composable
 private fun providerIcon(name: String): ImageVector = when (name) {
-    "Claude" -> BrandIcons.Claude()
-    "OpenAI" -> BrandIcons.OpenAI()
-    "Gemini" -> BrandIcons.Gemini()
-    "OpenRouter" -> BrandIcons.OpenRouter()
-    "DeepSeek" -> BrandIcons.DeepSeek()
-    "Groq" -> BrandIcons.Groq()
-    "Ollama" -> BrandIcons.Ollama()
-    "GitHub" -> BrandIcons.GitHub()
-    else -> BrandIcons.OpenRouter()
+    "Claude" -> BrandIcons.Claude
+    "OpenAI" -> BrandIcons.OpenAI
+    "Gemini" -> BrandIcons.Gemini
+    "OpenRouter" -> BrandIcons.OpenRouter
+    "DeepSeek" -> BrandIcons.DeepSeek
+    "Groq" -> BrandIcons.Groq
+    "Ollama" -> BrandIcons.Ollama
+    "GitHub" -> BrandIcons.GitHub
+    else -> BrandIcons.OpenRouter
 }
 
 private fun ConnectionState.statusColor(): Color = when (this) {

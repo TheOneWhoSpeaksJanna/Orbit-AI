@@ -1,37 +1,341 @@
 package com.omniclaw.ui.components
 
-import androidx.compose.runtime.Composable
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.res.vectorResource
-import com.omniclaw.R
+import androidx.compose.ui.graphics.vector.path
+import androidx.compose.ui.unit.dp
+import kotlin.math.PI
+import kotlin.math.abs
+import kotlin.math.acos
+import kotlin.math.atan2
+import kotlin.math.cos
+import kotlin.math.sin
+import kotlin.math.sqrt
+import kotlin.math.tan
 
 /**
  * Official brand icons for all supported AI providers.
- * Each icon is the official SVG converted to Android VectorDrawable.
+ * Each icon uses the official SVG path data sourced from Simple Icons or official brand assets.
  */
 object BrandIcons {
 
-    @Composable
-    fun Claude(): ImageVector = vectorResource(R.drawable.ic_claude)
+    val Claude: ImageVector by lazy { buildSvgIcon(0xFFCC7832,
+        "M17.3041 3.541h-3.6718l6.696 16.918H24Zm-10.6082 0L0 20.459h3.7442l1.3693-3.5527h7.0052l1.3693 3.5528h3.7442L10.5363 3.5409Zm-.3712 10.2232 2.2914-5.9456 2.2914 5.9456Z"
+    )}
 
-    @Composable
-    fun OpenAI(): ImageVector = vectorResource(R.drawable.ic_openai)
+    val OpenAI: ImageVector by lazy { buildSvgIcon(0xFF10A37F,
+        "M22.2819 9.8211a5.9847 5.9847 0 0 0-.5157-4.9108 6.0462 6.0462 0 0 0-6.5098-2.9A6.0651 6.0651 0 0 0 4.9807 4.1818a5.9847 5.9847 0 0 0-3.9977 2.9 6.0462 6.0462 0 0 0 .7427 7.0966 5.98 5.98 0 0 0 .511 4.9107 6.051 6.051 0 0 0 6.5146 2.9001A5.9847 5.9847 0 0 0 13.2599 24a6.0557 6.0557 0 0 0 5.7718-4.2058 5.9894 5.9894 0 0 0 3.9977-2.9001 6.0557 6.0557 0 0 0-.7475-7.0729zm-9.022 12.6081a4.4755 4.4755 0 0 1-2.8764-1.0408l.1419-.0804 4.7783-2.7582a.7948.7948 0 0 0 .3927-.6813v-6.7369l2.02 1.1686a.071.071 0 0 1 .038.052v5.5826a4.504 4.504 0 0 1-4.4945 4.4944zm-9.6607-4.1254a4.4708 4.4708 0 0 1-.5346-3.0137l.142.0852 4.783 2.7582a.7712.7712 0 0 0 .7806 0l5.8428-3.3685v2.3324a.0804.0804 0 0 1-.0332.0615L9.74 19.9502a4.4992 4.4992 0 0 1-6.1408-1.6464zM2.3408 7.8956a4.485 4.485 0 0 1 2.3655-1.9728V11.6a.7664.7664 0 0 0 .3879.6765l5.8144 3.3543-2.0201 1.1685a.0757.0757 0 0 1-.071 0l-4.8303-2.7865A4.504 4.504 0 0 1 2.3408 7.872zm16.5963 3.8558L13.1038 8.364 15.1192 7.2a.0757.0757 0 0 1 .071 0l4.8303 2.7913a4.4944 4.4944 0 0 1-.6765 8.1042v-5.6772a.79.79 0 0 0-.407-.667zm2.0107-3.0231l-.142-.0852-4.7735-2.7818a.7759.7759 0 0 0-.7854 0L9.409 9.2297V6.8974a.0662.0662 0 0 1 .0284-.0615l4.8303-2.7866a4.4992 4.4992 0 0 1 6.6802 4.66zM8.3065 12.863l-2.02-1.1638a.0804.0804 0 0 1-.038-.0567V6.0742a4.4992 4.4992 0 0 1 7.3757-3.4537l-.142.0805L8.704 5.459a.7948.7948 0 0 0-.3927.6813zm1.0976-2.3654l2.602-1.4998 2.6069 1.4998v2.9994l-2.5974 1.4997-2.6067-1.4997Z"
+    )}
 
-    @Composable
-    fun Gemini(): ImageVector = vectorResource(R.drawable.ic_gemini)
+    val Gemini: ImageVector by lazy { buildSvgIcon(0xFF4285F4,
+        "M11.04 19.32Q12 21.51 12 24q0-2.49.93-4.68.96-2.19 2.58-3.81t3.81-2.55Q21.51 12 24 12q-2.49 0-4.68-.93a12.3 12.3 0 0 1-3.81-2.58 12.3 12.3 0 0 1-2.58-3.81Q12 2.49 12 0q0 2.49-.96 4.68-.93 2.19-2.55 3.81a12.3 12.3 0 0 1-3.81 2.58Q2.49 12 0 12q2.49 0 4.68.96 2.19.93 3.81 2.55t2.55 3.81"
+    )}
 
-    @Composable
-    fun OpenRouter(): ImageVector = vectorResource(R.drawable.ic_openrouter)
+    val OpenRouter: ImageVector by lazy { buildSvgIcon(0xFFFF6B35,
+        "M16.804 1.957l7.22 4.105v.087l-7.294 4.061.017-2.117-.821-.03c-1.059-.028-1.611.002-2.268.11-1.064.175-2.038.577-3.147 1.352l-2.166 1.505c-.284.195-.495.336-.68.455l-.515.322-.397.234.385.23.53.338c.476.314 1.17.796 2.701 1.866 1.11.775 2.083 1.177 3.147 1.352l.3.045c.694.091 1.375.094 2.825.033l.022-2.159 7.22 4.105v.087l-7.294 4.061.014-1.862-.635.022c-1.386.042-2.137.002-3.138-.162-1.694-.28-3.26-.926-4.881-2.059l-2.158-1.5a21.997 21.997 0 0 0-.755-.498l-.467-.28a55.927 55.927 0 0 0-.76-.43C2.908 14.73.563 14.116 0 14.116V9.888l.14.004c.564-.007 2.91-.622 3.809-1.124l1.016-.58.438-.274c.428-.28 1.072-.726 2.686-1.853 1.621-1.133 3.186-1.78 4.881-2.059 1.152-.19 1.974-.213 3.814-.138l.02-1.907z"
+    )}
 
-    @Composable
-    fun DeepSeek(): ImageVector = vectorResource(R.drawable.ic_deepseek)
+    val DeepSeek: ImageVector by lazy { buildSvgIcon(0xFF4F6CF7,
+        "M23.748 4.482c-.254-.124-.364.113-.512.234-.051.039-.094.09-.137.136-.372.397-.806.657-1.373.626-.829-.046-1.537.214-2.163.848-.133-.782-.575-1.248-1.247-1.548-.352-.156-.708-.311-.955-.65-.172-.241-.219-.51-.305-.774-.055-.16-.11-.323-.293-.35-.2-.031-.278.136-.356.276-.313.572-.434 1.202-.422 1.84.027 1.436.633 2.58 1.838 3.393.137.093.172.187.129.323-.082.28-.18.552-.266.833-.055.179-.137.217-.329.14a5.526 5.526 0 0 1-1.736-1.18c-.857-.828-1.631-1.742-2.597-2.458a11.365 11.365 0 0 0-.689-.471c-.985-.957.13-1.743.388-1.836.27-.098.093-.432-.779-.428-.872.004-1.67.295-2.687.684a3.055 3.055 0 0 1-.465.137 9.597 9.597 0 0 0-2.883-.102c-1.885.21-3.39 1.102-4.497 2.623C.082 8.606-.231 10.684.152 12.85c.403 2.284 1.569 4.175 3.36 5.653 1.858 1.533 3.997 2.284 6.438 2.14 1.482-.085 3.133-.284 4.994-1.86.47.234.962.327 1.78.397.63.059 1.236-.03 1.705-.128.735-.156.684-.837.419-.961-2.155-1.004-1.682-.595-2.113-.926 1.096-1.296 2.746-2.642 3.392-7.003.05-.347.007-.565 0-.845-.004-.17.035-.237.23-.256a4.173 4.173 0 0 0 1.545-.475c1.396-.763 1.96-2.015 2.093-3.517.02-.23-.004-.467-.247-.588zM11.581 18c-2.089-1.642-3.102-2.183-3.52-2.16-.392.024-.321.471-.235.763.09.288.207.486.371.739.114.167.192.416-.113.603-.673.416-1.842-.14-1.897-.167-1.361-.802-2.5-1.86-3.301-3.307-.774-1.393-1.224-2.887-1.298-4.482-.02-.386.093-.522.477-.592a4.696 4.696 0 0 1 1.529-.039c2.132.312 3.946 1.265 5.468 2.774.868.86 1.525 1.887 2.202 2.891.72 1.066 1.494 2.082 2.48 2.914.348.292.625.514.891.677-.802.09-2.14.11-3.054-.614zM12.581 11.56a.306.306 0 0 1 .415-.287.302.302 0 0 1 .2.288.306.306 0 0 1-.31.307.303.303 0 0 1-.304-.308zM15.691 13.156c-.2.081-.399.151-.59.16a1.245 1.245 0 0 1-.798-.254c-.274-.23-.47-.358-.552-.758a1.73 1.73 0 0 1 .016-.588c.07-.327-.008-.537-.239-.727-.187-.156-.426-.199-.688-.199a.559.559 0 0 1-.254-.078c-.11-.054-.2-.19-.114-.358.028-.054.16-.186.192-.21.356-.202.767-.136 1.146.016.352.144.618.408 1.001.782.391.451.462.576.685.914.176.265.336.537.445.848.067.195-.019.354-.25.452z"
+    )}
 
-    @Composable
-    fun Groq(): ImageVector = vectorResource(R.drawable.ic_groq)
+    val Groq: ImageVector by lazy { buildSvgIcon(0xFFF97316,
+        "M12.036 2c-3.853-.035-7 3-7.036 6.781-.035 3.782 3.055 6.872 6.908 6.907h2.42v-2.566h-2.292c-2.407.028-4.38-1.866-4.408-4.23-.029-2.362 1.901-4.298 4.308-4.326h.1c2.407 0 4.358 1.915 4.365 4.278v6.305c0 2.342-1.944 4.25-4.323 4.279a4.375 4.375 0 0 1-3.033-1.252l-1.851 1.818A7 7 0 0 0 12.029 22h.092c3.803-.056 6.858-3.083 6.879-6.816v-6.5C18.907 4.963 15.817 2 12.036 2z"
+    )}
 
-    @Composable
-    fun Ollama(): ImageVector = vectorResource(R.drawable.ic_ollama)
+    val Ollama: ImageVector by lazy { buildSvgIcon(0xFF8B5CF6,
+        "M16.361 10.26a.894.894 0 0 0-.558.47l-.072.148.001.207c0 .193.004.217.059.353.076.193.152.312.291.448.24.238.51.3.872.205a.86.86 0 0 0 .517-.436.752.752 0 0 0 .08-.498c-.064-.453-.33-.782-.724-.897a1.06 1.06 0 0 0-.466 0zM7.158 10.265c-.305.096-.533.32-.65.639a1.187 1.187 0 0 0-.06.52c.057.309.31.59.598.667.362.095.632.033.872-.205.14-.136.215-.255.291-.448.055-.136.059-.16.059-.353l.001-.207-.072-.148a.894.894 0 0 0-.565-.472 1.02 1.02 0 0 0-.474.007zM11.342 12.27c-.131.071-.223.25-.195.383.031.143.157.288.353.407.105.063.112.072.117.136.004.038-.01.146-.029.243-.02.094-.036.194-.036.222.002.074.07.195.143.253.064.052.076.054.255.059.164.005.198.001.264-.03.169-.082.212-.234.15-.525-.052-.243-.042-.28.087-.355.137-.08.281-.219.324-.314a.365.365 0 0 0-.175-.48.394.394 0 0 0-.181-.033c-.126 0-.207.03-.355.124l-.085.053-.053-.032c-.219-.13-.259-.145-.391-.143a.396.396 0 0 0-.193.032zM11.732 10.075c-.373.036-.475.05-.654.086-.291.06-.68.195-.951.328-.94.46-1.589 1.226-1.787 2.114-.04.176-.045.234-.045.53 0 .294.005.357.043.524.264 1.16 1.332 2.017 2.714 2.173.3.033 1.596.033 1.896 0 1.11-.125 2.064-.727 2.493-1.571.114-.226.169-.372.22-.602.039-.167.044-.23.044-.523 0-.297-.005-.355-.045-.531-.288-1.29-1.539-2.304-3.072-2.497a6.873 6.873 0 0 0-.855-.031zM12.377 11.012a3.283 3.283 0 0 1 1.44.514c.223.148.537.458.671.662.166.251.26.508.303.82.02.143.01.251-.043.482-.08.345-.332.705-.672.957a3.115 3.115 0 0 1-.689.348c-.382.122-.632.144-1.525.138-.582-.006-.686-.01-.853-.042-.57-.107-1.022-.334-1.35-.68-.264-.28-.385-.535-.45-.946-.03-.192.025-.509.137-.776.136-.326.488-.73.836-.963.403-.269.934-.46 1.422-.512.187-.02.586-.02.773-.002zM6.874.012a1.653 1.653 0 0 0-.683.298C5.617.74 5.173 1.666 4.985 2.819c-.07.436-.119 1.04-.119 1.503 0 .544.064 1.24.155 1.721.02.107.031.202.023.208a8.12 8.12 0 0 1-.187.152 5.324 5.324 0 0 0-.949 1.02 5.49 5.49 0 0 0-.94 2.339 6.625 6.625 0 0 0-.023 1.357c.091.78.325 1.438.727 2.04l.13.195-.037.064c-.269.452-.498 1.105-.605 1.732-.084.496-.095.629-.095 1.294 0 .67.009.803.088 1.266.095.555.288 1.143.503 1.534.071.128.243.393.264.407.007.003-.014.067-.046.141a7.405 7.405 0 0 0-.548 1.873c-.062.417-.071.552-.071.991 0 .56.031.832.148 1.279L3.42 24h1.478l-.05-.091c-.297-.552-.325-1.575-.068-2.597.117-.472.25-.819.498-1.296l.148-.29v-.177c0-.165-.003-.184-.057-.293a.915.915 0 0 0-.194-.25 1.74 1.74 0 0 1-.385-.543c-.424-.92-.506-2.286-.208-3.451.124-.486.329-.918.544-1.154a.787.787 0 0 0 .223-.531c0-.195-.07-.355-.224-.522a3.136 3.136 0 0 1-.817-1.729c-.14-.96.114-2.005.69-2.834.563-.814 1.353-1.336 2.237-1.475.199-.033.57-.028.776.01.226.04.367.028.512-.041.179-.085.268-.19.374-.431.093-.215.165-.333.36-.576.234-.29.46-.489.822-.729.413-.27.884-.467 1.352-.561.17-.035.25-.04.569-.04.319 0 .398.005.569.04a4.07 4.07 0 0 1 1.914.997c.117.109.398.457.488.602.034.057.095.177.132.267.105.241.195.346.374.43.14.068.286.082.503.045.343-.058.607-.053.943.016 1.144.23 2.14 1.173 2.581 2.437.385 1.108.276 2.267-.296 3.153-.097.15-.193.27-.333.419-.301.322-.301.722-.001 1.053.493.539.801 1.866.708 3.036-.062.772-.26 1.463-.533 1.854a2.096 2.096 0 0 1-.224.258.916.916 0 0 0-.194.25c-.054.109-.057.128-.057.293v.178l.148.29c.248.476.38.823.498 1.295.253 1.008.231 2.01-.059 2.581a.845.845 0 0 0-.044.098c0 .006.329.009.732.009h.73l.02-.074.036-.134c.019-.076.057-.3.088-.516.029-.217.029-1.016 0-1.258-.11-.875-.295-1.57-.597-2.226-.032-.074-.053-.138-.046-.141.008-.005.057-.074.108-.152.376-.569.607-1.284.724-2.228.031-.26.031-1.378 0-1.628-.083-.645-.182-1.082-.348-1.525a6.083 6.083 0 0 0-.329-.7l-.038-.064.131-.194c.402-.604.636-1.262.727-2.04a6.625 6.625 0 0 0-.024-1.358 5.512 5.512 0 0 0-.939-2.339 5.325 5.325 0 0 0-.95-1.02 8.097 8.097 0 0 1-.186-.152.692.692 0 0 1 .023-.208c.208-1.087.201-2.443-.017-3.503-.19-.924-.535-1.658-.98-2.082-.354-.338-.716-.482-1.15-.455-.996.059-1.8 1.205-2.116 3.01a6.805 6.805 0 0 0-.097.726c0 .036-.007.066-.015.066a.96.96 0 0 1-.149-.078A4.857 4.857 0 0 0 12 3.03c-.832 0-1.687.243-2.456.698a.958.958 0 0 1-.148.078c-.008 0-.015-.03-.015-.066a6.71 6.71 0 0 0-.097-.725C8.997 1.392 8.337.319 7.46.048a2.096 2.096 0 0 0-.585-.041zM7.167 1.414c.248.197.523.759.682 1.388.03.113.06.244.069.292.007.047.026.152.041.233.067.365.098.76.102 1.24l.002.475-.12.175-.118.178h-.278c-.324 0-.646.041-.954.124l-.238.06c-.033.007-.038-.003-.057-.144a8.438 8.438 0 0 1 .016-2.323c.124-.788.413-1.501.696-1.711.067-.05.079-.049.157.013zM16.992 1.402c.17.126.358.46.498.888.28.854.36 2.028.212 3.145-.019.14-.024.151-.057.144l-.238-.06a3.693 3.693 0 0 0-.954-.124h-.278l-.119-.178-.119-.175.002-.474c.004-.669.066-1.19.214-1.772.157-.623.434-1.185.68-1.382.078-.062.09-.063.159-.012z"
+    )}
 
-    @Composable
-    fun GitHub(): ImageVector = vectorResource(R.drawable.ic_github)
+    val GitHub: ImageVector by lazy { buildSvgIcon(0xFF24292F,
+        "M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"
+    )}
+
+    private fun buildSvgIcon(color: Long, pathData: String): ImageVector {
+        return ImageVector.Builder(
+            name = "icon",
+            defaultWidth = 24.0.dp,
+            defaultHeight = 24.0.dp,
+            viewportWidth = 24f,
+            viewportHeight = 24f
+        ).apply {
+            path(fill = SolidColor(Color(color))) {
+                val cmds = parseSvgPath(pathData)
+                var cx = 0f; var cy = 0f // current position
+                var subX = 0f; var subY = 0f // subpath start
+                var prevCtrlX = 0f; var prevCtrlY = 0f // for smooth commands
+
+                for (cmd in cmds) {
+                    val a = cmd.args
+                    try {
+                        when (cmd.type) {
+                            'M' -> {
+                                moveTo(a[0], a[1])
+                                cx = a[0]; cy = a[1]
+                                subX = cx; subY = cy
+                                prevCtrlX = cx; prevCtrlY = cy
+                            }
+                            'm' -> {
+                                relativeMoveTo(a[0], a[1])
+                                cx += a[0]; cy += a[1]
+                                subX = cx; subY = cy
+                                prevCtrlX = cx; prevCtrlY = cy
+                            }
+                            'L' -> {
+                                lineTo(a[0], a[1])
+                                cx = a[0]; cy = a[1]
+                                prevCtrlX = cx; prevCtrlY = cy
+                            }
+                            'l' -> {
+                                relativeLineTo(a[0], a[1])
+                                cx += a[0]; cy += a[1]
+                                prevCtrlX = cx; prevCtrlY = cy
+                            }
+                            'H' -> {
+                                horizontalLineTo(a[0])
+                                cx = a[0]
+                                prevCtrlX = cx
+                            }
+                            'h' -> {
+                                relativeHorizontalLineTo(a[0])
+                                cx += a[0]
+                                prevCtrlX = cx
+                            }
+                            'V' -> {
+                                verticalLineTo(a[0])
+                                cy = a[0]
+                                prevCtrlY = cy
+                            }
+                            'v' -> {
+                                relativeVerticalLineTo(a[0])
+                                cy += a[0]
+                                prevCtrlY = cy
+                            }
+                            'C' -> {
+                                cubicTo(a[0], a[1], a[2], a[3], a[4], a[5])
+                                prevCtrlX = a[2]; prevCtrlY = a[3]
+                                cx = a[4]; cy = a[5]
+                            }
+                            'c' -> {
+                                relativeCubicTo(a[0], a[1], a[2], a[3], a[4], a[5])
+                                prevCtrlX = cx + a[2]; prevCtrlY = cy + a[3]
+                                cx += a[4]; cy += a[5]
+                            }
+                            'S' -> {
+                                cubicTo(a[0], a[1], a[2], a[3], a[4], a[5])
+                                prevCtrlX = a[2]; prevCtrlY = a[3]
+                                cx = a[4]; cy = a[5]
+                            }
+                            's' -> {
+                                relativeCubicTo(a[0], a[1], a[2], a[3], a[4], a[5])
+                                prevCtrlX = cx + a[2]; prevCtrlY = cy + a[3]
+                                cx += a[4]; cy += a[5]
+                            }
+                            'Q' -> {
+                                quadraticTo(a[0], a[1], a[2], a[3])
+                                prevCtrlX = a[0]; prevCtrlY = a[1]
+                                cx = a[2]; cy = a[3]
+                            }
+                            'q' -> {
+                                relativeQuadraticTo(a[0], a[1], a[2], a[3])
+                                prevCtrlX = cx + a[0]; prevCtrlY = cy + a[1]
+                                cx += a[2]; cy += a[3]
+                            }
+                            'T' -> {
+                                quadraticTo(a[0], a[1], a[2], a[3])
+                                prevCtrlX = a[0]; prevCtrlY = a[1]
+                                cx = a[2]; cy = a[3]
+                            }
+                            't' -> {
+                                relativeQuadraticTo(a[0], a[1], a[2], a[3])
+                                prevCtrlX = cx + a[0]; prevCtrlY = cy + a[1]
+                                cx += a[2]; cy += a[3]
+                            }
+                            'Z', 'z' -> {
+                                close()
+                                cx = subX; cy = subY
+                                prevCtrlX = cx; prevCtrlY = cy
+                            }
+                            'A' -> {
+                                arcToCubic(this, cx, cy, a[0], a[1], a[2], a[3].toInt(), a[4].toInt(), a[5], a[6])
+                                cx = a[5]; cy = a[6]
+                                subX = cx; subY = cy
+                                prevCtrlX = cx; prevCtrlY = cy
+                            }
+                            'a' -> {
+                                val x = cx + a[5]; val y = cy + a[6]
+                                arcToCubic(this, cx, cy, a[0], a[1], a[2], a[3].toInt(), a[4].toInt(), x, y)
+                                cx = x; cy = y
+                                subX = cx; subY = cy
+                                prevCtrlX = cx; prevCtrlY = cy
+                            }
+                        }
+                    } catch (_: Exception) { }
+                }
+            }
+        }.build()
+    }
+
+    // SVG arc to cubic bezier conversion per SVG spec
+    private fun arcToCubic(
+        builder: androidx.compose.ui.graphics.vector.PathBuilder,
+        x1: Float, y1: Float, // start point
+        rx: Float, ry: Float, // radii
+        xAxisRot: Float, // degrees
+        largeArcFlag: Int, sweepFlag: Int,
+        x2: Float, y2: Float // end point
+    ) {
+        if (rx == 0f || ry == 0f) {
+            builder.lineTo(x2, y2)
+            return
+        }
+        val phi = (xAxisRot * PI / 180.0).toFloat()
+        val cosP = cos(phi); val sinP = sin(phi)
+
+        // Step 1: compute (x1', y1')
+        val dx = (x1 - x2) / 2f; val dy = (y1 - y2) / 2f
+        val x1p = cosP * dx + sinP * dy
+        val y1p = -sinP * dx + cosP * dy
+
+        // Ensure radii are large enough
+        var rx2 = abs(rx); var ry2 = abs(ry)
+        val lambda = (x1p * x1p) / (rx2 * rx2) + (y1p * y1p) / (ry2 * ry2)
+        if (lambda > 1f) {
+            val s = sqrt(lambda.toDouble()).toFloat()
+            rx2 *= s; ry2 *= s
+        }
+
+        // Step 2: compute (cx', cy')
+        val rx2s = rx2 * rx2; val ry2s = ry2 * ry2
+        val x1ps = x1p * x1p; val y1ps = y1p * y1p
+        var radicand = (rx2s * ry2s - rx2s * y1ps - ry2s * x1ps) / (rx2s * y1ps + ry2s * x1ps)
+        radicand = maxOf(0.0, radicand.toDouble())
+        val factor = if (largeArcFlag == sweepFlag) -1f else 1f
+        val cxp = factor * sqrt(radicand) * rx2 * y1p / ry2
+        val cyp = factor * -sqrt(radicand) * ry2 * x1p / rx2
+
+        // Step 3: compute (cx, cy) from (cx', cy')
+        val cx = cosP * cxp - sinP * cyp + (x1 + x2) / 2f
+        val cy = sinP * cxp + cosP * cyp + (y1 + y2) / 2f
+
+        // Step 4: compute start angle and delta
+        val startAngle = atan2(
+            (y1p - cyp) / ry2,
+            (x1p - cxp) / rx2
+        )
+        val endAngle = atan2(
+            (-y1p - cyp) / ry2,
+            (-x1p - cxp) / rx2
+        )
+        var delta = endAngle - startAngle
+        if (sweepFlag != 0 && delta < 0) delta += 2.0 * PI
+        if (sweepFlag == 0 && delta > 0) delta -= 2.0 * PI
+        delta = delta.toFloat()
+
+        // Step 5: break arc into segments and compute cubic beziers
+        val segments = ceil(abs(delta) / (PI / 2.0)).toInt().coerceAtLeast(1)
+        val segAngle = delta / segments
+
+        var curAngle = startAngle
+        for (s in 0 until segments) {
+            val nextAngle = curAngle + segAngle
+            val t = tan((nextAngle - curAngle) / 4.0)
+            val k = (4.0 / 3.0) * t
+
+            val cosA1 = cos(curAngle); val sinA1 = sin(curAngle)
+            val cosA2 = cos(nextAngle); val sinA2 = sin(nextAngle)
+
+            val p1x = cosP * rx2 * cosA1 - sinP * ry2 * sinA1 + cx
+            val p1y = sinP * rx2 * cosA1 + cosP * ry2 * sinA1 + cy
+            val p4x = cosP * rx2 * cosA2 - sinP * ry2 * sinA2 + cx
+            val p4y = sinP * rx2 * cosA2 + cosP * ry2 * sinA2 + cy
+            val c1x = p1x - k * (cosP * rx2 * sinA1 + sinP * ry2 * cosA1)
+            val c1y = p1y - k * (sinP * rx2 * sinA1 - cosP * ry2 * cosA1)
+            val c2x = p4x + k * (cosP * rx2 * sinA2 + sinP * ry2 * cosA2)
+            val c2y = p4y + k * (sinP * rx2 * sinA2 - cosP * ry2 * cosA2)
+
+            builder.cubicTo(c1x.toFloat(), c1y.toFloat(), c2x.toFloat(), c2y.toFloat(), p4x.toFloat(), p4y.toFloat())
+            curAngle = nextAngle
+        }
+    }
+
+    private data class SvgCmd(val type: Char, val args: FloatArray)
+
+    private fun parseSvgPath(d: String): List<SvgCmd> {
+        val cmds = mutableListOf<SvgCmd>()
+        val nums = mutableListOf<Float>()
+        var i = 0
+        var cmdType = ' '
+
+        fun isCmd(c: Char) = c in "MmZzLlHhVvCcSsQqTtAa"
+
+        fun flush() {
+            if (cmdType != ' ' && nums.isNotEmpty()) {
+                val perCmd = when (cmdType) {
+                    'M', 'm' -> 2
+                    'L', 'l', 'T', 't' -> 2
+                    'H', 'h', 'V', 'v' -> 1
+                    'Z', 'z' -> 0
+                    'Q', 'q' -> 4
+                    'C', 'c', 'S', 's' -> 6
+                    'A', 'a' -> 7
+                    else -> 2
+                }
+                if (perCmd > 0) {
+                    var idx = 0
+                    while (idx + perCmd <= nums.size) {
+                        val args = FloatArray(perCmd) { nums[idx + it] }
+                        cmds.add(SvgCmd(cmdType, args))
+                        idx += perCmd
+                        if ((cmdType == 'M' || cmdType == 'm') && idx < nums.size && idx + 2 <= nums.size) {
+                            val implCmd = if (cmdType == 'M') 'L' else 'l'
+                            cmds.add(SvgCmd(implCmd, FloatArray(2) { nums[idx + it] }))
+                            idx += 2
+                        }
+                    }
+                }
+                nums.clear()
+            }
+        }
+
+        while (i < d.length) {
+            val c = d[i]
+            when {
+                c.isWhitespace() || c == ',' -> { }
+                isCmd(c) -> {
+                    flush()
+                    cmdType = c
+                    if (c == 'Z' || c == 'z') {
+                        cmds.add(SvgCmd(c, FloatArray(0)))
+                        cmdType = ' '
+                    }
+                }
+                c == '-' || c == '+' || c == '.' || c.isDigit() -> {
+                    val start = i
+                    var hasDot = c == '.'
+                    i++
+                    while (i < d.length) {
+                        val nc = d[i]
+                        if (nc == '.') {
+                            if (hasDot) break else { hasDot = true; i++ }
+                        } else if (nc == 'e' || nc == 'E') {
+                            i++
+                            if (i < d.length && (d[i] == '-' || d[i] == '+')) i++
+                        } else if (nc.isDigit()) {
+                            i++
+                        } else {
+                            break
+                        }
+                    }
+                    val num = d.substring(start, i).toFloatOrNull()
+                    if (num != null) nums.add(num)
+                    i--
+                }
+            }
+            i++
+        }
+        flush()
+        return cmds
+    }
 }
