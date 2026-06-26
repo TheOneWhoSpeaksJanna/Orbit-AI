@@ -374,8 +374,8 @@ private fun ProviderHealthCard(
 private fun providerAccent(name: String): Color =
     PROVIDER_COLORS[name] ?: OmniClawAccent
 
-private fun providerIcon(name: String): Painter
-    @Composable get() = when (name) {
+@Composable
+private fun providerIcon(name: String): Painter = when (name) {
     "Claude" -> BrandIcons.Claude
     "OpenAI" -> BrandIcons.OpenAI
     "Gemini" -> BrandIcons.Gemini
