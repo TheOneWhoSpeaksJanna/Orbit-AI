@@ -305,7 +305,7 @@ private fun HistorySessionCard(
                             Icon(
                                 imageVector = Icons.Default.Delete,
                                 contentDescription = null,
-                                tint = OmniClawDanger
+                                tint = OmniClawError
                             )
                         }
                     )
