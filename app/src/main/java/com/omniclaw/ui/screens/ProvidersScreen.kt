@@ -60,7 +60,6 @@ import com.omniclaw.ui.theme.OmniClawAccent
 import com.omniclaw.ui.theme.OmniClawAccentSecondary
 import com.omniclaw.ui.theme.OmniClawGlassBorder
 import com.omniclaw.ui.theme.OmniClawGlassOverlay
-import com.omniclaw.ui.theme.OmniClawObsidianBase
 import com.omniclaw.ui.theme.OmniClawObsidianSurface
 import com.omniclaw.ui.theme.OmniClawSuccess
 import com.omniclaw.ui.theme.OmniClawTextPrimary
@@ -96,7 +95,8 @@ private val PROVIDER_COLORS = mapOf(
     "OpenRouter" to Color(0xFFFF6B35),
     "DeepSeek" to Color(0xFF4F6CF7),
     "Groq" to Color(0xFFF97316),
-    "Ollama" to Color(0xFF8B5CF6)
+    "Ollama" to Color(0xFF8B5CF6),
+    "GitHub" to Color(0xFF24292F)
 )
 
 private val PROVIDER_ICONS = mapOf(
@@ -106,7 +106,8 @@ private val PROVIDER_ICONS = mapOf(
     "OpenRouter" to BrandIcons.OpenRouter,
     "DeepSeek" to BrandIcons.DeepSeek,
     "Groq" to BrandIcons.Groq,
-    "Ollama" to BrandIcons.Ollama
+    "Ollama" to BrandIcons.Ollama,
+    "GitHub" to BrandIcons.GitHub
 )
 
 @Composable
@@ -121,8 +122,8 @@ fun ProvidersScreen(
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
-            .background(OmniClawObsidianBase)
-            .padding(horizontal = 20.dp, vertical = 16.dp),
+            .background(MaterialTheme.colorScheme.background)
+            .padding(horizontal = 20.dp).padding(top = 16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         item {

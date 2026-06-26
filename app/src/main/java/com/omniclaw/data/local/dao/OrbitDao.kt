@@ -31,6 +31,15 @@ interface OmniClawDao {
     @Query("DELETE FROM sessions WHERE title = 'New Session' AND id NOT IN (SELECT DISTINCT sessionId FROM messages)")
     suspend fun deleteEmptySessions()
 
+    @Query("DELETE FROM sessions WHERE id = :sessionId")
+    suspend fun deleteSession(sessionId: String)
+
+    @Query("DELETE FROM messages WHERE sessionId = :sessionId")
+    suspend fun deleteMessagesForSession(sessionId: String)
+
+    @Query("UPDATE sessions SET title = :title, updatedAt = :updatedAt WHERE id = :sessionId")
+    suspend fun updateSessionTitle(sessionId: String, title: String, updatedAt: Long)
+
     @Query("SELECT * FROM agents ORDER BY name ASC")
     fun getAllAgents(): Flow<List<AgentEntity>>
 

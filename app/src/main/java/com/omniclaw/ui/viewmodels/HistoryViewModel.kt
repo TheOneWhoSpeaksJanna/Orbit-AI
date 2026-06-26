@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.CreationExtras
 import com.omniclaw.OmniClawApplication
 import com.omniclaw.domain.models.ChatSession
+import com.omniclaw.domain.repository.OmniClawRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -14,7 +15,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
 class HistoryViewModel(
-    sessionsFlow: Flow<List<ChatSession>>
+    sessionsFlow: Flow<List<ChatSession>>,
+    private val repository: OmniClawRepository
 ) : ViewModel() {
 
     private val _state = MutableStateFlow<List<ChatSession>>(emptyList())
@@ -28,12 +30,27 @@ class HistoryViewModel(
         }
     }
 
+    fun deleteSession(sessionId: String) {
+        viewModelScope.launch {
+            repository.deleteSession(sessionId)
+        }
+    }
+
+    fun renameSession(sessionId: String, newTitle: String) {
+        viewModelScope.launch {
+            repository.updateSessionTitle(sessionId, newTitle)
+        }
+    }
+
     companion object {
         val Factory: ViewModelProvider.Factory = object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
             override fun <T : ViewModel> create(modelClass: Class<T>, extras: CreationExtras): T {
                 val application = checkNotNull(extras[APPLICATION_KEY]) as OmniClawApplication
-                return HistoryViewModel(application.container.repository.getAllSessions()) as T
+                return HistoryViewModel(
+                    application.container.repository.getAllSessions(),
+                    application.container.repository
+                ) as T
             }
         }
     }

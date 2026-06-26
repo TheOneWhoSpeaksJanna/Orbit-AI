@@ -22,10 +22,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.launch
 
-private const val PROVIDER_GEMINI = "Gemini"
-private const val PROVIDER_OPENAI = "OpenAI"
-private const val PROVIDER_CLAUDE = "Claude"
-private const val PROVIDER_OPENROUTER = "OpenRouter"
 private const val THEME_DEFAULT = "system"
 
 class SettingsViewModel(
@@ -35,74 +31,37 @@ class SettingsViewModel(
     private val repository: OmniClawRepository
 ) : ViewModel() {
 
-    private val _geminiApiKey = MutableStateFlow("")
-    val geminiApiKey: StateFlow<String> = _geminiApiKey.asStateFlow()
-
-    private val _openAiApiKey = MutableStateFlow("")
-    val openAiApiKey: StateFlow<String> = _openAiApiKey.asStateFlow()
-
-    private val _claudeApiKey = MutableStateFlow("")
-    val claudeApiKey: StateFlow<String> = _claudeApiKey.asStateFlow()
-
-    private val _openRouterApiKey = MutableStateFlow("")
-    val openRouterApiKey: StateFlow<String> = _openRouterApiKey.asStateFlow()
-
-    private val _githubToken = MutableStateFlow("")
-    val githubToken: StateFlow<String> = _githubToken.asStateFlow()
-
     private val _themeMode = MutableStateFlow(THEME_DEFAULT)
     val themeMode: StateFlow<String> = _themeMode.asStateFlow()
 
     private val _agentPermissionLevel = MutableStateFlow("NORMAL")
     val agentPermissionLevel: StateFlow<String> = _agentPermissionLevel.asStateFlow()
 
-    private val _agentRules = MutableStateFlow("")
-    val agentRules: StateFlow<String> = _agentRules.asStateFlow()
+    private val _agentRulesAllowed = MutableStateFlow("")
+    val agentRulesAllowed: StateFlow<String> = _agentRulesAllowed.asStateFlow()
+
+    private val _agentRulesAsk = MutableStateFlow("")
+    val agentRulesAsk: StateFlow<String> = _agentRulesAsk.asStateFlow()
+
+    private val _agentRulesDenied = MutableStateFlow("")
+    val agentRulesDenied: StateFlow<String> = _agentRulesDenied.asStateFlow()
 
     private val _skills = MutableStateFlow<List<Skill>>(emptyList())
     val skills: StateFlow<List<Skill>> = _skills.asStateFlow()
 
     init {
-        loadApiKeys()
+        loadSettings()
         loadSkills()
     }
 
-    private fun loadApiKeys() {
+    private fun loadSettings() {
         viewModelScope.launch {
-            _geminiApiKey.value = prefsManager.getApiKeyForProvider(PROVIDER_GEMINI).firstOrNull() ?: ""
-            _openAiApiKey.value = prefsManager.getApiKeyForProvider(PROVIDER_OPENAI).firstOrNull() ?: ""
-            _claudeApiKey.value = prefsManager.getApiKeyForProvider(PROVIDER_CLAUDE).firstOrNull() ?: ""
-            _openRouterApiKey.value = prefsManager.getApiKeyForProvider(PROVIDER_OPENROUTER).firstOrNull() ?: ""
-            _githubToken.value = prefsManager.githubToken.firstOrNull() ?: ""
             _themeMode.value = prefsManager.themeMode.firstOrNull() ?: THEME_DEFAULT
             _agentPermissionLevel.value = prefsManager.agentPermissionLevel.firstOrNull() ?: "NORMAL"
-            _agentRules.value = prefsManager.agentRules.firstOrNull() ?: ""
+            _agentRulesAllowed.value = prefsManager.agentRulesAllowed.firstOrNull() ?: ""
+            _agentRulesAsk.value = prefsManager.agentRulesAsk.firstOrNull() ?: ""
+            _agentRulesDenied.value = prefsManager.agentRulesDenied.firstOrNull() ?: ""
         }
-    }
-
-    fun updateGeminiApiKey(key: String) {
-        _geminiApiKey.value = key
-        viewModelScope.launch { prefsManager.setApiKeyForProvider(PROVIDER_GEMINI, key) }
-    }
-
-    fun updateOpenAiApiKey(key: String) {
-        _openAiApiKey.value = key
-        viewModelScope.launch { prefsManager.setApiKeyForProvider(PROVIDER_OPENAI, key) }
-    }
-
-    fun updateClaudeApiKey(key: String) {
-        _claudeApiKey.value = key
-        viewModelScope.launch { prefsManager.setApiKeyForProvider(PROVIDER_CLAUDE, key) }
-    }
-
-    fun updateOpenRouterApiKey(key: String) {
-        _openRouterApiKey.value = key
-        viewModelScope.launch { prefsManager.setApiKeyForProvider(PROVIDER_OPENROUTER, key) }
-    }
-
-    fun updateGithubToken(token: String) {
-        _githubToken.value = token
-        viewModelScope.launch { prefsManager.setGithubToken(token) }
     }
 
     fun updateThemeMode(mode: String) {
@@ -110,7 +69,7 @@ class SettingsViewModel(
         viewModelScope.launch { prefsManager.setThemeMode(mode) }
     }
 
-    val appVersion: String = BuildConfig.VERSION_NAME
+    val appVersion: String = BuildConfig.VERSION_NAME.substringBeforeLast('-')
     val updateState: StateFlow<UpdateState> = updateManager.updateState
 
     fun updateAgentPermissionLevel(level: String) {
@@ -118,9 +77,19 @@ class SettingsViewModel(
         viewModelScope.launch { prefsManager.setAgentPermissionLevel(level) }
     }
 
-    fun updateAgentRules(rules: String) {
-        _agentRules.value = rules
-        viewModelScope.launch { prefsManager.setAgentRules(rules) }
+    fun updateAgentRulesAllowed(rules: String) {
+        _agentRulesAllowed.value = rules
+        viewModelScope.launch { prefsManager.setAgentRulesAllowed(rules) }
+    }
+
+    fun updateAgentRulesAsk(rules: String) {
+        _agentRulesAsk.value = rules
+        viewModelScope.launch { prefsManager.setAgentRulesAsk(rules) }
+    }
+
+    fun updateAgentRulesDenied(rules: String) {
+        _agentRulesDenied.value = rules
+        viewModelScope.launch { prefsManager.setAgentRulesDenied(rules) }
     }
 
     fun checkForUpdates() {

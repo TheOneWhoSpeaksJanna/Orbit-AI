@@ -233,6 +233,13 @@ class ProvidersViewModel(
                 .get()
                 .build()
 
+            "GitHub" -> Request.Builder()
+                .url("https://api.github.com/user")
+                .header("Authorization", "Bearer $apiKey")
+                .header("Accept", "application/vnd.github.v3+json")
+                .get()
+                .build()
+
             else -> throw IllegalArgumentException("Unknown provider: $name")
         }
     }
@@ -244,7 +251,7 @@ class ProvidersViewModel(
     }
 
     companion object {
-        val KNOWN_PROVIDERS = listOf("Claude", "OpenAI", "Gemini", "OpenRouter", "DeepSeek", "Groq", "Ollama")
+        val KNOWN_PROVIDERS = listOf("Claude", "OpenAI", "Gemini", "OpenRouter", "DeepSeek", "Groq", "Ollama", "GitHub")
         private const val CLAUDE_HEALTH_CHECK_BODY = """{"model":"claude-sonnet-4-20250514","max_tokens":1,"messages":[{"role":"user","content":"."}]}"""
 
         val Factory: ViewModelProvider.Factory = object : ViewModelProvider.Factory {

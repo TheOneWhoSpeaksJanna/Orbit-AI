@@ -16,6 +16,9 @@ interface OmniClawRepository {
 
     suspend fun deleteEmptySessions()
 
+    suspend fun deleteSession(sessionId: String)
+    suspend fun updateSessionTitle(sessionId: String, title: String)
+
     fun getAllAgents(): Flow<List<Agent>>
     suspend fun insertAgent(agent: Agent)
 

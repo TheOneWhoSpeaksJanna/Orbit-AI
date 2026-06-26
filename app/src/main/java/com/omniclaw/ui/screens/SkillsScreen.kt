@@ -18,12 +18,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Build
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.Memory
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -34,13 +29,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.omniclaw.domain.models.DownloadState
-import com.omniclaw.domain.models.DownloadableAgent
-import com.omniclaw.ui.components.AgentAvatar
 import com.omniclaw.ui.theme.OmniClawAccent
 import com.omniclaw.ui.theme.OmniClawAccentSecondary
 import com.omniclaw.ui.theme.OmniClawGlassOverlay
@@ -49,46 +40,24 @@ import com.omniclaw.ui.theme.OmniClawSuccess
 import com.omniclaw.ui.theme.OmniClawTextPrimary
 import com.omniclaw.ui.theme.OmniClawTextSecondary
 import com.omniclaw.ui.theme.OmniClawTextTertiary
-import com.omniclaw.ui.theme.OmniClawWarning
-import com.omniclaw.ui.viewmodels.DownloadViewModel
 import com.omniclaw.ui.viewmodels.SkillsViewModel
 
 private const val SECTION_ACTIVE = "Active Capabilities"
 private const val SECTION_AGENTS = "Agents"
 private const val SECTION_TOOLS = "Registered Tools"
-private const val SECTION_MARKETPLACE = "OpenCode Marketplace"
 private const val SUBTITLE_CAPABILITIES = "Installed agents, tools, and extension modules"
-private const val SUBTITLE_MARKETPLACE = "Download community agents and tools from the OpenCode registry"
 private const val DEFAULT_AGENT_NAME = "Default Agent"
 private const val DEFAULT_AGENT_DESC = "General-purpose AI orchestration agent"
 private const val DEFAULT_PROMPT_FALLBACK = "General-purpose agent"
 private const val STATUS_ACTIVE = "Active"
 private const val STATUS_READY = "Ready"
 private const val STATUS_AVAILABLE = "Available"
-private const val CD_GET = "Get"
-private const val CD_DOWNLOAD = "Download"
-private const val CD_DOWNLOADED = "Downloaded"
-private const val CD_INSTALLED = "Installed"
-private const val CD_FAILED = "Failed"
-private const val CD_RETRY = "Retry"
-
-private val AGENT_ACCENT_COLORS = mapOf(
-    "terminal" to Color(0xFF34D399),
-    "code" to Color(0xFF3B82F6),
-    "eye" to Color(0xFF8B5CF6),
-    "radar" to Color(0xFFF97316),
-    "database" to Color(0xFFF59E0B),
-    "hook" to Color(0xFFEC4899),
-    "opencode" to Color(0xFF06B6D4)
-)
 
 @Composable
 fun SkillsScreen(
-    viewModel: SkillsViewModel = viewModel(factory = SkillsViewModel.Factory),
-    downloadViewModel: DownloadViewModel = viewModel(factory = DownloadViewModel.Factory)
+    viewModel: SkillsViewModel = viewModel(factory = SkillsViewModel.Factory)
 ) {
     val agents by viewModel.agents.collectAsState()
-    val downloadCatalog by downloadViewModel.agents.collectAsState()
 
     LazyColumn(
         modifier = Modifier
@@ -175,174 +144,8 @@ fun SkillsScreen(
                 }
             }
         }
-
-        item {
-            Spacer(modifier = Modifier.height(16.dp))
-            Text(
-                text = SECTION_MARKETPLACE,
-                style = MaterialTheme.typography.titleLarge,
-                color = OmniClawAccent,
-                fontWeight = FontWeight.Bold
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = SUBTITLE_MARKETPLACE,
-                style = MaterialTheme.typography.bodyMedium,
-                color = OmniClawTextSecondary
-            )
-            Spacer(modifier = Modifier.height(12.dp))
-        }
-
-        items(downloadCatalog) { entry ->
-            DownloadableAgentCard(
-                agent = entry.agent,
-                downloadState = entry.downloadState,
-                onDownload = { downloadViewModel.downloadAgent(entry.agent.id) }
-            )
-        }
     }
 }
-
-@Composable
-private fun DownloadableAgentCard(
-    agent: DownloadableAgent,
-    downloadState: DownloadState,
-    onDownload: () -> Unit
-) {
-    val shape = remember { RoundedCornerShape(14.dp) }
-    val accent = agentAccent(agent)
-
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(shape)
-            .background(OmniClawGlassOverlay)
-            .padding(16.dp)
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            AgentAvatar(
-                iconName = agent.iconName,
-                accentColor = accent,
-                size = 48.dp
-            )
-            Spacer(modifier = Modifier.width(14.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = agent.name,
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = OmniClawTextPrimary,
-                    fontWeight = FontWeight.SemiBold
-                )
-                Spacer(modifier = Modifier.height(2.dp))
-                Text(
-                    text = agent.description,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = OmniClawTextTertiary,
-                    maxLines = 2
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = "v${agent.version}",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = OmniClawTextTertiary
-                    )
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Text(
-                        text = agent.source.displayName,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = OmniClawAccentSecondary
-                    )
-                }
-            }
-            Spacer(modifier = Modifier.width(12.dp))
-            DownloadButton(downloadState = downloadState, onDownload = onDownload)
-        }
-    }
-}
-
-@Composable
-private fun DownloadButton(
-    downloadState: DownloadState,
-    onDownload: () -> Unit
-) {
-    when (downloadState) {
-        is DownloadState.Idle -> {
-            Button(
-                onClick = onDownload,
-                colors = ButtonDefaults.buttonColors(containerColor = OmniClawAccent),
-                shape = RoundedCornerShape(10.dp),
-                contentPadding = ButtonDefaults.TextButtonContentPadding
-            ) {
-                Icon(
-                    imageVector = Icons.Default.CloudDownload,
-                    contentDescription = CD_DOWNLOAD,
-                    modifier = Modifier.size(18.dp)
-                )
-                Spacer(modifier = Modifier.width(6.dp))
-                Text(CD_GET, style = MaterialTheme.typography.labelMedium)
-            }
-        }
-        is DownloadState.Requesting -> {
-            CircularProgressIndicator(
-                modifier = Modifier.size(24.dp),
-                color = OmniClawAccent,
-                strokeWidth = 2.dp
-            )
-        }
-        is DownloadState.Transferring -> {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                CircularProgressIndicator(
-                    progress = { downloadState.progress },
-                    modifier = Modifier.size(36.dp),
-                    color = OmniClawAccent,
-                    strokeWidth = 3.dp
-                )
-                Text(
-                    text = "${(downloadState.progress * 100).toInt()}%",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = OmniClawAccent
-                )
-            }
-        }
-        is DownloadState.Complete -> {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Icon(
-                    imageVector = Icons.Default.CheckCircle,
-                    contentDescription = CD_DOWNLOADED,
-                    modifier = Modifier.size(28.dp),
-                    tint = OmniClawSuccess
-                )
-                Text(
-                    text = CD_INSTALLED,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = OmniClawSuccess
-                )
-            }
-        }
-        is DownloadState.Error -> {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(
-                    text = CD_FAILED,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = OmniClawWarning
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Button(
-                    onClick = onDownload,
-                    colors = ButtonDefaults.buttonColors(containerColor = OmniClawWarning),
-                    shape = RoundedCornerShape(10.dp),
-                    contentPadding = ButtonDefaults.TextButtonContentPadding
-                ) {
-                    Text(CD_RETRY, style = MaterialTheme.typography.labelMedium)
-                }
-            }
-        }
-    }
-}
-
-private fun agentAccent(agent: DownloadableAgent): Color =
-    AGENT_ACCENT_COLORS[agent.iconName] ?: OmniClawAccent
 
 @Composable
 private fun CapabilityCard(

@@ -29,7 +29,9 @@ class PreferencesManager(private val context: Context) {
         val SELECTED_MODEL = stringPreferencesKey("selected_model")
 
         val AGENT_PERMISSION_LEVEL = stringPreferencesKey("agent_permission_level")
-        val AGENT_RULES = stringPreferencesKey("agent_rules")
+        val AGENT_RULES_ALLOWED = stringPreferencesKey("agent_rules_allowed")
+        val AGENT_RULES_ASK = stringPreferencesKey("agent_rules_ask")
+        val AGENT_RULES_DENIED = stringPreferencesKey("agent_rules_denied")
 
         val GEMINI_API_KEY = stringPreferencesKey("gemini_api_key")
         val OPENAI_API_KEY = stringPreferencesKey("openai_api_key")
@@ -46,6 +48,7 @@ class PreferencesManager(private val context: Context) {
         private const val PROVIDER_OPENAI = "openai"
         private const val PROVIDER_CLAUDE = "claude"
         private const val PROVIDER_OPENROUTER = "openrouter"
+        private const val PROVIDER_GITHUB = "github"
     }
 
     val themeMode: Flow<String?> = context.dataStore.data.map { prefs ->
@@ -76,8 +79,16 @@ class PreferencesManager(private val context: Context) {
         prefs[AGENT_PERMISSION_LEVEL] ?: "NORMAL"
     }
 
-    val agentRules: Flow<String> = context.dataStore.data.map { prefs ->
-        prefs[AGENT_RULES] ?: ""
+    val agentRulesAllowed: Flow<String> = context.dataStore.data.map { prefs ->
+        prefs[AGENT_RULES_ALLOWED] ?: ""
+    }
+
+    val agentRulesAsk: Flow<String> = context.dataStore.data.map { prefs ->
+        prefs[AGENT_RULES_ASK] ?: ""
+    }
+
+    val agentRulesDenied: Flow<String> = context.dataStore.data.map { prefs ->
+        prefs[AGENT_RULES_DENIED] ?: ""
     }
 
     val geminiApiKey: Flow<String?> = context.dataStore.data.map { prefs ->
@@ -106,6 +117,7 @@ class PreferencesManager(private val context: Context) {
             PROVIDER_OPENAI -> openAiApiKey
             PROVIDER_CLAUDE -> claudeApiKey
             PROVIDER_OPENROUTER -> openRouterApiKey
+            PROVIDER_GITHUB -> githubToken
             else -> geminiApiKey
         }
     }
@@ -138,8 +150,16 @@ class PreferencesManager(private val context: Context) {
         context.dataStore.edit { prefs -> prefs[AGENT_PERMISSION_LEVEL] = level }
     }
 
-    suspend fun setAgentRules(rules: String) {
-        context.dataStore.edit { prefs -> prefs[AGENT_RULES] = rules }
+    suspend fun setAgentRulesAllowed(rules: String) {
+        context.dataStore.edit { prefs -> prefs[AGENT_RULES_ALLOWED] = rules }
+    }
+
+    suspend fun setAgentRulesAsk(rules: String) {
+        context.dataStore.edit { prefs -> prefs[AGENT_RULES_ASK] = rules }
+    }
+
+    suspend fun setAgentRulesDenied(rules: String) {
+        context.dataStore.edit { prefs -> prefs[AGENT_RULES_DENIED] = rules }
     }
 
     suspend fun setGeminiApiKey(key: String) {
@@ -168,6 +188,7 @@ class PreferencesManager(private val context: Context) {
             PROVIDER_OPENAI -> setOpenAiApiKey(key)
             PROVIDER_CLAUDE -> setClaudeApiKey(key)
             PROVIDER_OPENROUTER -> setOpenRouterApiKey(key)
+            PROVIDER_GITHUB -> setGithubToken(key)
             else -> setGeminiApiKey(key)
         }
     }

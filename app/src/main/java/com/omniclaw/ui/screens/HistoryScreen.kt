@@ -17,41 +17,58 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Chat
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.DriveFileRenameOutline
 import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.omniclaw.ui.viewmodels.HistoryViewModel
 import com.omniclaw.ui.theme.OmniClawAccent
+import com.omniclaw.ui.theme.OmniClawDanger
 import com.omniclaw.ui.theme.OmniClawGlassOverlay
-import com.omniclaw.ui.theme.OmniClawObsidianBase
 import com.omniclaw.ui.theme.OmniClawTextPrimary
 import com.omniclaw.ui.theme.OmniClawTextSecondary
 import com.omniclaw.ui.theme.OmniClawTextTertiary
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
+import com.omniclaw.ui.viewmodels.HistoryViewModel
 
-private val DATE_HISTORY_FORMAT = SimpleDateFormat("MMM dd, yyyy \u00b7 HH:mm", Locale.getDefault())
-
-private const val TITLE = "Session History"
-private const val SUBTITLE = "Browse past conversations and command logs"
-private const val EMPTY_TITLE = "No session history yet"
-private const val EMPTY_SUBTITLE = "Start a conversation to see it here"
+private const val TITLE_HISTORY = "History"
+private const val SUBTITLE_HISTORY = "Your past conversations"
+private const val NO_SESSIONS = "No conversations yet"
+private const val DELETE_CONFIRM_TITLE = "Delete conversation?"
+private const val DELETE_CONFIRM_MSG = "This action cannot be undone."
+private const val CANCEL = "Cancel"
+private const val DELETE = "Delete"
+private const val RENAME = "Rename"
+private const val RENAME_TITLE = "Rename conversation"
+private const val SAVE = "Save"
+private const val EMPTY = ""
 
 @Composable
 fun HistoryScreen(
@@ -59,93 +76,161 @@ fun HistoryScreen(
     viewModel: HistoryViewModel = viewModel(factory = HistoryViewModel.Factory)
 ) {
     val sessions by viewModel.state.collectAsState()
+    var sessionToDelete by remember { mutableStateOf<String?>(null) }
+    var sessionToRename by remember { mutableStateOf<String?>(null) }
+    var renameText by remember { mutableStateOf(EMPTY) }
 
-    Column(
+    // Delete confirmation dialog
+    sessionToDelete?.let { id ->
+        AlertDialog(
+            onDismissRequest = { sessionToDelete = null },
+            title = { Text(DELETE_CONFIRM_TITLE) },
+            text = { Text(DELETE_CONFIRM_MSG) },
+            containerColor = OmniClawGlassOverlay,
+            titleContentColor = OmniClawTextPrimary,
+            textContentColor = OmniClawTextSecondary,
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.deleteSession(id)
+                    sessionToDelete = null
+                }) {
+                    Text(DELETE, color = OmniClawDanger)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { sessionToDelete = null }) {
+                    Text(CANCEL, color = OmniClawTextSecondary)
+                }
+            }
+        )
+    }
+
+    // Rename dialog
+    sessionToRename?.let { id ->
+        AlertDialog(
+            onDismissRequest = { sessionToRename = null },
+            title = { Text(RENAME_TITLE) },
+            text = {
+                OutlinedTextField(
+                    value = renameText,
+                    onValueChange = { renameText = it },
+                    singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = OmniClawAccent,
+                        unfocusedBorderColor = OmniClawTextTertiary,
+                        cursorColor = OmniClawAccent,
+                        focusedTextColor = OmniClawTextPrimary,
+                        unfocusedTextColor = OmniClawTextPrimary
+                    ),
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                    keyboardActions = KeyboardActions(onDone = {
+                        if (renameText.isNotBlank()) {
+                            viewModel.renameSession(id, renameText)
+                            sessionToRename = null
+                        }
+                    })
+                )
+            },
+            containerColor = OmniClawGlassOverlay,
+            titleContentColor = OmniClawTextPrimary,
+            textContentColor = OmniClawTextSecondary,
+            confirmButton = {
+                TextButton(onClick = {
+                    if (renameText.isNotBlank()) {
+                        viewModel.renameSession(id, renameText)
+                        sessionToRename = null
+                    }
+                }) {
+                    Text(SAVE, color = OmniClawAccent)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { sessionToRename = null }) {
+                    Text(CANCEL, color = OmniClawTextSecondary)
+                }
+            }
+        )
+    }
+
+    LazyColumn(
         modifier = Modifier
             .fillMaxSize()
-            .background(OmniClawObsidianBase)
-            .padding(horizontal = 20.dp, vertical = 16.dp)
+            .background(MaterialTheme.colorScheme.background)
+            .padding(horizontal = 20.dp, vertical = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Text(
-            text = TITLE,
-            style = MaterialTheme.typography.headlineMedium,
-            color = OmniClawTextPrimary,
-            fontWeight = FontWeight.Bold
-        )
-        Spacer(modifier = Modifier.height(4.dp))
-        Text(
-            text = SUBTITLE,
-            style = MaterialTheme.typography.bodyMedium,
-            color = OmniClawTextSecondary
-        )
-        Spacer(modifier = Modifier.height(20.dp))
+        item {
+            Text(
+                text = TITLE_HISTORY,
+                style = MaterialTheme.typography.headlineMedium,
+                color = OmniClawTextPrimary,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = SUBTITLE_HISTORY,
+                style = MaterialTheme.typography.bodyMedium,
+                color = OmniClawTextSecondary
+            )
+        }
 
         if (sessions.isEmpty()) {
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(
-                        imageVector = Icons.Default.History,
-                        contentDescription = null,
-                        modifier = Modifier.size(48.dp),
-                        tint = OmniClawTextTertiary
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
+            item {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 48.dp),
+                    contentAlignment = Alignment.Center
+                ) {
                     Text(
-                        text = EMPTY_TITLE,
+                        text = NO_SESSIONS,
                         style = MaterialTheme.typography.bodyLarge,
-                        color = OmniClawTextSecondary
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = EMPTY_SUBTITLE,
-                        style = MaterialTheme.typography.bodySmall,
                         color = OmniClawTextTertiary
                     )
                 }
             }
-        } else {
-            LazyColumn(
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                items(sessions, key = { it.id }) { session ->
-                    val formattedTime = remember(session.updatedAt) {
-                        DATE_HISTORY_FORMAT.format(Date(session.updatedAt))
-                    }
-                    SessionHistoryCard(
-                        title = session.title,
-                        timestamp = formattedTime,
-                        onClick = { onOpenSession(session.id) }
-                    )
+        }
+
+        items(sessions, key = { it.id }) { session ->
+            HistorySessionCard(
+                title = session.title,
+                timestamp = session.updatedAt,
+                onClick = { onOpenSession(session.id) },
+                onDelete = { sessionToDelete = session.id },
+                onRename = {
+                    renameText = session.title
+                    sessionToRename = session.id
                 }
-            }
+            )
         }
     }
 }
 
 @Composable
-private fun SessionHistoryCard(
+private fun HistorySessionCard(
     title: String,
-    timestamp: String,
-    onClick: () -> Unit
+    timestamp: Long,
+    onClick: () -> Unit,
+    onDelete: () -> Unit,
+    onRename: () -> Unit
 ) {
+    var showMenu by remember { mutableStateOf(false) }
     val shape = remember { RoundedCornerShape(14.dp) }
+
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .clip(shape)
             .background(OmniClawGlassOverlay)
             .clickable(onClick = onClick)
-            .padding(16.dp)
     ) {
         Row(
+            modifier = Modifier.padding(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Box(
                 modifier = Modifier
-                    .size(40.dp)
+                    .size(42.dp)
                     .clip(CircleShape)
                     .background(OmniClawAccent.copy(alpha = 0.15f)),
                 contentAlignment = Alignment.Center
@@ -153,36 +238,97 @@ private fun SessionHistoryCard(
                 Icon(
                     imageVector = Icons.Default.Chat,
                     contentDescription = null,
-                    modifier = Modifier.size(20.dp),
+                    modifier = Modifier.size(22.dp),
                     tint = OmniClawAccent
                 )
             }
-            Spacer(modifier = Modifier.width(12.dp))
+            Spacer(modifier = Modifier.width(14.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = title,
                     style = MaterialTheme.typography.bodyLarge,
                     color = OmniClawTextPrimary,
-                    fontWeight = FontWeight.Medium,
+                    fontWeight = FontWeight.SemiBold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
-                Spacer(modifier = Modifier.height(2.dp))
+                Spacer(modifier = Modifier.height(3.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(
                         imageVector = Icons.Default.Schedule,
                         contentDescription = null,
-                        modifier = Modifier.size(12.dp),
+                        modifier = Modifier.size(13.dp),
                         tint = OmniClawTextTertiary
                     )
                     Spacer(modifier = Modifier.width(4.dp))
                     Text(
-                        text = timestamp,
+                        text = formatTimestamp(timestamp),
                         style = MaterialTheme.typography.bodySmall,
                         color = OmniClawTextTertiary
                     )
                 }
             }
+            Box {
+                IconButton(onClick = { showMenu = true }) {
+                    Icon(
+                        imageVector = Icons.Default.MoreVert,
+                        contentDescription = null,
+                        tint = OmniClawTextSecondary
+                    )
+                }
+                DropdownMenu(
+                    expanded = showMenu,
+                    onDismissRequest = { showMenu = false },
+                    containerColor = OmniClawGlassOverlay
+                ) {
+                    DropdownMenuItem(
+                        text = { Text(RENAME, color = OmniClawTextPrimary) },
+                        onClick = {
+                            showMenu = false
+                            onRename()
+                        },
+                        leadingIcon = {
+                            Icon(
+                                imageVector = Icons.Default.DriveFileRenameOutline,
+                                contentDescription = null,
+                                tint = OmniClawAccent
+                            )
+                        }
+                    )
+                    DropdownMenuItem(
+                        text = { Text(DELETE, color = OmniClawDanger) },
+                        onClick = {
+                            showMenu = false
+                            onDelete()
+                        },
+                        leadingIcon = {
+                            Icon(
+                                imageVector = Icons.Default.Delete,
+                                contentDescription = null,
+                                tint = OmniClawDanger
+                            )
+                        }
+                    )
+                }
+            }
+        }
+    }
+}
+
+private fun formatTimestamp(millis: Long): String {
+    val now = System.currentTimeMillis()
+    val diff = now - millis
+    val minutes = diff / 60000
+    val hours = minutes / 60
+    val days = hours / 24
+    return when {
+        minutes < 1 -> "Just now"
+        minutes < 60 -> "${minutes}m ago"
+        hours < 24 -> "${hours}h ago"
+        days < 7 -> "${days}d ago"
+        else -> {
+            val sdf = java.text.SimpleDateFormat("MMM d", java.util.Locale.US)
+            sdf.format(java.util.Date(millis))
         }
     }
 }

@@ -6,11 +6,13 @@ import androidx.core.content.FileProvider
 import com.omniclaw.BuildConfig
 import com.omniclaw.data.local.prefs.DownloadProgress
 import com.omniclaw.data.local.prefs.PreferencesManager
+import com.omniclaw.data.local.runner.LocalCommandRunner
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -40,7 +42,8 @@ sealed class UpdateState {
 
 class UpdateManager(
     private val context: Context,
-    private val prefsManager: PreferencesManager
+    private val prefsManager: PreferencesManager,
+    private val localCommandRunner: LocalCommandRunner
 ) {
     private val httpClient = OkHttpClient.Builder()
         .connectTimeout(CONNECT_TIMEOUT_SECONDS, TimeUnit.SECONDS)
@@ -238,6 +241,16 @@ class UpdateManager(
 
     fun installApk(filePath: String) {
         try {
+            // Try privileged pm install -r via Shizuku first
+            val privilegedResult = runBlocking(Dispatchers.IO) {
+                localCommandRunner.executePrivilegedCommand("pm install -r \"$filePath\"")
+            }
+            if (privilegedResult.exitCode == 0) {
+                _updateState.value = UpdateState.Downloaded(filePath)
+                return
+            }
+
+            // Fall back to Intent-based install
             val file = File(filePath)
             val apkUri = FileProvider.getUriForFile(
                 context,

@@ -38,7 +38,8 @@ private const val NO_OUTPUT = "(no output)"
 private const val ERROR_RUNNING_AGENT = "Error running agent: "
 private const val UNKNOWN_ERROR = "Unknown error"
 private const val ACTION_BLOCKED = "Action blocked by permission rules: "
-private val SENSITIVE_COMMANDS = listOf("rm ", "dd ", "mkfs", "mount", "chmod", "chown", "mv ", ">", "|", "reboot", "shutdown", "format", "wipe")
+
+enum class PermissionResult { ALLOWED, ASK, BLOCKED }
 
 class ChatViewModel(
     private val repository: OmniClawRepository,
@@ -110,30 +111,26 @@ class ChatViewModel(
         }
     }
 
-    private suspend fun isCommandAllowed(cmd: String, isSudo: Boolean): Boolean {
+    private suspend fun isCommandAllowed(cmd: String, isSudo: Boolean): PermissionResult {
         val level = AgentPermissionLevel.fromValue(prefsManager.agentPermissionLevel.firstOrNull() ?: "NORMAL")
-        val rules = prefsManager.agentRules.firstOrNull() ?: ""
         return when (level) {
-            AgentPermissionLevel.FULL_ACCESS -> true
-            AgentPermissionLevel.NORMAL -> false
-            AgentPermissionLevel.MID_RULES -> {
-                if (isSudo) return false
-                val lower = cmd.lowercase()
-                !SENSITIVE_COMMANDS.any { lower.contains(it) }
-            }
+            AgentPermissionLevel.FULL_ACCESS -> PermissionResult.ALLOWED
+            AgentPermissionLevel.NORMAL -> PermissionResult.ASK
             AgentPermissionLevel.RULES -> {
-                if (rules.isBlank()) return false
                 val lower = cmd.lowercase()
-                val allowPatterns = rules.lines()
-                    .filter { it.trim().startsWith("can ") || it.trim().startsWith("allow ") }
-                    .map { it.trim().removePrefix("can ").removePrefix("allow ").lowercase() }
-                val denyPatterns = rules.lines()
-                    .filter { it.trim().startsWith("cannot ") || it.trim().startsWith("deny ") }
-                    .map { it.trim().removePrefix("cannot ").removePrefix("deny ").lowercase() }
-                val isDenied = denyPatterns.any { lower.contains(it) }
-                if (isDenied) return false
-                if (allowPatterns.isEmpty()) return false
-                allowPatterns.any { lower.contains(it) }
+                val allowedRules = prefsManager.agentRulesAllowed.firstOrNull() ?: ""
+                val askRules = prefsManager.agentRulesAsk.firstOrNull() ?: ""
+                val deniedRules = prefsManager.agentRulesDenied.firstOrNull() ?: ""
+
+                val allowed = allowedRules.lines().filter { it.isNotBlank() }
+                val ask = askRules.lines().filter { it.isNotBlank() }
+                val denied = deniedRules.lines().filter { it.isNotBlank() }
+
+                if (denied.any { lower.contains(it.lowercase()) }) return PermissionResult.BLOCKED
+                if (ask.any { lower.contains(it.lowercase()) }) return PermissionResult.ASK
+                if (allowed.isEmpty()) return PermissionResult.ASK
+                if (allowed.any { lower.contains(it.lowercase()) }) return PermissionResult.ALLOWED
+                PermissionResult.ASK
             }
         }
     }
@@ -213,7 +210,6 @@ class ChatViewModel(
                 createdAt = System.currentTimeMillis(),
                 updatedAt = System.currentTimeMillis()
             )
-            repository.insertSession(session)
             _currentSession.value = session
             _messages.value = emptyList()
             loadSession(session.id)
@@ -223,6 +219,9 @@ class ChatViewModel(
     fun sendMessage(content: String) {
         val session = _currentSession.value ?: return
         viewModelScope.launch {
+            // Persist session on first message (blank sessions never hit the DB)
+            repository.insertSession(session)
+
             val userMsg = Message(
                 id = UUID.randomUUID().toString(),
                 sessionId = session.id,
@@ -279,7 +278,11 @@ class ChatViewModel(
 
                 try {
                     val escaped = content.replace("\"", "\\\"")
-                    val result = localCommandRunner.executeCommand("echo \"$escaped\" | $runCmd")
+                    // Run wrapper scripts via sh to bypass executable permission issues on Android.
+                    // This works like "sh script.sh" vs "./script.sh" — sh reads the file directly
+                    // without needing the +x permission bit or a filesystem that supports exec.
+                    val safeRunCmd = if (runCmd.startsWith('/')) "sh ${runCmd}" else runCmd
+                    val result = localCommandRunner.executeCommand("echo \"$escaped\" | $safeRunCmd")
                     val modelMsg = Message(
                         id = UUID.randomUUID().toString(),
                         sessionId = session.id,
@@ -400,27 +403,28 @@ class ChatViewModel(
                     } ?: continue
                     val (cmd, isSudo) = pair
 
-                    if (isCommandAllowed(cmd, isSudo)) {
-                        executeCommandAndContinue(cmd, isSudo)
-                        return@launch
-                    }
-
-                    val level = AgentPermissionLevel.fromValue(prefsManager.agentPermissionLevel.firstOrNull() ?: "NORMAL")
-                    if (level == AgentPermissionLevel.RULES) {
-                        val blockMsg = Message(
-                            id = UUID.randomUUID().toString(),
-                            sessionId = loopSessionId,
-                            role = MessageRole.TOOL,
-                            content = "$ACTION_BLOCKED$cmd",
-                            timestamp = System.currentTimeMillis()
-                        )
-                        repository.insertMessage(blockMsg)
-                        loopPromptBuilder.append("TOOL: $ACTION_BLOCKED$cmd\nMODEL: ")
-                    } else {
-                        _pendingCommand.value = PendingCommand(cmd, isSudo)
-                        loopContinueLooping = false
-                        _isLoading.value = false
-                        return@launch
+                    when (isCommandAllowed(cmd, isSudo)) {
+                        PermissionResult.ALLOWED -> {
+                            executeCommandAndContinue(cmd, isSudo)
+                            return@launch
+                        }
+                        PermissionResult.ASK -> {
+                            _pendingCommand.value = PendingCommand(cmd, isSudo)
+                            loopContinueLooping = false
+                            _isLoading.value = false
+                            return@launch
+                        }
+                        PermissionResult.BLOCKED -> {
+                            val blockMsg = Message(
+                                id = UUID.randomUUID().toString(),
+                                sessionId = loopSessionId,
+                                role = MessageRole.TOOL,
+                                content = "$ACTION_BLOCKED$cmd",
+                                timestamp = System.currentTimeMillis()
+                            )
+                            repository.insertMessage(blockMsg)
+                            loopPromptBuilder.append("TOOL: $ACTION_BLOCKED$cmd\nMODEL: ")
+                        }
                     }
                 } else {
                     val modelMsg = Message(

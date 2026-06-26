@@ -51,7 +51,7 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
     }
 
     override val updateManager: UpdateManager by lazy {
-        UpdateManager(context, prefsManager)
+        UpdateManager(context, prefsManager, localCommandRunner)
     }
 
     override val okHttpClient: OkHttpClient by lazy {

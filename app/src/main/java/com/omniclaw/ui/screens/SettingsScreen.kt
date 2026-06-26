@@ -5,12 +5,9 @@ import com.omniclaw.data.local.updater.UpdateState
 import com.omniclaw.data.local.updater.UpdateInfo
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Visibility
-import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -18,16 +15,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.omniclaw.ui.viewmodels.SettingsViewModel
 import com.omniclaw.domain.models.AgentPermissionLevel
 import com.omniclaw.domain.models.Skill
 
-private const val GITHUB_TOKEN_LABEL = "GitHub Token"
 private const val THEME_SYSTEM = "System"
 private const val THEME_DARK = "Dark"
 private const val THEME_LIGHT = "Light"
@@ -45,10 +38,12 @@ private const val MSG_DOWNLOADING = "Downloading... "
 private const val SECTION_PERMISSION = "Agent Permissions"
 private const val PERMISSION_LABEL = "Permission Level"
 private const val RULES_LABEL = "Agent Rules"
-private const val RULES_PLACEHOLDER = "Define what the agent can and cannot do..."
+private const val RULES_ALLOWED_LABEL = "Allowed"
+private const val RULES_ASK_LABEL = "Ask"
+private const val RULES_DENIED_LABEL = "Not Allowed"
+private const val RULES_PLACEHOLDER = "One rule per line..."
 private const val NORMAL_DESC = "Always asks before taking actions"
-private const val RULES_DESC = "Follows defined rules, never asks"
-private const val MID_RULES_DESC = "Asks for sensitive operations only"
+private const val RULES_DESC = "Follows defined rules"
 private const val FULL_ACCESS_DESC = "Never asks, full autonomy"
 private const val SECTION_SKILLS = "Skills"
 private const val EDIT_SKILL = "Edit"
@@ -66,14 +61,11 @@ fun SettingsScreen(
     onNavigateBack: () -> Unit,
     viewModel: SettingsViewModel = viewModel(factory = SettingsViewModel.Factory)
 ) {
-    val geminiApiKey by viewModel.geminiApiKey.collectAsState()
-    val openAiApiKey by viewModel.openAiApiKey.collectAsState()
-    val claudeApiKey by viewModel.claudeApiKey.collectAsState()
-    val openRouterApiKey by viewModel.openRouterApiKey.collectAsState()
-    val githubToken by viewModel.githubToken.collectAsState()
     val themeMode by viewModel.themeMode.collectAsState()
     val agentPermissionLevel by viewModel.agentPermissionLevel.collectAsState()
-    val agentRules by viewModel.agentRules.collectAsState()
+    val agentRulesAllowed by viewModel.agentRulesAllowed.collectAsState()
+    val agentRulesAsk by viewModel.agentRulesAsk.collectAsState()
+    val agentRulesDenied by viewModel.agentRulesDenied.collectAsState()
     val updateState by viewModel.updateState.collectAsState()
     val skills by viewModel.skills.collectAsState()
     val appVersion = viewModel.appVersion
@@ -82,13 +74,8 @@ fun SettingsScreen(
     var editContent by remember { mutableStateOf("") }
     var expandedSkillId by remember { mutableStateOf<String?>(null) }
 
-    var geminiVisible by remember { mutableStateOf(false) }
-    var openAiVisible by remember { mutableStateOf(false) }
-    var claudeVisible by remember { mutableStateOf(false) }
-    var openRouterVisible by remember { mutableStateOf(false) }
-    var githubTokenVisible by remember { mutableStateOf(false) }
-
     Scaffold(
+        containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             TopAppBar(
                 title = { Text(stringResource(R.string.settings), fontWeight = FontWeight.Bold) },
@@ -110,62 +97,6 @@ fun SettingsScreen(
                 .verticalScroll(rememberScrollState())
                 .padding(24.dp),
             verticalArrangement = Arrangement.spacedBy(24.dp)
-        ) {
-            Card(
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-                shape = MaterialTheme.shapes.extraLarge
-            ) {
-                Column(modifier = Modifier.padding(20.dp).fillMaxWidth()) {
-                    Text(stringResource(R.string.ai_provider_config), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        stringResource(R.string.api_key_description),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
-                    ApiKeyField(
-                        value = geminiApiKey,
-                        onValueChange = { viewModel.updateGeminiApiKey(it) },
-                        label = stringResource(R.string.api_key_gemini),
-                        visible = geminiVisible,
-                        onToggleVisibility = { geminiVisible = !geminiVisible }
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
-                    ApiKeyField(
-                        value = openAiApiKey,
-                        onValueChange = { viewModel.updateOpenAiApiKey(it) },
-                        label = stringResource(R.string.api_key_openai),
-                        visible = openAiVisible,
-                        onToggleVisibility = { openAiVisible = !openAiVisible }
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
-                    ApiKeyField(
-                        value = claudeApiKey,
-                        onValueChange = { viewModel.updateClaudeApiKey(it) },
-                        label = stringResource(R.string.api_key_claude),
-                        visible = claudeVisible,
-                        onToggleVisibility = { claudeVisible = !claudeVisible }
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
-                    ApiKeyField(
-                        value = openRouterApiKey,
-                        onValueChange = { viewModel.updateOpenRouterApiKey(it) },
-                        label = stringResource(R.string.api_key_openrouter),
-                        visible = openRouterVisible,
-                        onToggleVisibility = { openRouterVisible = !openRouterVisible }
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
-                    ApiKeyField(
-                        value = githubToken,
-                        onValueChange = { viewModel.updateGithubToken(it) },
-                        label = GITHUB_TOKEN_LABEL,
-                        visible = githubTokenVisible,
-                        onToggleVisibility = { githubTokenVisible = !githubTokenVisible }
-                    )
-                }
-            }
-
             Card(
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
                 shape = MaterialTheme.shapes.extraLarge
@@ -251,7 +182,6 @@ fun SettingsScreen(
                     val desc = when (currentLevel) {
                         AgentPermissionLevel.NORMAL -> NORMAL_DESC
                         AgentPermissionLevel.RULES -> RULES_DESC
-                        AgentPermissionLevel.MID_RULES -> MID_RULES_DESC
                         AgentPermissionLevel.FULL_ACCESS -> FULL_ACCESS_DESC
                     }
                     Text(desc, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -259,13 +189,33 @@ fun SettingsScreen(
                     if (currentLevel == AgentPermissionLevel.RULES) {
                         Spacer(modifier = Modifier.height(16.dp))
                         OutlinedTextField(
-                            value = agentRules,
-                            onValueChange = { viewModel.updateAgentRules(it) },
-                            label = { Text(RULES_LABEL) },
+                            value = agentRulesAllowed,
+                            onValueChange = { viewModel.updateAgentRulesAllowed(it) },
+                            label = { Text(RULES_ALLOWED_LABEL) },
                             placeholder = { Text(RULES_PLACEHOLDER) },
-                            modifier = Modifier.fillMaxWidth().heightIn(min = 120.dp),
+                            modifier = Modifier.fillMaxWidth().heightIn(min = 100.dp),
                             shape = MaterialTheme.shapes.medium,
-                            maxLines = 8
+                            maxLines = 6
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                        OutlinedTextField(
+                            value = agentRulesAsk,
+                            onValueChange = { viewModel.updateAgentRulesAsk(it) },
+                            label = { Text(RULES_ASK_LABEL) },
+                            placeholder = { Text(RULES_PLACEHOLDER) },
+                            modifier = Modifier.fillMaxWidth().heightIn(min = 100.dp),
+                            shape = MaterialTheme.shapes.medium,
+                            maxLines = 6
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                        OutlinedTextField(
+                            value = agentRulesDenied,
+                            onValueChange = { viewModel.updateAgentRulesDenied(it) },
+                            label = { Text(RULES_DENIED_LABEL) },
+                            placeholder = { Text(RULES_PLACEHOLDER) },
+                            modifier = Modifier.fillMaxWidth().heightIn(min = 100.dp),
+                            shape = MaterialTheme.shapes.medium,
+                            maxLines = 6
                         )
                     }
                 }
@@ -455,34 +405,6 @@ fun SettingsScreen(
             )
         }
     }
-}
-
-@Composable
-private fun ApiKeyField(
-    value: String,
-    onValueChange: (String) -> Unit,
-    label: String,
-    visible: Boolean,
-    onToggleVisibility: () -> Unit
-) {
-    OutlinedTextField(
-        value = value,
-        onValueChange = onValueChange,
-        label = { Text(label) },
-        modifier = Modifier.fillMaxWidth(),
-        singleLine = true,
-        shape = MaterialTheme.shapes.medium,
-        visualTransformation = if (visible) VisualTransformation.None else PasswordVisualTransformation(),
-        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-        trailingIcon = {
-            IconButton(onClick = onToggleVisibility) {
-                Icon(
-                    imageVector = if (visible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
-                    contentDescription = if (visible) stringResource(R.string.hide) else stringResource(R.string.show)
-                )
-            }
-        }
-    )
 }
 
 @Composable
