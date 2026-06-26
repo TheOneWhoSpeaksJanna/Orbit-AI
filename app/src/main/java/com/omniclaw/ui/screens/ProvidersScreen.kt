@@ -47,6 +47,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -285,7 +286,7 @@ private fun ProviderHealthCard(
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    imageVector = providerIcon(provider.name),
+                    painter = providerIcon(provider.name),
                     contentDescription = null,
                     modifier = Modifier.size(24.dp),
                     tint = providerAccent(provider.name)
@@ -373,7 +374,8 @@ private fun ProviderHealthCard(
 private fun providerAccent(name: String): Color =
     PROVIDER_COLORS[name] ?: OmniClawAccent
 
-private fun providerIcon(name: String): ImageVector = when (name) {
+private fun providerIcon(name: String): Painter
+    @Composable get() = when (name) {
     "Claude" -> BrandIcons.Claude
     "OpenAI" -> BrandIcons.OpenAI
     "Gemini" -> BrandIcons.Gemini
