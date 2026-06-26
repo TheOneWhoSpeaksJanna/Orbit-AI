@@ -37,8 +37,6 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.omniclaw.ui.theme.OmniClawAccent
 import com.omniclaw.ui.theme.OmniClawAccentSecondary
 import com.omniclaw.ui.theme.OmniClawGlassOverlay
-import com.omniclaw.ui.theme.OmniClawObsidianBase
-import com.omniclaw.ui.theme.OmniClawSuccess
 import com.omniclaw.ui.theme.OmniClawTextPrimary
 import com.omniclaw.ui.theme.OmniClawTextSecondary
 import com.omniclaw.ui.theme.OmniClawTextTertiary
@@ -64,7 +62,7 @@ fun SkillsScreen(
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
-            .background(OmniClawObsidianBase)
+            .background(MaterialTheme.colorScheme.background)
             .padding(horizontal = 20.dp, vertical = 16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {

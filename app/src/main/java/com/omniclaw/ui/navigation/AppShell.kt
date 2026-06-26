@@ -25,6 +25,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.activity.compose.BackHandler
+import android.app.Activity
+import androidx.compose.ui.platform.LocalContext
 import com.omniclaw.ui.screens.DashboardScreen
 import com.omniclaw.ui.screens.ChatScreen
 import com.omniclaw.ui.screens.HistoryScreen
@@ -48,9 +50,14 @@ fun AppShell() {
     var selectedTab by remember { mutableStateOf(BottomNavTab.HOME) }
     var targetSessionId by remember { mutableStateOf<String?>(null) }
     var showTermux by remember { mutableStateOf(false) }
+    val context = LocalContext.current
 
-    BackHandler(enabled = selectedTab != BottomNavTab.HOME) {
-        selectedTab = BottomNavTab.HOME
+    BackHandler(enabled = true) {
+        if (selectedTab == BottomNavTab.HOME) {
+            (context as? Activity)?.finish()
+        } else {
+            selectedTab = BottomNavTab.HOME
+        }
     }
 
     Scaffold(
