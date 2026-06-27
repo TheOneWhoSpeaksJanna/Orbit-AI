@@ -7,7 +7,6 @@ import com.omniclaw.data.api.tools.ExecuteCommandTool
 import com.omniclaw.data.api.tools.SudoCommandTool
 import com.omniclaw.data.api.tools.ToolRegistry
 import com.omniclaw.data.local.OmniClawDatabase
-import com.omniclaw.data.local.updater.UpdateManager
 import com.omniclaw.data.local.prefs.PreferencesManager
 import com.omniclaw.data.local.runner.LocalCommandRunner
 import com.omniclaw.data.repository.OmniClawRepositoryImpl
@@ -23,7 +22,6 @@ import java.util.concurrent.TimeUnit
 interface AppContainer {
     val repository: OmniClawRepository
     val prefsManager: PreferencesManager
-    val updateManager: UpdateManager
     val aiProvider: AiProvider
     val toolRegistry: ToolRegistry
     val localCommandRunner: LocalCommandRunner
@@ -48,10 +46,6 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
 
     override val prefsManager: PreferencesManager by lazy {
         PreferencesManager(context)
-    }
-
-    override val updateManager: UpdateManager by lazy {
-        UpdateManager(context, prefsManager, localCommandRunner)
     }
 
     override val okHttpClient: OkHttpClient by lazy {

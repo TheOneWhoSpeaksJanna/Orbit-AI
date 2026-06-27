@@ -18,3 +18,4 @@ local.properties
 debug.keystore
 aapt2-arm64
 .opencode/
+orbit-ai-apks-*/

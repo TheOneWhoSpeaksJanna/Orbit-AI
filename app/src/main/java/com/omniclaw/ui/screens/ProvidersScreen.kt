@@ -98,8 +98,7 @@ private val PROVIDER_COLORS = mapOf(
     "OpenRouter" to Color(0xFFFF6B35),
     "DeepSeek" to Color(0xFF4F6CF7),
     "Groq" to Color(0xFFF97316),
-    "Ollama" to Color(0xFF8B5CF6),
-    "GitHub" to Color(0xFF24292F)
+    "Ollama" to Color(0xFF8B5CF6)
 )
 
 @Composable
@@ -383,7 +382,7 @@ private fun providerIcon(name: String): Painter = when (name) {
     "DeepSeek" -> BrandIcons.DeepSeek
     "Groq" -> BrandIcons.Groq
     "Ollama" -> BrandIcons.Ollama
-    "GitHub" -> BrandIcons.GitHub
+
     else -> BrandIcons.OpenRouter
 }
 

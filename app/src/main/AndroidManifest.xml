@@ -52,10 +52,6 @@
             android:multiprocess="false"
             android:permission="android.permission.INTERNET" />
 
-        <service
-            android:name=".service.DownloadForegroundService"
-            android:foregroundServiceType="dataSync"
-            android:exported="false" />
     </application>
 
 </manifest>

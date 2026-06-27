@@ -37,7 +37,6 @@ class PreferencesManager(private val context: Context) {
         val OPENAI_API_KEY = stringPreferencesKey("openai_api_key")
         val CLAUDE_API_KEY = stringPreferencesKey("claude_api_key")
         val OPENROUTER_API_KEY = stringPreferencesKey("openrouter_api_key")
-        val GITHUB_TOKEN = stringPreferencesKey("github_token")
 
         val DOWNLOAD_URL = stringPreferencesKey("download_url")
         val DOWNLOAD_FILE = stringPreferencesKey("download_file")
@@ -48,7 +47,6 @@ class PreferencesManager(private val context: Context) {
         private const val PROVIDER_OPENAI = "openai"
         private const val PROVIDER_CLAUDE = "claude"
         private const val PROVIDER_OPENROUTER = "openrouter"
-        private const val PROVIDER_GITHUB = "github"
     }
 
     val themeMode: Flow<String?> = context.dataStore.data.map { prefs ->
@@ -107,17 +105,12 @@ class PreferencesManager(private val context: Context) {
         prefs[OPENROUTER_API_KEY]
     }
 
-    val githubToken: Flow<String?> = context.dataStore.data.map { prefs ->
-        prefs[GITHUB_TOKEN]
-    }
-
     fun getApiKeyForProvider(provider: String): Flow<String?> {
         return when (provider.lowercase()) {
             PROVIDER_GEMINI -> geminiApiKey
             PROVIDER_OPENAI -> openAiApiKey
             PROVIDER_CLAUDE -> claudeApiKey
             PROVIDER_OPENROUTER -> openRouterApiKey
-            PROVIDER_GITHUB -> githubToken
             else -> geminiApiKey
         }
     }
@@ -178,17 +171,12 @@ class PreferencesManager(private val context: Context) {
         context.dataStore.edit { prefs -> prefs[OPENROUTER_API_KEY] = key }
     }
 
-    suspend fun setGithubToken(token: String) {
-        context.dataStore.edit { prefs -> prefs[GITHUB_TOKEN] = token }
-    }
-
     suspend fun setApiKeyForProvider(provider: String, key: String) {
         when (provider.lowercase()) {
             PROVIDER_GEMINI -> setGeminiApiKey(key)
             PROVIDER_OPENAI -> setOpenAiApiKey(key)
             PROVIDER_CLAUDE -> setClaudeApiKey(key)
             PROVIDER_OPENROUTER -> setOpenRouterApiKey(key)
-            PROVIDER_GITHUB -> setGithubToken(key)
             else -> setGeminiApiKey(key)
         }
     }

@@ -24,6 +24,4 @@ object BrandIcons {
         @Composable get() = painterResource(R.drawable.ic_groq)
     val Ollama: Painter
         @Composable get() = painterResource(R.drawable.ic_ollama)
-    val GitHub: Painter
-        @Composable get() = painterResource(R.drawable.ic_github)
 }
