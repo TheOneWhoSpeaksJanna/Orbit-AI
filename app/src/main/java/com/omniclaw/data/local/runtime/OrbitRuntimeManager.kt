@@ -19,6 +19,11 @@ class OmniClawRuntimeManager(val context: Context) {
     val logsDir = File(runtimeDir, "logs")
     val environmentsDir = File(runtimeDir, "environments")
 
+    // Caches whether busybox is actually executable.
+    // canExecute() can return true on some Android versions but runtime execution
+    // still fails with EACCES. We verify once and cache the result.
+    private var busyboxVerified: Boolean? = null
+
     init {
         listOf(runtimeDir, binDir, tmpDir, packagesDir, downloadsDir, agentsDir, logsDir, environmentsDir).forEach {
             it.mkdirs()
@@ -30,10 +35,34 @@ class OmniClawRuntimeManager(val context: Context) {
         return arrayOf("PATH=${binDir.absolutePath}:$existingPath")
     }
 
-    /** Full path to the BusyBox binary, or null if not installed. */
+    /** Full path to the BusyBox binary, or null if not installed or not executable. */
     fun busyBoxPath(): String? {
         val f = File(binDir, BUSYBOX_BINARY)
-        return if (f.exists() && f.canExecute()) f.absolutePath else null
+        if (!f.exists()) return null
+
+        // Use cached result if available
+        if (busyboxVerified != null) {
+            return if (busyboxVerified!!) f.absolutePath else null
+        }
+
+        // canExecute() can be unreliable on some Android kernels (returns true but
+        // ProcessBuilder still gets EACCES). Verify with an actual execution.
+        if (!f.canExecute()) {
+            busyboxVerified = false
+            return null
+        }
+
+        return try {
+            val p = Runtime.getRuntime().exec(arrayOf(f.absolutePath, "true"))
+            p.waitFor()
+            busyboxVerified = true
+            Log.i(TAG, "BusyBox verified at ${f.absolutePath}")
+            f.absolutePath
+        } catch (e: Exception) {
+            Log.w(TAG, "BusyBox at ${f.absolutePath} exists but cannot be executed: ${e.message}")
+            busyboxVerified = false
+            null
+        }
     }
 
     /**
@@ -53,10 +82,14 @@ class OmniClawRuntimeManager(val context: Context) {
     suspend fun installBusyBox(): Boolean = withContext(Dispatchers.IO) {
         val busyboxFile = File(binDir, BUSYBOX_BINARY)
 
-        // Already installed — fast path
-        if (busyboxFile.exists() && busyboxFile.canExecute()) {
+        // Already installed and verified — fast path
+        if (busyboxVerified == true && busyboxFile.exists()) {
             return@withContext true
         }
+
+        // If canExecute() says true but we previously verified it as false,
+        // invalidate the cache so we re-extract and re-test.
+        busyboxVerified = null
 
         try {
             // Extract BusyBox binary from APK assets
