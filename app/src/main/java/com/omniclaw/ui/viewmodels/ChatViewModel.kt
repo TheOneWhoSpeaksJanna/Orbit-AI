@@ -253,13 +253,15 @@ class ChatViewModel(
                     runCmd = activeAgentId
                 }
 
-                // Runtime safety net: ensure the agent wrapper exists and uses
-                // the ABSOLUTE PATH to the node binary (not `exec node` which
-                // would find a wrapper script that can't be exec'd on Android 10+).
+                // Runtime safety net: if the agent wrapper is missing, try to
+                // recreate it with the same resilient runtime-searching pattern
+                // used in SetupViewModel. If the agent CODE is also missing,
+                // show a clear error instead of "No such file or directory".
                 runCmd?.let { cmd ->
                     val cmdFile = File(cmd)
                     if (!cmdFile.exists()) {
-                        // Wrapper script missing (e.g. after APK update) — recreate from agent code
+                        com.omniclaw.core.logging.FileLogger.w("ChatViewModel",
+                            "Agent wrapper missing at ${cmdFile.absolutePath} — attempting to recreate")
                         val agentDir = File(cmdFile.parentFile?.parentFile, "agents/${cmdFile.name}")
                         if (agentDir.exists()) {
                             try {
@@ -267,33 +269,49 @@ class ChatViewModel(
                                     .firstOrNull { File(agentDir, it).exists() } ?: "index.js"
                                 cmdFile.parentFile?.mkdirs()
                                 val binDirPath = cmdFile.parentFile?.absolutePath ?: ""
-                                // Find the actual node binary — we need it for the wrapper.
-                                // ChatViewModel doesn't have runtimeManager, so we look in
-                                // the standard location relative to binDir.
-                                val packagesDir = File(binDirPath).parentFile?.let { File(it, "packages") }
-                                val nodeBinary = listOf(
-                                    File(packagesDir, "nodejs/usr/bin/node"),
-                                    File(packagesDir, "node/bin/node")
-                                ).firstOrNull { it.exists() && it.canExecute() }
-                                val nodeLibDir = File(packagesDir, "nodejs/usr/lib").let {
-                                    if (it.isDirectory) it.absolutePath else null
-                                }
-                                val ldLine = if (nodeLibDir != null) {
-                                    "export LD_LIBRARY_PATH=\"$nodeLibDir:\$LD_LIBRARY_PATH\"\n"
-                                } else ""
-                                if (nodeBinary != null) {
-                                    cmdFile.writeText(
-                                        "#!$SYSTEM_SH\n${ldLine}export PATH=\"$binDirPath:\$PATH\"\nexec \"${nodeBinary.absolutePath}\" ${agentDir.absolutePath}/${entryPoint} \"\$@\"\n"
-                                    )
-                                } else {
-                                    // Fallback: use `exec node` (will fail if node wrapper script
-                                    // can't be exec'd, but at least the wrapper is created)
-                                    cmdFile.writeText(
-                                        "#!$SYSTEM_SH\n${ldLine}export PATH=\"$binDirPath:\$PATH\"\nexec node ${agentDir.absolutePath}/${entryPoint} \"\$@\"\n"
-                                    )
-                                }
+                                val runtimeDirPath = cmdFile.parentFile?.parentFile?.absolutePath ?: ""
+                                val packagesDirPath = "$runtimeDirPath/packages"
+
+                                // Create a resilient wrapper that searches for node at runtime
+                                cmdFile.writeText("""
+#!$SYSTEM_SH
+# Orbit-AI agent wrapper (recreated by ChatViewModel safety net)
+# Searches for node at runtime.
+AGENT_ENTRY="${agentDir.absolutePath}/${entryPoint}"
+
+NODE=""
+for candidate in \
+    "$packagesDirPath/nodejs/usr/bin/node" \
+    "$packagesDirPath/node/bin/node" \
+    "$${'$'}(command -v node 2>/dev/null)"; do
+    if [ -x "$${'$'}candidate" ]; then
+        NODE="$${'$'}candidate"
+        break
+    fi
+done
+
+if [ -z "$${'$'}NODE" ]; then
+    echo "ERROR: Node.js binary not found. Run: omniclaw-pkg install nodejs" >&2
+    exit 1
+fi
+
+NODE_LIB_DIR="$packagesDirPath/nodejs/usr/lib"
+if [ -d "$${'$'}NODE_LIB_DIR" ]; then
+    export LD_LIBRARY_PATH="$${'$'}NODE_LIB_DIR:$${'$'}LD_LIBRARY_PATH"
+fi
+export PATH="$binDirPath:$${'$'}PATH"
+exec "$${'$'}NODE" "$${'$'}AGENT_ENTRY" "$${'$'}@"
+""".trimIndent())
                                 cmdFile.setExecutable(true)
-                            } catch (_: Exception) { /* best effort */ }
+                                com.omniclaw.core.logging.FileLogger.i("ChatViewModel",
+                                    "Agent wrapper recreated at ${cmdFile.absolutePath}")
+                            } catch (e: Exception) {
+                                com.omniclaw.core.logging.FileLogger.e("ChatViewModel",
+                                    "Failed to recreate wrapper: ${e.message}", e)
+                            }
+                        } else {
+                            com.omniclaw.core.logging.FileLogger.e("ChatViewModel",
+                                "Agent code directory not found: ${agentDir.absolutePath} — agent was never installed properly")
                         }
                     } else if (cmdFile.isFile && !cmdFile.canExecute()) {
                         try {
