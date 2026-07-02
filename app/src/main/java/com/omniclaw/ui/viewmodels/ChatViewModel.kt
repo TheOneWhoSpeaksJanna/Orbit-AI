@@ -253,7 +253,9 @@ class ChatViewModel(
                     runCmd = activeAgentId
                 }
 
-                // Runtime safety net: ensure the agent binary exists and is executable
+                // Runtime safety net: ensure the agent wrapper exists and uses
+                // the ABSOLUTE PATH to the node binary (not `exec node` which
+                // would find a wrapper script that can't be exec'd on Android 10+).
                 runCmd?.let { cmd ->
                     val cmdFile = File(cmd)
                     if (!cmdFile.exists()) {
@@ -264,13 +266,32 @@ class ChatViewModel(
                                 val entryPoint = listOf("dist/index.js", "index.js", "main.js")
                                     .firstOrNull { File(agentDir, it).exists() } ?: "index.js"
                                 cmdFile.parentFile?.mkdirs()
-                                // Explicitly export PATH so the wrapper finds `node`
-                                // even when invoked without our runtime PATH inherited.
-                                // cmdFile.parentFile IS the binDir (orbit_runtime/bin/).
                                 val binDirPath = cmdFile.parentFile?.absolutePath ?: ""
-                                cmdFile.writeText(
-                                    "#!$SYSTEM_SH\nexport PATH=\"$binDirPath:\$PATH\"\nexec node ${agentDir.absolutePath}/${entryPoint} \"\$@\"\n"
-                                )
+                                // Find the actual node binary — we need it for the wrapper.
+                                // ChatViewModel doesn't have runtimeManager, so we look in
+                                // the standard location relative to binDir.
+                                val packagesDir = File(binDirPath).parentFile?.let { File(it, "packages") }
+                                val nodeBinary = listOf(
+                                    File(packagesDir, "nodejs/usr/bin/node"),
+                                    File(packagesDir, "node/bin/node")
+                                ).firstOrNull { it.exists() && it.canExecute() }
+                                val nodeLibDir = File(packagesDir, "nodejs/usr/lib").let {
+                                    if (it.isDirectory) it.absolutePath else null
+                                }
+                                val ldLine = if (nodeLibDir != null) {
+                                    "export LD_LIBRARY_PATH=\"$nodeLibDir:\$LD_LIBRARY_PATH\"\n"
+                                } else ""
+                                if (nodeBinary != null) {
+                                    cmdFile.writeText(
+                                        "#!$SYSTEM_SH\n${ldLine}export PATH=\"$binDirPath:\$PATH\"\nexec \"${nodeBinary.absolutePath}\" ${agentDir.absolutePath}/${entryPoint} \"\$@\"\n"
+                                    )
+                                } else {
+                                    // Fallback: use `exec node` (will fail if node wrapper script
+                                    // can't be exec'd, but at least the wrapper is created)
+                                    cmdFile.writeText(
+                                        "#!$SYSTEM_SH\n${ldLine}export PATH=\"$binDirPath:\$PATH\"\nexec node ${agentDir.absolutePath}/${entryPoint} \"\$@\"\n"
+                                    )
+                                }
                                 cmdFile.setExecutable(true)
                             } catch (_: Exception) { /* best effort */ }
                         }
@@ -278,7 +299,6 @@ class ChatViewModel(
                         try {
                             cmdFile.setExecutable(true)
                             if (!cmdFile.canExecute()) {
-                                // LocalCommandRunner has binDir in PATH so BusyBox chmod resolves
                                 localCommandRunner.executeCommand("chmod +x " + cmdFile.absolutePath)
                             }
                         } catch (_: Exception) { /* best effort */ }
@@ -299,7 +319,11 @@ class ChatViewModel(
                     // This works like "sh script.sh" vs "./script.sh" — sh reads the file directly
                     // without needing the +x permission bit or a filesystem that supports exec.
                     val safeRunCmd = if (runCmd.startsWith('/')) "sh ${runCmd}" else runCmd
+                    com.omniclaw.core.logging.FileLogger.i("ChatViewModel",
+                        "Running agent: runCmd=$runCmd, safeRunCmd=$safeRunCmd, content=${content.take(100)}")
                     val result = localCommandRunner.executeCommand("echo \"$escaped\" | $safeRunCmd")
+                    com.omniclaw.core.logging.FileLogger.i("ChatViewModel",
+                        "Agent result: exit=${result.exitCode}, output=${result.output.take(200)}")
                     val modelMsg = Message(
                         id = UUID.randomUUID().toString(),
                         sessionId = session.id,
@@ -309,6 +333,8 @@ class ChatViewModel(
                     )
                     repository.insertMessage(modelMsg)
                 } catch (e: Exception) {
+                    com.omniclaw.core.logging.FileLogger.e("ChatViewModel",
+                        "Agent execution exception: ${e.message}", e)
                     val errMsg = Message(
                         id = UUID.randomUUID().toString(),
                         sessionId = session.id,
