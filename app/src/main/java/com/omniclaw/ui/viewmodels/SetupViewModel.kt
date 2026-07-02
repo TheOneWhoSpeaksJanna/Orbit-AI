@@ -11,6 +11,7 @@ import com.omniclaw.OmniClawApplication
 import com.omniclaw.R
 import com.omniclaw.core.config.ApiConfig
 import com.omniclaw.core.config.FlavorConfig
+import com.omniclaw.core.logging.FileLogger
 import com.omniclaw.data.local.prefs.PreferencesManager
 import com.omniclaw.data.local.runner.LocalCommandRunner
 import com.omniclaw.data.local.runtime.OmniClawRuntimeManager
@@ -459,20 +460,38 @@ class SetupViewModel(
 
                     val entryPoint = DIST_CANDIDATES.firstOrNull { File(targetDir, it).exists() } ?: "index.js"
 
-                    // IMPORTANT: explicitly export PATH so the wrapper works even
-                    // when invoked from a context that didn't inherit our runtime
-                    // PATH (e.g. shelled out from another app). Without this, the
-                    // `exec node` below fails with "node: inaccessible or not found"
-                    // because the system PATH doesn't include orbit_runtime/bin/.
+                    // CRITICAL: Use the ABSOLUTE PATH to the node BINARY, not `exec node`.
+                    //
+                    // On Android 10+, shell SCRIPTS in app-private storage CANNOT be
+                    // exec'd (W^X enforcement). If we do `exec node`, the shell looks
+                    // up `node` in PATH, finds `bin/node` (which is a wrapper SCRIPT
+                    // created by PackageInstaller), and tries to exec it → EACCES →
+                    // "node: inaccessible or not found".
+                    //
+                    // Instead, we use the absolute path to the real node BINARY at
+                    // packages/nodejs/usr/bin/node. Real binaries CAN be exec'd.
+                    // We also set LD_LIBRARY_PATH so node can find its shared libs.
+                    val nodeBinaryPath = runtimeManager.findNodeBinary()
+                    val nodeLibDir = runtimeManager.findNodeLibDir()
+                    if (nodeBinaryPath == null) {
+                        throw IllegalStateException(
+                            "Node.js binary not found. Install the 'nodejs' package first. " +
+                            "Looked in: ${runtimeManager.packagesDir.absolutePath}/nodejs/usr/bin/"
+                        )
+                    }
+                    val ldLibLine = if (nodeLibDir != null) {
+                        "export LD_LIBRARY_PATH=\"$nodeLibDir:\${'$'}LD_LIBRARY_PATH\"\n"
+                    } else ""
                     val wrapperScript = """
                         #!${SYSTEM_SH}
-                        export PATH="${runtimeManager.binDir.absolutePath}:${'$'}PATH"
-                        exec node ${targetDir.absolutePath}/${entryPoint} "${'$'}@"
+                        ${ldLibLine}export PATH="${runtimeManager.binDir.absolutePath}:${'$'}PATH"
+                        exec "$nodeBinaryPath" ${targetDir.absolutePath}/${entryPoint} "${'$'}@"
                     """.trimIndent()
 
                     withContext(Dispatchers.IO) {
                         wrapperFile.parentFile?.mkdirs()
                         wrapperFile.writeText(wrapperScript)
+                        FileLogger.i("SetupViewModel", "Agent wrapper written to ${wrapperFile.absolutePath}:\n$wrapperScript")
                         makeExecutable(wrapperFile)
                     }
                 }
@@ -525,16 +544,31 @@ class SetupViewModel(
 
             val entryPoint = DIST_CANDIDATES.firstOrNull { File(targetDir, it).exists() }
             if (entryPoint == null) {
-                // No entry point found; clean up and fall back to download
+                FileLogger.w("SetupViewModel", "tryInstallFromAssets: no entry point found in ${targetDir.absolutePath}")
                 targetDir.deleteRecursively()
                 return false
             }
 
+            // Same fix as the download path: use absolute node binary path
+            // instead of `exec node` (which would find a wrapper script that
+            // can't be exec'd on Android 10+).
+            val nodeBinaryPath = runtimeManager.findNodeBinary()
+            val nodeLibDir = runtimeManager.findNodeLibDir()
+            if (nodeBinaryPath == null) {
+                FileLogger.e("SetupViewModel", "tryInstallFromAssets: node binary not found — cannot create wrapper")
+                targetDir.deleteRecursively()
+                return false
+            }
+            val ldLibLine = if (nodeLibDir != null) {
+                "export LD_LIBRARY_PATH=\"$nodeLibDir:\${'$'}LD_LIBRARY_PATH\"\n"
+            } else ""
             val wrapperScript = """
                 #!${SYSTEM_SH}
-                export PATH="${runtimeManager.binDir.absolutePath}:${'$'}PATH"
-                exec node ${targetDir.absolutePath}/${entryPoint} "${'$'}@"
+                ${ldLibLine}export PATH="${runtimeManager.binDir.absolutePath}:${'$'}PATH"
+                exec "$nodeBinaryPath" ${targetDir.absolutePath}/${entryPoint} "${'$'}@"
             """.trimIndent()
+
+            FileLogger.i("SetupViewModel", "tryInstallFromAssets: wrapper written:\n$wrapperScript")
 
             wrapperFile.parentFile?.mkdirs()
             wrapperFile.writeText(wrapperScript)
@@ -561,12 +595,33 @@ class SetupViewModel(
      * the wrapper script. Skips if already available.
      */
     private suspend fun ensureNodeJs() {
+        FileLogger.i("SetupViewModel", "ensureNodeJs: checking if node is available...")
         try {
-            val check = localCommandRunner.executeCommand("command -v node")
-            if (check.exitCode != 0 || check.output.isBlank()) {
-                packageInstaller.installPackage("nodejs") { _, _ -> }
+            // First check if the node binary exists directly (more reliable than
+            // `command -v` which depends on PATH being set correctly).
+            val existingNode = runtimeManager.findNodeBinary()
+            if (existingNode != null) {
+                FileLogger.i("SetupViewModel", "ensureNodeJs: node already installed at $existingNode")
+                return
             }
-        } catch (_: Exception) { /* best effort */ }
+            // Fall back to PATH check
+            val check = localCommandRunner.executeCommand("command -v node")
+            if (check.exitCode == 0 && check.output.isNotBlank()) {
+                FileLogger.i("SetupViewModel", "ensureNodeJs: node found via PATH: ${check.output}")
+                return
+            }
+            FileLogger.i("SetupViewModel", "ensureNodeJs: node not found, installing nodejs package...")
+            val success = packageInstaller.installPackage("nodejs") { progress, status ->
+                FileLogger.d("SetupViewModel", "ensureNodeJs install progress: $progress — $status")
+            }
+            if (success) {
+                FileLogger.i("SetupViewModel", "ensureNodeJs: nodejs package installed successfully")
+            } else {
+                FileLogger.e("SetupViewModel", "ensureNodeJs: nodejs package installation FAILED — agent execution will not work")
+            }
+        } catch (e: Exception) {
+            FileLogger.e("SetupViewModel", "ensureNodeJs exception: ${e.message}", e)
+        }
     }
 
     /**
