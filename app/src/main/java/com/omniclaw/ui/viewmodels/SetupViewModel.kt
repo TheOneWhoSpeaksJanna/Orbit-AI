@@ -460,32 +460,62 @@ class SetupViewModel(
 
                     val entryPoint = DIST_CANDIDATES.firstOrNull { File(targetDir, it).exists() } ?: "index.js"
 
-                    // CRITICAL: Use the ABSOLUTE PATH to the node BINARY, not `exec node`.
+                    // CRITICAL: Create a RESILIENT wrapper that searches for node at RUNTIME.
                     //
-                    // On Android 10+, shell SCRIPTS in app-private storage CANNOT be
-                    // exec'd (W^X enforcement). If we do `exec node`, the shell looks
-                    // up `node` in PATH, finds `bin/node` (which is a wrapper SCRIPT
-                    // created by PackageInstaller), and tries to exec it → EACCES →
-                    // "node: inaccessible or not found".
+                    // Previous versions hardcoded the node binary path at wrapper creation
+                    // time — but if node wasn't installed yet (e.g. ensureNodeJs failed
+                    // due to a 404), the wrapper was never created, and the user got
+                    // "No such file or directory" when trying to use the agent.
                     //
-                    // Instead, we use the absolute path to the real node BINARY at
-                    // packages/nodejs/usr/bin/node. Real binaries CAN be exec'd.
-                    // We also set LD_LIBRARY_PATH so node can find its shared libs.
-                    val nodeBinaryPath = runtimeManager.findNodeBinary()
-                    val nodeLibDir = runtimeManager.findNodeLibDir()
-                    if (nodeBinaryPath == null) {
-                        throw IllegalStateException(
-                            "Node.js binary not found. Install the 'nodejs' package first. " +
-                            "Looked in: ${runtimeManager.packagesDir.absolutePath}/nodejs/usr/bin/"
-                        )
-                    }
-                    val ldLibLine = if (nodeLibDir != null) {
-                        "export LD_LIBRARY_PATH=\"$nodeLibDir:\${'$'}LD_LIBRARY_PATH\"\n"
-                    } else ""
+                    // This wrapper searches for node in multiple locations at RUNTIME,
+                    // so it works even if node is installed AFTER the wrapper is created.
+                    // The wrapper is always created — no exceptions.
+                    val runtimeDirPath = runtimeManager.runtimeDir.absolutePath
+                    val packagesDirPath = runtimeManager.packagesDir.absolutePath
+                    val binDirPath = runtimeManager.binDir.absolutePath
                     val wrapperScript = """
-                        #!${SYSTEM_SH}
-                        ${ldLibLine}export PATH="${runtimeManager.binDir.absolutePath}:${'$'}PATH"
-                        exec "$nodeBinaryPath" ${targetDir.absolutePath}/${entryPoint} "${'$'}@"
+#!${SYSTEM_SH}
+# Orbit-AI agent wrapper for $agentName
+# Auto-generated — searches for node at runtime so it works even if
+# nodejs is installed AFTER this wrapper was created.
+RUNTIME_DIR="$runtimeDirPath"
+AGENT_ENTRY="${targetDir.absolutePath}/${entryPoint}"
+
+# Search for the node binary in priority order
+NODE=""
+for candidate in \
+    "$packagesDirPath/nodejs/usr/bin/node" \
+    "$packagesDirPath/node/bin/node" \
+    "$packagesDirPath/nodejs/bin/node" \
+    "$${'$'}(command -v node 2>/dev/null)" \
+    "/system/bin/node"; do
+    if [ -x "$${'$'}candidate" ]; then
+        NODE="$${'$'}candidate"
+        break
+    fi
+done
+
+if [ -z "$${'$'}NODE" ]; then
+    echo "ERROR: Node.js binary not found." >&2
+    echo "Install it by running: omniclaw-pkg install nodejs" >&2
+    echo "Searched in:" >&2
+    echo "  $packagesDirPath/nodejs/usr/bin/node" >&2
+    echo "  $packagesDirPath/node/bin/node" >&2
+    echo "  PATH (command -v node)" >&2
+    exit 1
+fi
+
+# Set LD_LIBRARY_PATH so node finds its shared libs
+NODE_LIB_DIR="$packagesDirPath/nodejs/usr/lib"
+if [ -d "$${'$'}NODE_LIB_DIR" ]; then
+    export LD_LIBRARY_PATH="$${'$'}NODE_LIB_DIR:$${'$'}LD_LIBRARY_PATH"
+fi
+
+export PATH="$binDirPath:$${'$'}PATH"
+export HOME="$runtimeDirPath"
+export TMPDIR="$runtimeDirPath/tmp"
+
+exec "$${'$'}NODE" "$${'$'}AGENT_ENTRY" "$${'$'}@"
                     """.trimIndent()
 
                     withContext(Dispatchers.IO) {
@@ -549,23 +579,47 @@ class SetupViewModel(
                 return false
             }
 
-            // Same fix as the download path: use absolute node binary path
-            // instead of `exec node` (which would find a wrapper script that
-            // can't be exec'd on Android 10+).
-            val nodeBinaryPath = runtimeManager.findNodeBinary()
-            val nodeLibDir = runtimeManager.findNodeLibDir()
-            if (nodeBinaryPath == null) {
-                FileLogger.e("SetupViewModel", "tryInstallFromAssets: node binary not found — cannot create wrapper")
-                targetDir.deleteRecursively()
-                return false
-            }
-            val ldLibLine = if (nodeLibDir != null) {
-                "export LD_LIBRARY_PATH=\"$nodeLibDir:\${'$'}LD_LIBRARY_PATH\"\n"
-            } else ""
+            // Create a RESILIENT wrapper that searches for node at runtime.
+            // Same pattern as the download path — see comments there.
+            val runtimeDirPath = runtimeManager.runtimeDir.absolutePath
+            val packagesDirPath = runtimeManager.packagesDir.absolutePath
+            val binDirPath = runtimeManager.binDir.absolutePath
             val wrapperScript = """
-                #!${SYSTEM_SH}
-                ${ldLibLine}export PATH="${runtimeManager.binDir.absolutePath}:${'$'}PATH"
-                exec "$nodeBinaryPath" ${targetDir.absolutePath}/${entryPoint} "${'$'}@"
+#!${SYSTEM_SH}
+# Orbit-AI agent wrapper for $agentName (from bundled assets)
+# Auto-generated — searches for node at runtime.
+RUNTIME_DIR="$runtimeDirPath"
+AGENT_ENTRY="${targetDir.absolutePath}/${entryPoint}"
+
+NODE=""
+for candidate in \
+    "$packagesDirPath/nodejs/usr/bin/node" \
+    "$packagesDirPath/node/bin/node" \
+    "$packagesDirPath/nodejs/bin/node" \
+    "$${'$'}(command -v node 2>/dev/null)" \
+    "/system/bin/node"; do
+    if [ -x "$${'$'}candidate" ]; then
+        NODE="$${'$'}candidate"
+        break
+    fi
+done
+
+if [ -z "$${'$'}NODE" ]; then
+    echo "ERROR: Node.js binary not found." >&2
+    echo "Install it by running: omniclaw-pkg install nodejs" >&2
+    exit 1
+fi
+
+NODE_LIB_DIR="$packagesDirPath/nodejs/usr/lib"
+if [ -d "$${'$'}NODE_LIB_DIR" ]; then
+    export LD_LIBRARY_PATH="$${'$'}NODE_LIB_DIR:$${'$'}LD_LIBRARY_PATH"
+fi
+
+export PATH="$binDirPath:$${'$'}PATH"
+export HOME="$runtimeDirPath"
+export TMPDIR="$runtimeDirPath/tmp"
+
+exec "$${'$'}NODE" "$${'$'}AGENT_ENTRY" "$${'$'}@"
             """.trimIndent()
 
             FileLogger.i("SetupViewModel", "tryInstallFromAssets: wrapper written:\n$wrapperScript")
