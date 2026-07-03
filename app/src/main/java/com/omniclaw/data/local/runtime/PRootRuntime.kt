@@ -69,33 +69,34 @@ class PRootRuntime(private val context: Context) {
     val isRootfsInstalled: Boolean get() = File(rootfsDir, "bin/sh").exists()
 
     /**
-     * Create versioned symlinks for shared libraries that proot needs.
+     * Prepare versioned shared libraries that proot needs.
      *
      * The Termux proot binary has NEEDED: libtalloc.so.2 in its ELF headers.
      * We bundle the file as libtalloc.so (because Android jniLibs only
-     * accepts *.so filenames). At runtime, we create a symlink
-     * libtalloc.so.2 -> libtalloc.so so the linker finds it.
+     * accepts *.so filenames). The nativeLibDir (/data/app/.../lib/arm64/)
+     * is READ-ONLY on Android 10+, so we can't create symlinks there.
      *
-     * This is called before every proot execution. It's idempotent — if
-     * the symlink already exists, it does nothing.
+     * FIX: Copy libtalloc.so to a writable directory (runtimeDir/lib/) as
+     * libtalloc.so.2, then set LD_LIBRARY_PATH to include BOTH nativeLibDir
+     * (for libproot.so, libandroid-shmem.so) and runtimeDir/lib (for
+     * libtalloc.so.2). The linker searches all paths in LD_LIBRARY_PATH.
+     *
+     * Called before every proot execution. Idempotent.
      */
-    private fun ensureVersionedSymlinks() {
+    private val libDir = File(runtimeDir, "lib")
+
+    private fun ensureVersionedLibs() {
         try {
-            val talloc = File(nativeLibDir, "libtalloc.so")
-            val talloc2 = File(nativeLibDir, "libtalloc.so.2")
-            if (talloc.exists() && !talloc2.exists()) {
-                // Try symlink first (works on most devices)
-                try {
-                    Runtime.getRuntime().exec(arrayOf(
-                        "ln", "-s", "libtalloc.so", talloc2.absolutePath
-                    )).waitFor()
-                } catch (_: Exception) { }
-                // If symlink failed (read-only dir), try copy
-                if (!talloc2.exists()) {
-                    try { talloc.copyTo(talloc2, overwrite = false) } catch (_: Exception) { }
-                }
+            libDir.mkdirs()
+            val tallocSrc = File(nativeLibDir, "libtalloc.so")
+            val tallocDst = File(libDir, "libtalloc.so.2")
+            if (tallocSrc.exists() && !tallocDst.exists()) {
+                tallocSrc.copyTo(tallocDst, overwrite = true)
+                FileLogger.d(TAG, "Versioned lib prepared", "libtalloc.so.2 copied to ${libDir.absolutePath}")
             }
-        } catch (_: Exception) { }
+        } catch (e: Exception) {
+            FileLogger.w(TAG, "Versioned lib preparation failed", "reason=${e.message}")
+        }
     }
 
     init {
@@ -268,8 +269,8 @@ class PRootRuntime(private val context: Context) {
             )
         }
 
-        // Ensure libtalloc.so.2 symlink exists (proot needs it)
-        ensureVersionedSymlinks()
+        // Ensure libtalloc.so.2 exists in writable dir (proot needs it)
+        ensureVersionedLibs()
 
         val prootCmd = buildProotCommand(command, workingDir)
         val execStart = System.currentTimeMillis()
@@ -290,10 +291,11 @@ class PRootRuntime(private val context: Context) {
             env["TERM"] = "xterm-256color"
             env["LANG"] = "C.UTF-8"
             // CRITICAL: The Termux proot binary is dynamically linked and needs
-            // libtalloc.so and libandroid-shmem.so. These are bundled as native
-            // libraries in the same directory as libproot.so. Setting
-            // LD_LIBRARY_PATH ensures the Android linker finds them.
-            env["LD_LIBRARY_PATH"] = nativeLibDir
+            // libtalloc.so.2 and libandroid-shmem.so. libandroid-shmem.so is in
+            // nativeLibDir. libtalloc.so.2 is copied to runtimeDir/lib/ (because
+            // nativeLibDir is read-only and we can't create a versioned symlink).
+            // LD_LIBRARY_PATH must include BOTH directories.
+            env["LD_LIBRARY_PATH"] = "$libDir:$nativeLibDir"
             // link2symlink backing store directory
             env["PROOT_L2S_DIR"] = File(rootfsDir, ".l2s").absolutePath
             // Remove LD_PRELOAD — it conflicts with ptrace

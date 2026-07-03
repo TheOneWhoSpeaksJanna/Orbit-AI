@@ -76,12 +76,11 @@ android {
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
     // ── ABI configuration ───────────────────────────────────────────
-    // We bundle libbusybox.so as a native library so Android extracts it to
-    // /data/app/<pkg>/lib/<abi>/ which has an SELinux label that ALLOWS exec.
-    // Files in /data/data/<pkg>/files/ (app_data_file label) CANNOT be exec'd
-    // on Android 10+ due to W^X enforcement. See OrbitRuntimeManager.
+    // Only arm64-v8a is supported — all native binaries (proot, loader,
+    // libtalloc, libandroid-shmem) are arm64. The old 32-bit busybox
+    // was removed because it can't run on arm64-only devices.
     ndk {
-      abiFilters += listOf("armeabi-v7a", "arm64-v8a", "x86", "x86_64")
+      abiFilters += listOf("arm64-v8a")
     }
 
     // ── Centralized, overridable app-level constants ──────────────
