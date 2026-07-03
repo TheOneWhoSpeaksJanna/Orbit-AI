@@ -252,6 +252,13 @@ class PRootRuntime(private val context: Context) {
             env["PATH"] = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
             env["TERM"] = "xterm-256color"
             env["LANG"] = "C.UTF-8"
+            // CRITICAL: The Termux proot binary is dynamically linked and needs
+            // libtalloc.so and libandroid-shmem.so. These are bundled as native
+            // libraries in the same directory as libproot.so. Setting
+            // LD_LIBRARY_PATH ensures the Android linker finds them.
+            env["LD_LIBRARY_PATH"] = nativeLibDir
+            // link2symlink backing store directory
+            env["PROOT_L2S_DIR"] = File(rootfsDir, ".l2s").absolutePath
             // Remove LD_PRELOAD — it conflicts with ptrace
             env.remove("LD_PRELOAD")
 
@@ -317,6 +324,7 @@ class PRootRuntime(private val context: Context) {
         return listOf(
             prootBinary,
             "--kill-on-exit",
+            "--link2symlink",
             "--rootfs=${rootfsDir.absolutePath}",
             "--cwd=$workingDir",
             "--change-id=0:0",
