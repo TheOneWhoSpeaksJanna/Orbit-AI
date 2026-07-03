@@ -6,6 +6,8 @@ import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.AP
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.CreationExtras
 import com.omniclaw.OmniClawApplication
+import com.omniclaw.data.local.runtime.SkillCategory
+import com.omniclaw.data.local.runtime.SkillsCatalog
 import com.omniclaw.domain.models.Agent
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -14,11 +16,15 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
 class SkillsViewModel(
-    agentsFlow: Flow<List<Agent>>
+    agentsFlow: Flow<List<Agent>>,
+    private val context: android.content.Context
 ) : ViewModel() {
 
     private val _agents = MutableStateFlow<List<Agent>>(emptyList())
     val agents: StateFlow<List<Agent>> = _agents.asStateFlow()
+
+    private val _skillCategories = MutableStateFlow<List<SkillCategory>>(emptyList())
+    val skillCategories: StateFlow<List<SkillCategory>> = _skillCategories.asStateFlow()
 
     init {
         viewModelScope.launch {
@@ -26,6 +32,8 @@ class SkillsViewModel(
                 _agents.value = agentList
             }
         }
+        // Load skills dynamically from the bundled catalog
+        _skillCategories.value = SkillsCatalog.load(context)
     }
 
     companion object {
@@ -33,7 +41,7 @@ class SkillsViewModel(
             @Suppress("UNCHECKED_CAST")
             override fun <T : ViewModel> create(modelClass: Class<T>, extras: CreationExtras): T {
                 val application = checkNotNull(extras[APPLICATION_KEY]) as OmniClawApplication
-                return SkillsViewModel(application.container.repository.getAllAgents()) as T
+                return SkillsViewModel(application.container.repository.getAllAgents(), application) as T
             }
         }
     }
