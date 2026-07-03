@@ -662,40 +662,6 @@ exec "$${'$'}NODE" "$${'$'}AGENT_ENTRY" "$${'$'}@"
     }
 
     /**
-     * Ensure Node.js is installed. Agents use it for npm install, build, and
-     * the wrapper script. Skips if already available.
-     */
-    private suspend fun ensureNodeJs() {
-        FileLogger.i("SetupViewModel", "Node check start")
-        try {
-            // First check if the node binary exists directly (more reliable than
-            // `command -v` which depends on PATH being set correctly).
-            val existingNode = runtimeManager.findNodeBinary()
-            if (existingNode != null) {
-                FileLogger.i("SetupViewModel", "Node check success", "path=$existingNode")
-                return
-            }
-            // Fall back to PATH check
-            val check = localCommandRunner.executeCommand("command -v node")
-            if (check.exitCode == 0 && check.output.isNotBlank()) {
-                FileLogger.i("SetupViewModel", "Node check success", "source=PATH path=${check.output}")
-                return
-            }
-            FileLogger.w("SetupViewModel", "Node not found, starting package install")
-            val success = packageInstaller.installPackage("nodejs") { progress, status ->
-                FileLogger.d("SetupViewModel", "Node install progress", "progress=$progress status=$status")
-            }
-            if (success) {
-                FileLogger.i("SetupViewModel", "Node install success")
-            } else {
-                FileLogger.e("SetupViewModel", "Node install failed", "reason=package install returned false")
-            }
-        } catch (e: Exception) {
-            FileLogger.e("SetupViewModel", "Node check exception", e, "reason=${e.message}")
-        }
-    }
-
-    /**
      * Mark a file as executable. [File.setExecutable] can silently fail on
      * some Android versions due to SELinux policies, so we fall back to
      * shell-level chmod +x if the Java API doesn't stick.
