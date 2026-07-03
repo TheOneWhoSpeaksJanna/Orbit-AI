@@ -409,7 +409,7 @@ class SetupViewModel(
                         ""
                     )
                     if (installResult.exitCode != 0) {
-                        FileLogger.w("SetupViewModel", "npm install warning: ${installResult.output.take(200)}")
+                        FileLogger.w("SetupViewModel", "npm install warning", "output=${installResult.output.take(200)}")
                     }
                 }
 
@@ -538,14 +538,14 @@ exec "$prootBinary" \
                 withContext(Dispatchers.IO) {
                     wrapperFile.parentFile?.mkdirs()
                     wrapperFile.writeText(wrapperScript)
-                    FileLogger.i("SetupViewModel", "Agent wrapper written to ${wrapperFile.absolutePath}:\n$wrapperScript")
+                    FileLogger.i("SetupViewModel", "Agent wrapper created", "path=${wrapperFile.absolutePath}")
                     makeExecutable(wrapperFile)
                 }
 
                 updateInstallState(agentName, progress = 1f, status = "$agentName$STATUS_INSTALLED", isInstalled = true)
 
             } catch (e: Exception) {
-                FileLogger.e("SetupViewModel", "Agent install failed: ${e.message}", e)
+                FileLogger.e("SetupViewModel", "Agent install failed", e, "reason=${e.message}")
                 updateInstallState(agentName, status = "$STATUS_FAILED${e.message}", isInstalled = false)
             } finally {
                 _agentInstallStates.value = _agentInstallStates.value + (agentName to _agentInstallStates.value[agentName]!!.copy(isInstalling = false))
@@ -591,7 +591,7 @@ exec "$prootBinary" \
 
             val entryPoint = DIST_CANDIDATES.firstOrNull { File(targetDir, it).exists() }
             if (entryPoint == null) {
-                FileLogger.w("SetupViewModel", "tryInstallFromAssets: no entry point found in ${targetDir.absolutePath}")
+                FileLogger.w("SetupViewModel", "Asset install: no entry point", "dir=${targetDir.absolutePath}")
                 targetDir.deleteRecursively()
                 return false
             }
@@ -639,7 +639,7 @@ export TMPDIR="$runtimeDirPath/tmp"
 exec "$${'$'}NODE" "$${'$'}AGENT_ENTRY" "$${'$'}@"
             """.trimIndent()
 
-            FileLogger.i("SetupViewModel", "tryInstallFromAssets: wrapper written:\n$wrapperScript")
+            FileLogger.i("SetupViewModel", "Agent wrapper created (from assets)")
 
             wrapperFile.parentFile?.mkdirs()
             wrapperFile.writeText(wrapperScript)
@@ -666,32 +666,32 @@ exec "$${'$'}NODE" "$${'$'}AGENT_ENTRY" "$${'$'}@"
      * the wrapper script. Skips if already available.
      */
     private suspend fun ensureNodeJs() {
-        FileLogger.i("SetupViewModel", "ensureNodeJs: checking if node is available...")
+        FileLogger.i("SetupViewModel", "Node check start")
         try {
             // First check if the node binary exists directly (more reliable than
             // `command -v` which depends on PATH being set correctly).
             val existingNode = runtimeManager.findNodeBinary()
             if (existingNode != null) {
-                FileLogger.i("SetupViewModel", "ensureNodeJs: node already installed at $existingNode")
+                FileLogger.i("SetupViewModel", "Node check success", "path=$existingNode")
                 return
             }
             // Fall back to PATH check
             val check = localCommandRunner.executeCommand("command -v node")
             if (check.exitCode == 0 && check.output.isNotBlank()) {
-                FileLogger.i("SetupViewModel", "ensureNodeJs: node found via PATH: ${check.output}")
+                FileLogger.i("SetupViewModel", "Node check success", "source=PATH path=${check.output}")
                 return
             }
-            FileLogger.i("SetupViewModel", "ensureNodeJs: node not found, installing nodejs package...")
+            FileLogger.w("SetupViewModel", "Node not found, starting package install")
             val success = packageInstaller.installPackage("nodejs") { progress, status ->
-                FileLogger.d("SetupViewModel", "ensureNodeJs install progress: $progress — $status")
+                FileLogger.d("SetupViewModel", "Node install progress", "progress=$progress status=$status")
             }
             if (success) {
-                FileLogger.i("SetupViewModel", "ensureNodeJs: nodejs package installed successfully")
+                FileLogger.i("SetupViewModel", "Node install success")
             } else {
-                FileLogger.e("SetupViewModel", "ensureNodeJs: nodejs package installation FAILED — agent execution will not work")
+                FileLogger.e("SetupViewModel", "Node install failed", "reason=package install returned false")
             }
         } catch (e: Exception) {
-            FileLogger.e("SetupViewModel", "ensureNodeJs exception: ${e.message}", e)
+            FileLogger.e("SetupViewModel", "Node check exception", e, "reason=${e.message}")
         }
     }
 

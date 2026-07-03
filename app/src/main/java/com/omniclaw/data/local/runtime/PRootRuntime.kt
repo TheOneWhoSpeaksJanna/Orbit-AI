@@ -86,30 +86,29 @@ class PRootRuntime(private val context: Context) {
         onProgress: (Float, String) -> Unit = { _, _ -> }
     ): Boolean = withContext(Dispatchers.IO) {
         if (isRootfsInstalled) {
-            FileLogger.i(TAG, "Rootfs already installed at ${rootfsDir.absolutePath}")
+            FileLogger.i(TAG, "Rootfs already installed")
             return@withContext true
         }
 
+        FileLogger.i(TAG, "Rootfs install start")
+        val startTime = System.currentTimeMillis()
+
         try {
             onProgress(0.1f, "Extracting Alpine Linux rootfs...")
-            FileLogger.i(TAG, "Extracting Alpine rootfs from APK assets to ${rootfsDir.absolutePath}")
 
             rootfsDir.mkdirs()
 
-            // Try both .tar.gz and .tar — AAPT2 may have decompressed the
-            // .tar.gz into a plain .tar (depending on noCompress config).
+            // Try both .tar.gz and .tar — AAPT2 may have decompressed the .tar.gz
             val assetStream = try {
-                FileLogger.d(TAG, "Trying alpine-rootfs.tar.gz...")
+                FileLogger.d(TAG, "Asset lookup", "trying=alpine-rootfs.tar.gz")
                 context.assets.open("alpine-rootfs.tar.gz")
             } catch (e: Exception) {
-                FileLogger.d(TAG, "alpine-rootfs.tar.gz not found, trying alpine-rootfs.tar...")
+                FileLogger.w(TAG, "Asset fallback", "alpine-rootfs.tar.gz not found, trying alpine-rootfs.tar")
                 try {
                     context.assets.open("alpine-rootfs.tar")
                 } catch (e2: Exception) {
-                    FileLogger.e(TAG, "Neither alpine-rootfs.tar.gz nor alpine-rootfs.tar found in assets!")
-                    // List available assets for debugging
                     val assets = context.assets.list("") ?: arrayOf()
-                    FileLogger.d(TAG, "Available assets: ${assets.joinToString(", ")}")
+                    FileLogger.e(TAG, "Rootfs asset not found", "tried=tar.gz,tar available=${assets.joinToString(",")}")
                     throw e2
                 }
             }
@@ -118,13 +117,16 @@ class PRootRuntime(private val context: Context) {
             tempArchive.parentFile?.mkdirs()
 
             // Copy asset to temp file
+            val copyStart = System.currentTimeMillis()
             assetStream.use { input ->
                 FileOutputStream(tempArchive).use { output ->
                     input.copyTo(output)
                 }
             }
+            FileLogger.d(TAG, "Asset copied", "bytes=${tempArchive.length()} time=${System.currentTimeMillis() - copyStart}ms")
 
             onProgress(0.3f, "Extracting rootfs archive...")
+            val extractStart = System.currentTimeMillis()
 
             // Extract: try gzip first (if the file is still .tar.gz),
             // then fall back to plain tar (if AAPT2 decompressed it).
@@ -151,18 +153,16 @@ class PRootRuntime(private val context: Context) {
             }
 
             try {
-                // Try as gzip first
                 java.util.zip.GZIPInputStream(tempArchive.inputStream()).use { gzip ->
                     extractRootfs(gzip)
                 }
-                FileLogger.d(TAG, "Extracted as gzip")
+                FileLogger.d(TAG, "Rootfs extracted", "format=gzip time=${System.currentTimeMillis() - extractStart}ms")
             } catch (gzipEx: Exception) {
-                FileLogger.d(TAG, "Not gzip, trying as plain tar: ${gzipEx.message}")
-                // Fall back to plain tar
+                FileLogger.w(TAG, "Gzip extraction failed, trying plain tar", "reason=${gzipEx.message}")
                 tempArchive.inputStream().use { plain ->
                     extractRootfs(plain)
                 }
-                FileLogger.d(TAG, "Extracted as plain tar")
+                FileLogger.d(TAG, "Rootfs extracted", "format=tar time=${System.currentTimeMillis() - extractStart}ms")
             }
 
             tempArchive.delete()
@@ -186,28 +186,32 @@ class PRootRuntime(private val context: Context) {
             File(rootfsDir, "agents").mkdirs()
             File(rootfsDir, "workspace").mkdirs()
 
-            onProgress(0.8f, "Rootfs configured. Installing nodejs, npm, git, gh, python3...")
+            onProgress(0.8f, "Installing nodejs, npm, git, gh, python3, pip, curl, wget, ssh, make, gcc...")
+            FileLogger.i(TAG, "apk install start", "packages=nodejs,npm,git,gh,python3,py3-pip,curl,wget,openssh-client,make,gcc,g++")
+            val apkStart = System.currentTimeMillis()
 
-            // Install all base packages inside the rootfs via apk.
-            // These are the "basic needs" pre-installed so the user doesn't
-            // have to wait for individual installs.
             val installResult = executeInRootfs(
                 "apk update && apk add --no-cache nodejs npm git gh python3 py3-pip curl wget openssh-client make gcc g++",
                 "",
                 workingDir = "/root"
             )
+            val apkDuration = System.currentTimeMillis() - apkStart
 
             if (installResult.exitCode != 0) {
-                FileLogger.e(TAG, "apk install failed: ${installResult.output}")
+                FileLogger.e(TAG, "apk install failed", "exit=${installResult.exitCode} time=${apkDuration}ms output=${installResult.output.take(300)}")
                 onProgress(0.0f, "Failed to install packages: ${installResult.output.take(200)}")
+                FileLogger.e(TAG, "SUMMARY: rootfs install failed because apk install exited ${installResult.exitCode}")
                 return@withContext false
             }
 
-            onProgress(1.0f, "Rootfs ready with nodejs, npm, git, gh, python3, pip, curl, wget, ssh, make, gcc")
-            FileLogger.i(TAG, "Rootfs installation complete")
+            val totalDuration = System.currentTimeMillis() - startTime
+            FileLogger.i(TAG, "Rootfs install success", "time=${totalDuration}ms packages=${apkDuration}ms")
+            onProgress(1.0f, "Rootfs ready")
             true
         } catch (e: Exception) {
-            FileLogger.e(TAG, "Rootfs installation failed: ${e.message}", e)
+            val totalDuration = System.currentTimeMillis() - startTime
+            FileLogger.e(TAG, "Rootfs install failed", e, "time=${totalDuration}ms reason=${e.message}")
+            FileLogger.e(TAG, "SUMMARY: rootfs install failed because ${e.message}")
             onProgress(0.0f, "Installation failed: ${e.message}")
             false
         }
@@ -235,8 +239,8 @@ class PRootRuntime(private val context: Context) {
         }
 
         val prootCmd = buildProotCommand(command, workingDir)
-        FileLogger.d(TAG, "EXEC in rootfs: $command")
-        FileLogger.d(TAG, "PRoot cmd: ${prootCmd.joinToString(" ")}")
+        val execStart = System.currentTimeMillis()
+        FileLogger.d(TAG, "PRoot exec start", "cmd=${command.take(200)}")
 
         try {
             val pb = ProcessBuilder(prootCmd)
@@ -295,12 +299,12 @@ class PRootRuntime(private val context: Context) {
             val exitCode = process.exitValue()
             val output = stdoutText.toString().trim()
             val stderr = stderrText.toString().trim()
+            val execDuration = System.currentTimeMillis() - execStart
 
             if (exitCode != 0) {
-                FileLogger.w(TAG, "Command exited $exitCode: $command")
-                if (stderr.isNotBlank()) {
-                    FileLogger.w(TAG, "stderr: ${stderr.take(500)}")
-                }
+                FileLogger.w(TAG, "PRoot exec failed", "exit=$exitCode time=${execDuration}ms stderr=${stderr.take(300)}")
+            } else {
+                FileLogger.d(TAG, "PRoot exec success", "exit=0 time=${execDuration}ms output=${output.length}chars")
             }
 
             // Return stdout + stderr combined (like a terminal would show)
@@ -312,7 +316,7 @@ class PRootRuntime(private val context: Context) {
 
             CommandResult(combinedOutput.trim(), exitCode, command)
         } catch (e: Exception) {
-            FileLogger.e(TAG, "Exception executing '$command': ${e.message}", e)
+            FileLogger.e(TAG, "PRoot exec exception", e, "cmd=${command.take(100)} reason=${e.message}")
             CommandResult("Error: ${e.message}", -1, command)
         }
     }

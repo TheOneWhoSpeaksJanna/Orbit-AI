@@ -37,7 +37,7 @@ class OmniClawRuntimeManager(val context: Context) {
     private val nativeLibDir: String? by lazy {
         try {
             context.applicationInfo.nativeLibraryDir?.also {
-                FileLogger.i(TAG, "Native library directory: $it")
+                FileLogger.i(TAG, "Native lib dir", "path=$it")
             }
         } catch (e: Exception) {
             FileLogger.w(TAG, "Could not get nativeLibraryDir: ${e.message}")
@@ -89,7 +89,7 @@ class OmniClawRuntimeManager(val context: Context) {
                     FileLogger.w(TAG, "libbusybox.so exists but exec failed: ${nativeBusybox.absolutePath}")
                 }
             } else {
-                FileLogger.w(TAG, "libbusybox.so not found in nativeLibDir: ${nativeBusybox.absolutePath}")
+                FileLogger.w(TAG, "libbusybox.so not found in nativeLibDir", "path=${nativeBusybox.absolutePath}")
             }
         }
 
@@ -104,7 +104,7 @@ class OmniClawRuntimeManager(val context: Context) {
             }
         }
 
-        FileLogger.w(TAG, "BusyBox not available in any location")
+        FileLogger.w(TAG, "BusyBox unavailable", "checked=native-lib,fallback")
         busyboxVerified = false
         return null
     }
@@ -116,10 +116,10 @@ class OmniClawRuntimeManager(val context: Context) {
         return try {
             val p = Runtime.getRuntime().exec(arrayOf(path, "true"))
             val exit = p.waitFor()
-            FileLogger.d(TAG, "tryExecBusybox($path) → exit $exit")
+            FileLogger.d(TAG, "BusyBox exec test", "path=$path exit=$exit")
             exit == 0
         } catch (e: Exception) {
-            FileLogger.w(TAG, "tryExecBusybox($path) failed: ${e.message}")
+            FileLogger.w(TAG, "BusyBox exec test failed", "path=$path reason=${e.message}")
             false
         }
     }
@@ -136,11 +136,11 @@ class OmniClawRuntimeManager(val context: Context) {
         )
         for (c in candidates) {
             if (c.exists()) {
-                FileLogger.d(TAG, "Found node binary at ${c.absolutePath} (canExecute=${c.canExecute()})")
+                FileLogger.d(TAG, "Node binary found", "path=${c.absolutePath} canExecute=${c.canExecute()}")
                 return c.absolutePath
             }
         }
-        FileLogger.w(TAG, "Node binary not found in any expected location under ${packagesDir.absolutePath}")
+        FileLogger.w(TAG, "Node binary not found", "searched=${packagesDir.absolutePath}")
         return null
     }
 
@@ -233,17 +233,17 @@ class OmniClawRuntimeManager(val context: Context) {
         nativeLibDir?.let { libDir ->
             val nativeBusybox = File(libDir, BUSYBOX_NATIVE_LIB)
             if (nativeBusybox.exists()) {
-                FileLogger.i(TAG, "libbusybox.so found at ${nativeBusybox.absolutePath}")
+                FileLogger.d(TAG, "libbusybox.so found", "path=${nativeBusybox.absolutePath}")
                 if (tryExecBusybox(nativeBusybox.absolutePath)) {
                     cachedBusyboxPath = nativeBusybox.absolutePath
                     busyboxVerified = true
-                    FileLogger.i(TAG, "BusyBox ready via native library: ${nativeBusybox.absolutePath}")
+                    FileLogger.i(TAG, "BusyBox ready", "source=native-lib path=${nativeBusybox.absolutePath}")
                     return@withContext true
                 } else {
-                    FileLogger.w(TAG, "libbusybox.so exec failed — falling back to asset extraction")
+                    FileLogger.w(TAG, "Native lib BusyBox exec failed, falling back to asset extraction")
                 }
             } else {
-                FileLogger.w(TAG, "libbusybox.so not found in $libDir — falling back to asset extraction")
+                FileLogger.w(TAG, "libbusybox.so not found, falling back to asset extraction", "dir=$libDir")
             }
         }
 
@@ -263,12 +263,12 @@ class OmniClawRuntimeManager(val context: Context) {
             val chmodResult = Runtime.getRuntime()
                 .exec(arrayOf(systemBin("chmod"), "755", busyboxFile.absolutePath))
             val chmodExit = chmodResult.waitFor()
-            FileLogger.d(TAG, "chmod 755 ${busyboxFile.absolutePath} → exit $chmodExit")
+            FileLogger.d(TAG, "chmod result", "path=${busyboxFile.absolutePath} exit=$chmodExit")
 
             if (tryExecBusybox(busyboxFile.absolutePath)) {
                 cachedBusyboxPath = busyboxFile.absolutePath
                 busyboxVerified = true
-                FileLogger.i(TAG, "BusyBox ready via fallback: ${busyboxFile.absolutePath}")
+                FileLogger.i(TAG, "BusyBox ready", "source=fallback path=${busyboxFile.absolutePath}")
                 true
             } else {
                 FileLogger.e(TAG, "BusyBox NOT executable from filesDir — SELinux W^X enforcement. " +
@@ -278,7 +278,7 @@ class OmniClawRuntimeManager(val context: Context) {
                 false
             }
         } catch (e: Exception) {
-            FileLogger.e(TAG, "BusyBox install failed: ${e.message}", e)
+            FileLogger.e(TAG, "BusyBox install failed", e, "reason=${e.message}")
             false
         }
     }

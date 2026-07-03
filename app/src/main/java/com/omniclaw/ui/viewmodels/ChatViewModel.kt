@@ -260,8 +260,7 @@ class ChatViewModel(
                 runCmd?.let { cmd ->
                     val cmdFile = File(cmd)
                     if (!cmdFile.exists()) {
-                        com.omniclaw.core.logging.FileLogger.w("ChatViewModel",
-                            "Agent wrapper missing at ${cmdFile.absolutePath} — attempting to recreate")
+                        com.omniclaw.core.logging.FileLogger.w("ChatViewModel", "Agent wrapper missing, recreating", "path=${cmdFile.absolutePath}")
                         val agentDir = File(cmdFile.parentFile?.parentFile, "agents/${cmdFile.name}")
                         if (agentDir.exists()) {
                             try {
@@ -303,15 +302,12 @@ export PATH="$binDirPath:$${'$'}PATH"
 exec "$${'$'}NODE" "$${'$'}AGENT_ENTRY" "$${'$'}@"
 """.trimIndent())
                                 cmdFile.setExecutable(true)
-                                com.omniclaw.core.logging.FileLogger.i("ChatViewModel",
-                                    "Agent wrapper recreated at ${cmdFile.absolutePath}")
+                                com.omniclaw.core.logging.FileLogger.i("ChatViewModel", "Agent wrapper recreated", "path=${cmdFile.absolutePath}")
                             } catch (e: Exception) {
-                                com.omniclaw.core.logging.FileLogger.e("ChatViewModel",
-                                    "Failed to recreate wrapper: ${e.message}", e)
+                                com.omniclaw.core.logging.FileLogger.e("ChatViewModel", "Wrapper recreation failed", e, "reason=${e.message}")
                             }
                         } else {
-                            com.omniclaw.core.logging.FileLogger.e("ChatViewModel",
-                                "Agent code directory not found: ${agentDir.absolutePath} — agent was never installed properly")
+                            com.omniclaw.core.logging.FileLogger.e("ChatViewModel", "Agent code not found", "path=${agentDir.absolutePath} reason=agent never installed")
                         }
                     } else if (cmdFile.isFile && !cmdFile.canExecute()) {
                         try {
@@ -337,11 +333,9 @@ exec "$${'$'}NODE" "$${'$'}AGENT_ENTRY" "$${'$'}@"
                     // This works like "sh script.sh" vs "./script.sh" — sh reads the file directly
                     // without needing the +x permission bit or a filesystem that supports exec.
                     val safeRunCmd = if (runCmd.startsWith('/')) "sh ${runCmd}" else runCmd
-                    com.omniclaw.core.logging.FileLogger.i("ChatViewModel",
-                        "Running agent: runCmd=$runCmd, safeRunCmd=$safeRunCmd, content=${content.take(100)}")
+                    com.omniclaw.core.logging.FileLogger.i("ChatViewModel", "Agent exec start", "cmd=$runCmd content=${content.take(80)}")
                     val result = localCommandRunner.executeCommand("echo \"$escaped\" | $safeRunCmd")
-                    com.omniclaw.core.logging.FileLogger.i("ChatViewModel",
-                        "Agent result: exit=${result.exitCode}, output=${result.output.take(200)}")
+                    com.omniclaw.core.logging.FileLogger.i("ChatViewModel", "Agent exec result", "exit=${result.exitCode} output=${result.output.take(150)}")
                     val modelMsg = Message(
                         id = UUID.randomUUID().toString(),
                         sessionId = session.id,
@@ -351,8 +345,7 @@ exec "$${'$'}NODE" "$${'$'}AGENT_ENTRY" "$${'$'}@"
                     )
                     repository.insertMessage(modelMsg)
                 } catch (e: Exception) {
-                    com.omniclaw.core.logging.FileLogger.e("ChatViewModel",
-                        "Agent execution exception: ${e.message}", e)
+                    com.omniclaw.core.logging.FileLogger.e("ChatViewModel", "Agent exec failed", e, "reason=${e.message}")
                     val errMsg = Message(
                         id = UUID.randomUUID().toString(),
                         sessionId = session.id,

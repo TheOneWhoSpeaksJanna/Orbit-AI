@@ -22,15 +22,13 @@ class MainActivity : ComponentActivity() {
         FileLogger.i(TAG, "onCreate start")
         try {
             enableEdgeToEdge()
-            FileLogger.i(TAG, "edge-to-edge enabled")
             setContent {
-                FileLogger.i(TAG, "setContent rendering")
                 val viewModel: MainViewModel = viewModel(factory = MainViewModel.Factory)
                 val themeMode by viewModel.themeMode.collectAsState()
                 OmniClawTheme(themeMode = themeMode) {
                     val destination by viewModel.startDestination.collectAsState()
                     destination?.let { dest ->
-                        FileLogger.i(TAG, "startDestination=$dest")
+                        FileLogger.d(TAG, "Navigation", "destination=$dest")
                         if (dest == Routes.SETUP) {
                             SetupWizardScreen(onFinishSetup = { })
                         } else {
@@ -39,8 +37,9 @@ class MainActivity : ComponentActivity() {
                     }
                 }
             }
+            FileLogger.i(TAG, "onCreate success")
         } catch (e: Exception) {
-            FileLogger.e(TAG, "Crash in onCreate", e)
+            FileLogger.e(TAG, "onCreate failed", e)
             throw e
         }
     }

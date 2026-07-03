@@ -85,13 +85,13 @@ class LocalCommandRunner(
         env["HOME"] = runtimeManager.runtimeDir.absolutePath
         env["TMPDIR"] = runtimeManager.tmpDir.absolutePath
 
-        FileLogger.d(TAG, "ProcessBuilder env: PATH=${fullPath.take(200)}..., LD_LIBRARY_PATH=${ldPath.take(200)}")
+        FileLogger.d(TAG, "Process env", "PATH=${fullPath.take(150)} LD_LIBRARY_PATH=${ldPath.take(100)}")
         return processBuilder
     }
 
     suspend fun executeCommandStreamed(command: String, onOutput: (String) -> Unit): CommandResult =
         withContext(Dispatchers.IO) {
-            FileLogger.i(TAG, "EXEC (streamed): $command")
+            FileLogger.i(TAG, "Command exec start (streamed)", "cmd=${command.take(200)}")
             try {
                 val process = setupProcessBuilder(command).start()
                 val outputBuilder = StringBuilder()
@@ -123,12 +123,12 @@ class LocalCommandRunner(
 
                 val exit = process.exitValue()
                 if (exit != 0) {
-                    FileLogger.w(TAG, "Command exited with $exit: $command")
-                    FileLogger.w(TAG, "Output: ${outputBuilder.toString().take(500)}")
+                    FileLogger.w(TAG, "Command exec failed", "exit=$exit cmd=${command.take(100)}")
+                    FileLogger.w(TAG, "Command output", "output=${outputBuilder.toString().take(300)}")
                 }
                 CommandResult(outputBuilder.toString().trim(), exit, command)
             } catch (e: Exception) {
-                FileLogger.e(TAG, "Exception executing '$command': ${e.message}", e)
+                FileLogger.e(TAG, "Command exec exception", e, "cmd=${command.take(100)} reason=${e.message}")
                 val errorMsg = "$ERROR_COMMAND_PREFIX${e.message}"
                 onOutput(errorMsg)
                 CommandResult(errorMsg, ERROR_EXIT_CODE, command)
@@ -136,7 +136,7 @@ class LocalCommandRunner(
         }
 
     suspend fun executeCommand(command: String): CommandResult = withContext(Dispatchers.IO) {
-        FileLogger.i(TAG, "EXEC: $command")
+        FileLogger.i(TAG, "Command exec start", "cmd=${command.take(200)}")
         try {
             val process = setupProcessBuilder(command).start()
             val output = buildString {
@@ -154,22 +154,22 @@ class LocalCommandRunner(
             process.waitFor()
             val exit = process.exitValue()
             if (exit != 0) {
-                FileLogger.w(TAG, "Command exited with $exit: $command")
-                FileLogger.w(TAG, "Output: ${output.take(500)}")
+                FileLogger.w(TAG, "Command exec failed", "exit=$exit cmd=${command.take(100)}")
+                FileLogger.w(TAG, "Command output", "output=${output.take(300)}")
             } else {
-                FileLogger.d(TAG, "Command succeeded (exit=0): $command")
+                FileLogger.d(TAG, "Command exec success", "exit=0 cmd=${command.take(100)}")
             }
             CommandResult(output.trim(), exit, command)
         } catch (e: Exception) {
-            FileLogger.e(TAG, "Exception executing '$command': ${e.message}", e)
+            FileLogger.e(TAG, "Command exec exception", e, "cmd=${command.take(100)} reason=${e.message}")
             CommandResult("$ERROR_COMMAND_PREFIX${e.message}", ERROR_EXIT_CODE, command)
         }
     }
 
     suspend fun executePrivilegedCommand(command: String): CommandResult = withContext(Dispatchers.IO) {
-        FileLogger.i(TAG, "EXEC (privileged/Shizuku): $command")
+        FileLogger.i(TAG, "Command exec start (privileged)", "cmd=${command.take(200)}")
         if (!Shizuku.pingBinder()) {
-            FileLogger.w(TAG, "Shizuku not running — privileged command rejected")
+            FileLogger.w(TAG, "Shizuku not running", "action=rejected")
             return@withContext CommandResult(SHIZUKU_NOT_RUNNING, ERROR_EXIT_CODE, command)
         }
         try {
@@ -198,16 +198,16 @@ class LocalCommandRunner(
             }
             process.waitFor()
             val exit = process.exitValue()
-            FileLogger.i(TAG, "Privileged command exit=$exit: $command")
+            FileLogger.d(TAG, "Privileged exec result", "exit=$exit cmd=${command.take(100)}")
             CommandResult(output.trim(), exit, command)
         } catch (e: NoSuchMethodException) {
-            FileLogger.e(TAG, "Shizuku API changed: ${e.message}", e)
+            FileLogger.e(TAG, "Shizuku API error", e, "reason=${e.message}")
             CommandResult(SHIZUKU_API_CHANGED, ERROR_EXIT_CODE, command)
         } catch (e: SecurityException) {
-            FileLogger.e(TAG, "Shizuku permission denied: ${e.message}", e)
+            FileLogger.e(TAG, "Shizuku permission denied", e, "reason=${e.message}")
             CommandResult(SHIZUKU_PERMISSION_DENIED, ERROR_EXIT_CODE, command)
         } catch (e: Exception) {
-            FileLogger.e(TAG, "Privileged command exception: ${e.message}", e)
+            FileLogger.e(TAG, "Privileged exec exception", e, "reason=${e.message}")
             CommandResult("$ERROR_PRIVILEGED_PREFIX${e.message}", ERROR_EXIT_CODE, command)
         }
     }

@@ -15,26 +15,29 @@ import java.util.Locale
 import java.util.concurrent.Executors
 
 /**
- * File-backed logger with logcat fallback.
+ * Structured file logger with session IDs, durations, and consistent log levels.
  *
- * Why this exists:
- *  - The app needs persistent logs for diagnosing on-device issues (agent
- *    install failures, runtime exec errors, etc.).
- *  - Historically this logger silently swallowed all write errors, which
- *    meant that when file logging failed (no permission, no disk space,
- *    logDir missing), the user got zero diagnostic info — "the log system
- *    doesn't work" with no clue why.
+ * LOG FORMAT:
+ *   [timestamp] | [level] | [thread] | [tag] | [session=ID] | [event] | [details]
  *
- * What this version does differently:
- *  1. Every log line is also written to logcat via [android.util.Log].
- *     So even if file logging fails completely, `adb logcat` still shows
- *     everything. Tag = "OmniClaw".
- *  2. The logDir is created on every init() call AND on every write if
- *     missing (cheap mkdirs() check).
- *  3. Write errors are logged to logcat ONCE with the actual exception
- *     message, so the user can see "FileWriter failed: EACCES" etc.
- *  4. The active log directory path is exposed via [getLogDirPath] so the
- *     UI can show users where to find the logs.
+ * Example:
+ *   2026-07-03 19:32:27.458 | I | worker-1 | PackageInstaller | session=2026-07-03_19-32-07_8421 | installPackage start | package=nodejs
+ *   2026-07-03 19:32:41.901 | I | worker-1 | PackageInstaller | session=2026-07-03_19-32-07_8421 | download success | bytes=10268488 time=33.4s
+ *   2026-07-03 19:34:04.486 | E | worker-3 | PackageInstaller | session=2026-07-03_19-32-07_8421 | install failed | reason=tar extraction exit=126
+ *
+ * LOG LEVELS:
+ *   I = normal flow, milestones, successful steps
+ *   D = detailed debug info (paths, env vars, internal state)
+ *   W = recoverable problems, fallback paths, missing optional items
+ *   E = actual failures that break a step
+ *
+ * USAGE:
+ *   FileLogger.i("Tag", "installPackage start", "package=$pkgId")
+ *   FileLogger.i("Tag", "download success", "bytes=$size time=${ms}ms")
+ *   FileLogger.e("Tag", "install failed", "reason=$reason")
+ *
+ * For durations, use the timed() helper:
+ *   val result = FileLogger.timed("Tag", "download") { ... }
  */
 object FileLogger {
 
@@ -46,6 +49,7 @@ object FileLogger {
 
     private val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.US)
     private val timeFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS", Locale.US)
+    private val sessionFormat = SimpleDateFormat("yyyy-MM-dd_HH-mm-ss", Locale.US)
     private val executor = Executors.newSingleThreadExecutor()
 
     private var appContext: Context? = null
@@ -54,13 +58,16 @@ object FileLogger {
     private var writeFailureLogged = false
     private var originalExceptionHandler: Thread.UncaughtExceptionHandler? = null
 
+    /** Unique session ID for this app launch. Included in every log line. */
+    val sessionId: String by lazy {
+        sessionFormat.format(Date()) + "_" + (1000..9999).random()
+    }
+
     fun init(context: Context) {
         if (isInitialized) return
         appContext = context.applicationContext
         val appCtx = appContext!!
 
-        // Try public external storage: /storage/emulated/0/omniclaw_logs/
-        // Requires MANAGE_EXTERNAL_STORAGE on Android 11+, falls back gracefully
         logDir = resolvePublicLogDir(appCtx)
         if (logDir == null || (logDir!!.exists() && !logDir!!.canWrite())) {
             logDir = appCtx.getExternalFilesDir(LOG_DIR)
@@ -69,43 +76,24 @@ object FileLogger {
             logDir = File(appCtx.cacheDir, LOG_DIR)
         }
         logDir?.let { dir ->
-            // Always mkdirs() — if the dir was deleted externally (e.g. by a
-            // storage cleaner), we need to recreate it before writing.
             if (!dir.exists()) dir.mkdirs()
             cleanOldLogs(dir)
         }
         isInitialized = true
         installCrashHandler()
-        i(TAG, "FileLogger initialized at: ${logDir?.absolutePath}")
-        i(TAG, "App version: ${BuildConfig.VERSION_NAME}, SDK: ${Build.VERSION.SDK_INT}")
+
+        // Startup context (logged once at init)
+        i(TAG, "App start", "version=${BuildConfig.VERSION_NAME} build=${BuildConfig.BUILD_TYPE} sdk=${Build.VERSION.SDK_INT} device=${Build.MANUFACTURER} ${Build.MODEL} abi=${Build.SUPPORTED_ABIS.firstOrNull() ?: "unknown"} session=$sessionId")
     }
 
-    /**
-     * The absolute path of the directory where logs are currently being
-     * written. Exposed so the Settings screen can show users where to find
-     * their logs (and so support can ask for the path).
-     */
     fun getLogDirPath(): String? = logDir?.absolutePath
 
-    /**
-     * Attempt to resolve the public log path /storage/emulated/0/omniclaw_logs/.
-     * Returns null if the permission is unavailable, so the caller can fall
-     * back to app-private storage.
-     *
-     * Permission requirements by API level:
-     * - API 33+  → MANAGE_EXTERNAL_STORAGE
-     * - API 30-32 → MANAGE_EXTERNAL_STORAGE
-     * - API 29   → WRITE_EXTERNAL_STORAGE
-     * - API 28-   → WRITE_EXTERNAL_STORAGE (auto-granted at install)
-     */
     private fun resolvePublicLogDir(context: Context): File? {
         return try {
             val externalRoot = Environment.getExternalStorageDirectory()
             if (externalRoot == null || !externalRoot.exists()) return null
             val publicLogDir = File(externalRoot, LOG_DIR)
-            // Already exists and writable (e.g. permission was granted previously)
             if (publicLogDir.exists() && publicLogDir.canWrite()) return publicLogDir
-            // Doesn't exist yet but parent is writable — we can create it
             if (!publicLogDir.exists() && externalRoot.canWrite()) return publicLogDir
             null
         } catch (_: Exception) {
@@ -116,134 +104,114 @@ object FileLogger {
     private fun installCrashHandler() {
         originalExceptionHandler = Thread.getDefaultUncaughtExceptionHandler()
         Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
+            e(TAG, "CRASH", "${throwable.javaClass.name}: ${throwable.message}")
             logCrashSync(throwable, thread)
             originalExceptionHandler?.uncaughtException(thread, throwable)
         }
     }
 
-    fun d(tag: String, msg: String) = write("D", tag, msg, null)
-    fun i(tag: String, msg: String) = write("I", tag, msg, null)
-    fun w(tag: String, msg: String) = write("W", tag, msg, null)
-    fun e(tag: String, msg: String) = write("E", tag, msg, null)
-    fun e(tag: String, msg: String, throwable: Throwable?) = write("E", tag, msg, throwable)
+    // ── Core log methods ──────────────────────────────────────────
 
-    private fun write(level: String, tag: String, msg: String, throwable: Throwable?) {
-        // ── ALWAYS write to logcat first ───────────────────────────────
-        // This is the critical fix: even if file logging fails (no permission,
-        // no disk, logDir missing), logcat still gets the message. Users can
-        // run `adb logcat -s OmniClaw` to see everything.
-        try {
-            when (level) {
-                "D" -> Log.d(tag, msg, throwable)
-                "I" -> Log.i(tag, msg, throwable)
-                "W" -> Log.w(tag, msg, throwable)
-                "E" -> Log.e(tag, msg, throwable)
-                else -> Log.i(tag, msg, throwable)
-            }
-        } catch (_: Throwable) {
-            // Log itself failed (e.g. logcat disabled on user builds) — nothing
-            // we can do, fall through to file logging.
+    fun d(tag: String, event: String, details: String = "") = write("D", tag, event, details)
+    fun i(tag: String, event: String, details: String = "") = write("I", tag, event, details)
+    fun w(tag: String, event: String, details: String = "") = write("W", tag, event, details)
+    fun e(tag: String, event: String, details: String = "") = write("E", tag, event, details)
+    fun e(tag: String, event: String, throwable: Throwable?, details: String = "") {
+        val detail = if (throwable != null) {
+            val stack = throwable.stackTraceToString().lines().take(15).joinToString("\n")
+            "$details\n$stack"
+        } else details
+        write("E", tag, event, detail)
+    }
+
+    /**
+     * Execute a block and log its duration. Returns the block's result.
+     *
+     * Example:
+     *   val data = FileLogger.timed("Download", "fetch nodejs.deb") {
+     *       httpClient.newCall(request).execute()
+     *   }
+     *   // Logs: I | Download | session=... | fetch nodejs.deb success | time=33400ms
+     */
+    fun <T> timed(tag: String, event: String, block: () -> T): T {
+        val start = System.currentTimeMillis()
+        return try {
+            val result = block()
+            val duration = System.currentTimeMillis() - start
+            i(tag, "$event success", "time=${duration}ms")
+            result
+        } catch (e: Exception) {
+            val duration = System.currentTimeMillis() - start
+            e(tag, "$event failed", "time=${duration}ms reason=${e.message}")
+            throw e
         }
+    }
+
+    private fun write(level: String, tag: String, event: String, details: String) {
+        // Always write to logcat first
+        try {
+            val logcatMsg = if (details.isNotBlank()) "$event | $details" else event
+            when (level) {
+                "D" -> Log.d(tag, logcatMsg)
+                "I" -> Log.i(tag, logcatMsg)
+                "W" -> Log.w(tag, logcatMsg)
+                "E" -> Log.e(tag, logcatMsg)
+                else -> Log.i(tag, logcatMsg)
+            }
+        } catch (_: Throwable) { }
 
         if (!isInitialized) return
         val time = timeFormat.format(Date())
         val threadName = Thread.currentThread().name
-        val line = buildString {
-            append("$time | $level | $threadName | $tag | $msg")
-            if (throwable != null) {
-                append("\n")
-                append(throwable.stackTraceToString())
-            }
-            append("\n")
-        }
+        val detailPart = if (details.isNotBlank()) " | $details" else ""
+        val line = "$time | $level | $threadName | $tag | session=$sessionId | $event$detailPart\n"
+
         executor.execute {
             val dir = logDir ?: return@execute
-            // Recreate dir if it was deleted externally (storage cleaner, etc.)
             if (!dir.exists()) dir.mkdirs()
             if (!dir.exists() || !dir.canWrite()) {
-                // Log the failure to logcat ONCE so the user can see why
-                // file logging isn't working — the old code silently swallowed
-                // this, which made "the log system doesn't work" impossible
-                // to debug.
                 if (!writeFailureLogged) {
                     writeFailureLogged = true
-                    try {
-                        Log.e(FILE_LOGGER_TAG, "Cannot write logs to ${dir.absolutePath} " +
-                            "(exists=${dir.exists()}, canWrite=${dir.canWrite()}). " +
-                            "File logging disabled; logs are still going to logcat.")
-                    } catch (_: Throwable) { }
+                    try { Log.e(FILE_LOGGER_TAG, "Cannot write logs to ${dir.absolutePath}") } catch (_: Throwable) { }
                 }
                 return@execute
             }
             val file = File(dir, "app_${dateFormat.format(Date())}.log")
             try {
                 FileWriter(file, true).use { it.append(line) }
-                writeFailureLogged = false  // reset on success
+                writeFailureLogged = false
             } catch (e: Exception) {
                 if (!writeFailureLogged) {
                     writeFailureLogged = true
-                    try {
-                        Log.e(FILE_LOGGER_TAG, "FileWriter failed for ${file.absolutePath}: ${e.message}", e)
-                    } catch (_: Throwable) { }
+                    try { Log.e(FILE_LOGGER_TAG, "FileWriter failed: ${e.message}") } catch (_: Throwable) { }
                 }
             }
         }
     }
 
-    private fun buildCrashReport(throwable: Throwable, thread: Thread?): String {
-        val time = timeFormat.format(Date())
-        val threadName = thread?.name ?: "unknown"
-        return buildString {
-            append("$time | E | $threadName | CRASH | === UNCAUGHT_CRASH ===\n")
-            append("$time | E | $threadName | CRASH | Device: ${Build.MANUFACTURER} ${Build.MODEL}\n")
-            append("$time | E | $threadName | CRASH | Android: ${Build.VERSION.RELEASE} (SDK ${Build.VERSION.SDK_INT})\n")
-            append("$time | E | $threadName | CRASH | App: ${BuildConfig.VERSION_NAME} (code ${BuildConfig.VERSION_CODE})\n")
-            append("$time | E | $threadName | CRASH | ${throwable.javaClass.name}: ${throwable.message}\n")
-            append(throwable.stackTraceToString().lines().joinToString("\n") { line ->
-                "$time | E | $threadName | CRASH |   $line"
-            })
-            append("\n")
-        }
-    }
-
     private fun logCrashSync(throwable: Throwable, thread: Thread?) {
         if (!isInitialized) return
-        val header = buildCrashReport(throwable, thread)
+        val time = timeFormat.format(Date())
         val ts = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
         val crashFileName = "crash_$ts.log"
 
-        // Always log crash to logcat first (in case file write fails)
-        try { Log.e(TAG, "=== UNCAUGHT CRASH ===\n$header") } catch (_: Throwable) { }
+        val header = buildString {
+            append("$time | E | ${thread?.name ?: "unknown"} | CRASH | session=$sessionId | === UNCAUGHT CRASH ===\n")
+            append("$time | E | ${thread?.name ?: "unknown"} | CRASH | session=$sessionId | ${throwable.javaClass.name}: ${throwable.message}\n")
+            append(throwable.stackTraceToString().lines().joinToString("\n") { line ->
+                "$time | E | ${thread?.name ?: "unknown"} | CRASH | session=$sessionId |   $line"
+            })
+            append("\n")
+        }
 
-        // Write to private log dir (cache or externalFiles)
+        try { Log.e(TAG, "CRASH SUMMARY: ${throwable.javaClass.name}: ${throwable.message}") } catch (_: Throwable) { }
+
         logDir?.let { dir ->
             try {
                 if (!dir.exists()) dir.mkdirs()
                 FileWriter(File(dir, crashFileName), false).use { it.append(header) }
                 FileWriter(File(dir, "app_${dateFormat.format(Date())}.log"), true).use { it.append(header) }
                 cleanCrashLogs(dir)
-            } catch (e: Exception) {
-                try { Log.e(FILE_LOGGER_TAG, "Crash log file write failed: ${e.message}", e) } catch (_: Throwable) { }
-            }
-        }
-
-        // Also write to public Downloads folder via MediaStore (API 29+)
-        val ctx = appContext ?: return
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            try {
-                val contentValues = ContentValues().apply {
-                    put(MediaStore.Downloads.DISPLAY_NAME, crashFileName)
-                    put(MediaStore.Downloads.MIME_TYPE, "text/plain")
-                    put(MediaStore.Downloads.RELATIVE_PATH, "${Environment.DIRECTORY_DOWNLOADS}/omniclaw_logs")
-                    put(MediaStore.Downloads.IS_PENDING, 0)
-                }
-                val uri = ctx.contentResolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, contentValues)
-                uri?.let {
-                    ctx.contentResolver.openOutputStream(it)?.use { outputStream ->
-                        outputStream.write(header.toByteArray())
-                        outputStream.flush()
-                    }
-                }
             } catch (_: Exception) { }
         }
     }

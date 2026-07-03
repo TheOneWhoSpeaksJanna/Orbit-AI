@@ -12,13 +12,14 @@ class OmniClawApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        // FileLogger.init() logs the startup context (version, device, session ID)
         FileLogger.init(this)
-        FileLogger.i(TAG, "App starting...")
+        FileLogger.i(TAG, "App init start")
         try {
             container = DefaultAppContainer(this)
-            FileLogger.i(TAG, "AppContainer initialized successfully")
+            FileLogger.i(TAG, "App init success", "container=DefaultAppContainer")
         } catch (e: Exception) {
-            FileLogger.e(TAG, "FAILED to initialize AppContainer", e)
+            FileLogger.e(TAG, "App init failed", e, "container=DefaultAppContainer")
             throw e
         }
     }
