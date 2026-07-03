@@ -42,6 +42,10 @@ class PreferencesManager(private val context: Context) {
         // For Ollama, the "key" slot stores the base URL of the Ollama server
         // (default http://localhost:11434). Ollama does not require auth.
         val OLLAMA_BASE_URL = stringPreferencesKey("ollama_base_url")
+        // For Z.AI, the "key" slot stores the session token from chat.z.ai.
+        // The actual API key is "Z.ai" (public/free), but the session token
+        // identifies the user. Get it from the Z.AI web interface.
+        val ZAI_TOKEN = stringPreferencesKey("zai_token")
 
         val DOWNLOAD_URL = stringPreferencesKey("download_url")
         val DOWNLOAD_FILE = stringPreferencesKey("download_file")
@@ -55,6 +59,8 @@ class PreferencesManager(private val context: Context) {
         private const val PROVIDER_DEEPSEEK = "deepseek"
         private const val PROVIDER_GROQ = "groq"
         private const val PROVIDER_OLLAMA = "ollama"
+        private const val PROVIDER_ZAI = "z.ai"
+        private const val PROVIDER_ZAI_FREE_GLM = "z.ai (free glm)"
     }
 
     val themeMode: Flow<String?> = context.dataStore.data.map { prefs ->
@@ -129,6 +135,10 @@ class PreferencesManager(private val context: Context) {
         prefs[OLLAMA_BASE_URL]
     }
 
+    val zaiToken: Flow<String?> = context.dataStore.data.map { prefs ->
+        prefs[ZAI_TOKEN]
+    }
+
     fun getApiKeyForProvider(provider: String): Flow<String?> {
         return when (provider.lowercase()) {
             PROVIDER_GEMINI -> geminiApiKey
@@ -138,6 +148,7 @@ class PreferencesManager(private val context: Context) {
             PROVIDER_DEEPSEEK -> deepSeekApiKey
             PROVIDER_GROQ -> groqApiKey
             PROVIDER_OLLAMA -> ollamaBaseUrl
+            PROVIDER_ZAI, PROVIDER_ZAI_FREE_GLM -> zaiToken
             else -> geminiApiKey
         }
     }
@@ -210,6 +221,10 @@ class PreferencesManager(private val context: Context) {
         context.dataStore.edit { prefs -> prefs[OLLAMA_BASE_URL] = url }
     }
 
+    suspend fun setZaiToken(token: String) {
+        context.dataStore.edit { prefs -> prefs[ZAI_TOKEN] = token }
+    }
+
     suspend fun setApiKeyForProvider(provider: String, key: String) {
         when (provider.lowercase()) {
             PROVIDER_GEMINI -> setGeminiApiKey(key)
@@ -219,6 +234,7 @@ class PreferencesManager(private val context: Context) {
             PROVIDER_DEEPSEEK -> setDeepSeekApiKey(key)
             PROVIDER_GROQ -> setGroqApiKey(key)
             PROVIDER_OLLAMA -> setOllamaBaseUrl(key)
+            PROVIDER_ZAI, PROVIDER_ZAI_FREE_GLM -> setZaiToken(key)
             else -> setGeminiApiKey(key)
         }
     }

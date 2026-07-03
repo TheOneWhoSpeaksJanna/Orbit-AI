@@ -506,7 +506,7 @@ exec "$${'$'}NODE" "$${'$'}AGENT_ENTRY" "$${'$'}@"
     companion object {
         private val RUN_COMMAND_REGEX = "\\[RUN: (.+?)]".toRegex()
         private val SUDO_COMMAND_REGEX = "\\[SUDO: (.+?)]".toRegex()
-        val DEFAULT_MODELS = listOf("gemini-2.0-flash-exp", "gpt-4o", "claude-sonnet-4-20250514")
+        val DEFAULT_MODELS = listOf("gemini-2.0-flash-exp", "gpt-4o", "claude-sonnet-4-20250514", "glm-4.6")
 
         /** Resolve the system shell path. Honors ANDROID_ROOT for custom ROMs. */
         private val SYSTEM_SH: String =

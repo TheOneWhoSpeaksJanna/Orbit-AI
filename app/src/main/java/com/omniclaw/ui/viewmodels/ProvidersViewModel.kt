@@ -254,7 +254,6 @@ class ProvidersViewModel(
                 .build()
 
             OLLAMA_PROVIDER -> {
-                // apiKey holds the base URL when set, otherwise default.
                 val base = apiKey.trim().trimEnd('/').ifBlank { ApiConfig.OLLAMA_DEFAULT_BASE_URL }
                 Request.Builder()
                     .url("$base${ApiConfig.OLLAMA_TAGS_PATH}")
@@ -262,7 +261,24 @@ class ProvidersViewModel(
                     .build()
             }
 
-            else -> throw IllegalArgumentException("Unknown provider: $name")
+            "Z.AI (Free GLM)", "Z.AI" -> {
+                // Z.AI health check: send a minimal chat completion request.
+                // The API key is "Z.ai" (public), the user's token goes in X-Token.
+                Request.Builder()
+                    .url("https://internal-api.z.ai/v1/chat/completions")
+                    .header("Content-Type", "application/json")
+                    .header("Authorization", "Bearer Z.ai")
+                    .header("X-Z-AI-From", "Z")
+                    .header("X-Token", apiKey)
+                    .post("""{"model":"glm-4.6","messages":[{"role":"user","content":"hi"}],"max_tokens":1,"thinking":{"type":"disabled"}}""".toRequestBody(jsonMediaType))
+                    .build()
+            }
+
+            else -> {
+                // For unknown providers from the dynamic catalog, try a simple
+                // GET to the base URL to check connectivity.
+                throw IllegalArgumentException("Unknown provider: $name")
+            }
         }
     }
 

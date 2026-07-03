@@ -31,6 +31,7 @@
     {"id": "kimi-code", "name": "Kimi Code", "type": "gateway", "transport": "openai-compatible", "baseUrl": "", "authMode": "api-key", "defaultModel": "", "icon": "kimi", "requiresKey": true},
     {"id": "opencode", "name": "OpenCode Gateway", "type": "gateway", "transport": "openai-compatible", "baseUrl": "", "authMode": "api-key", "defaultModel": "", "icon": "opencode", "requiresKey": true},
     {"id": "gitlawb-opengateway", "name": "Gitlawb OpenGateway", "type": "gateway", "transport": "openai-compatible", "baseUrl": "", "authMode": "api-key", "defaultModel": "", "icon": "opengateway", "requiresKey": true},
+    {"id": "zai-free", "name": "Z.AI (Free GLM)", "type": "vendor", "transport": "openai-compatible", "baseUrl": "https://internal-api.z.ai/v1", "authMode": "token", "defaultModel": "glm-4.6", "icon": "zai", "requiresKey": true, "free": true, "_note": "Free provider — uses the same API as chat.z.ai. API key is 'Z.ai' (public). User pastes their session token from the Z.AI web interface. Auto-retries on rate limits."},
     {"id": "custom", "name": "Custom OpenAI-compatible", "type": "gateway", "transport": "openai-compatible", "baseUrl": "", "authMode": "api-key", "defaultModel": "", "icon": "custom", "requiresKey": true}
   ]
 }
