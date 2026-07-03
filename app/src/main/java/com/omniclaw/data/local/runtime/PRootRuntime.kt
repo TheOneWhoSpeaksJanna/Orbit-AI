@@ -68,6 +68,36 @@ class PRootRuntime(private val context: Context) {
 
     val isRootfsInstalled: Boolean get() = File(rootfsDir, "bin/sh").exists()
 
+    /**
+     * Create versioned symlinks for shared libraries that proot needs.
+     *
+     * The Termux proot binary has NEEDED: libtalloc.so.2 in its ELF headers.
+     * We bundle the file as libtalloc.so (because Android jniLibs only
+     * accepts *.so filenames). At runtime, we create a symlink
+     * libtalloc.so.2 -> libtalloc.so so the linker finds it.
+     *
+     * This is called before every proot execution. It's idempotent — if
+     * the symlink already exists, it does nothing.
+     */
+    private fun ensureVersionedSymlinks() {
+        try {
+            val talloc = File(nativeLibDir, "libtalloc.so")
+            val talloc2 = File(nativeLibDir, "libtalloc.so.2")
+            if (talloc.exists() && !talloc2.exists()) {
+                // Try symlink first (works on most devices)
+                try {
+                    Runtime.getRuntime().exec(arrayOf(
+                        "ln", "-s", "libtalloc.so", talloc2.absolutePath
+                    )).waitFor()
+                } catch (_: Exception) { }
+                // If symlink failed (read-only dir), try copy
+                if (!talloc2.exists()) {
+                    try { talloc.copyTo(talloc2, overwrite = false) } catch (_: Exception) { }
+                }
+            }
+        } catch (_: Exception) { }
+    }
+
     init {
         runtimeDir.mkdirs()
         agentsDir.mkdirs()
@@ -237,6 +267,9 @@ class PRootRuntime(private val context: Context) {
                 command
             )
         }
+
+        // Ensure libtalloc.so.2 symlink exists (proot needs it)
+        ensureVersionedSymlinks()
 
         val prootCmd = buildProotCommand(command, workingDir)
         val execStart = System.currentTimeMillis()
