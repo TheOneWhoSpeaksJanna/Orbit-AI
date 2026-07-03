@@ -26,7 +26,9 @@ class AiProviderSelector(okHttpClient: OkHttpClient) : AiProvider {
         "OpenRouter" to OpenRouterProvider(okHttpClient),
         "DeepSeek" to DeepSeekProvider(okHttpClient),
         "Groq" to GroqProvider(okHttpClient),
-        "Ollama" to OllamaProvider(okHttpClient)
+        "Ollama" to OllamaProvider(okHttpClient),
+        "Z.AI (Free GLM)" to ZAIProvider(okHttpClient),
+        "Z.AI" to ZAIProvider(okHttpClient)
     )
 
     private fun getProvider(name: String): AiProvider {
