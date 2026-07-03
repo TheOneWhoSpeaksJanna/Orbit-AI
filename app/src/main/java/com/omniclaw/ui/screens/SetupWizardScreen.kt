@@ -8,6 +8,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.runtime.remember
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -41,8 +42,11 @@ import rikka.shizuku.Shizuku
 
 private val THEME_OPTIONS = listOf("System", "Dark", "Light")
 private val AGENT_OPTIONS = listOf("OpenClaude", "Claude Code", "OpenCode", "Codex", "Default")
-private val PROVIDER_OPTIONS = listOf(
-    "Claude", "OpenAI", "Gemini", "OpenRouter",
+
+// Providers are now loaded dynamically from ProviderCatalog.
+// This is a fallback list used before the catalog loads.
+private val FALLBACK_PROVIDER_OPTIONS = listOf(
+    "Anthropic Claude", "OpenAI", "Google Gemini", "OpenRouter",
     "DeepSeek", "Groq", "Ollama"
 )
 private const val OLLAMA_HINT = "Local Ollama — leave blank for http://localhost:11434 or enter a custom URL"
@@ -391,6 +395,12 @@ fun ProviderSelectionStep(viewModel: SetupViewModel) {
     val success by viewModel.testConnectionSuccess.collectAsState()
     val testError by viewModel.testConnectionError.collectAsState()
 
+    // Load providers dynamically from the catalog
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val providerOptions = remember {
+        com.omniclaw.data.local.runtime.ProviderCatalog.load(context).map { it.name }
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -406,7 +416,7 @@ fun ProviderSelectionStep(viewModel: SetupViewModel) {
         )
         Spacer(modifier = Modifier.height(16.dp))
 
-        PROVIDER_OPTIONS.forEach { provider ->
+        providerOptions.forEach { provider ->
             val isSelected = provider == selectedProvider
             Spacer(modifier = Modifier.height(10.dp))
             AnimatedGlassCard(
