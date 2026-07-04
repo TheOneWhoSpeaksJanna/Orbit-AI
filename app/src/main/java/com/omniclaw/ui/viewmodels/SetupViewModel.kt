@@ -714,9 +714,13 @@ exec "$${'$'}NODE" "$${'$'}AGENT_ENTRY" "$${'$'}@"
             repository.insertAgent(agent)
 
             // Auto-install pre-bundled agent for this flavor
-            if (FlavorConfig.presetAgentName.isNotBlank() && agentName == FlavorConfig.presetAgentName) {
-                installAgent(agentName)
-            }
+            // DISABLED: Auto-install triggers PRoot rootfs install which can fail on
+            // some devices. Users can install agents manually from the Setup screen
+            // or terminal. Cloud mode (Z.AI, OpenAI, etc.) works without any local
+            // agent installation.
+            // if (FlavorConfig.presetAgentName.isNotBlank() && agentName == FlavorConfig.presetAgentName) {
+            //     installAgent(agentName)
+            // }
 
             // Seed default Shizuku skill if not already present
             val existingSkills = repository.getAllSkills().firstOrNull().orEmpty()
