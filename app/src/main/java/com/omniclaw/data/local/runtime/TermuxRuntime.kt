@@ -26,26 +26,55 @@ private const val TAG = "TermuxRuntime"
  *   proot itself (only needing read access, which app_data_file allows)
  *   and never exec'd by the kernel.
  *
- * Architecture:
- *   1. termux-bootstrap.zip -> extracted to prefixDir (app_data_file, read-only)
- *   2. libproot.so + libproot_loader.so -> jniLibs -> /data/app/<pkg>/lib/arm64/
- *   3. All commands run as: libproot.so -r prefixDir -b ... -- /bin/sh -c "cmd"
- *   4. Inside the rootfs, /bin/sh, /bin/apt, /bin/node etc. all work because
- *      proot ptrace-intercepts the execve calls.
+ * ROOTFS LAYOUT (matches proot-distro's termux-type layout):
+ *   rootfsDir/                              <- PRoot -r (the chroot root)
+ *     data/data/com.termux/files/usr/       <- Termux PREFIX (bin, lib, etc)
+ *     data/data/com.termux/files/home/      <- HOME directory
+ *   runtimeDir/agents/                      <- Agent code (bind-mounted to /orbit)
+ *   runtimeDir/workspace/                   <- User workspace (bind-mounted to /workspace)
+ *
+ *   This layout avoids self-referential bind mounts. The Termux hardcoded
+ *   path /data/data/com.termux/files/usr maps directly to the extracted
+ *   files without any bind mount tricks.
+ *
+ * PRoot FLAGS (matching proot-distro):
+ *   --kill-on-exit   — kill children if proot dies
+ *   -L               — fix_symlink_size extension. CRITICAL: Termux's dpkg
+ *                      treats wrong symlink st_size as a FATAL error. Without
+ *                      -L, dpkg aborts during package extraction with
+ *                      "symbolic link size has changed" → apt exit 100.
+ *   -r rootfsDir     — rootfs root
+ *   -b /dev /proc... — bind Android system dirs
+ *   -b runtimeDir:/orbit — make agent code visible inside rootfs
+ *
+ *   NOT used (intentionally):
+ *   --link2symlink   — Termux's dpkg already uses rename() instead of link().
+ *                      link2symlink creates broken host-path symlinks.
+ *   -0               — Termux apt refuses to run as root.
+ *   -b prefix:prefix — self-referential bind creates recursive paths that
+ *                      break postinst scripts doing directory traversal.
  */
 class TermuxRuntime(private val context: Context) {
 
     val runtimeDir = File(context.filesDir, "orbit_runtime")
-    val prefixDir = File(runtimeDir, "termux-rootfs")
+
+    /** PRoot root (the chroot root). Contains data/data/com.termux/files/usr/ */
+    val rootfsDir = File(runtimeDir, "termux-rootfs")
+
+    /** Termux PREFIX = /data/data/com.termux/files/usr inside the rootfs. */
+    val prefixDir = File(rootfsDir, "data/data/com.termux/files/usr")
+
+    /** bin directory inside the Termux prefix. */
     val binDir = File(prefixDir, "bin")
+
+    /** Agent code lives here (outside rootfs, bind-mounted to /orbit). */
     val agentsDir = File(runtimeDir, "agents")
     val workspaceDir = File(runtimeDir, "workspace")
     val tmpDir = File(runtimeDir, "tmp")
 
     /**
      * Directory where Android extracts jniLibs at install time.
-     * SELinux label `apk_data_file` allows execve() here — this is
-     * the ONLY place we can exec native binaries on Android 10+.
+     * SELinux label `apk_data_file` allows execve() here.
      */
     private val nativeLibDir: String by lazy {
         context.applicationInfo.nativeLibraryDir ?: ""
@@ -54,6 +83,10 @@ class TermuxRuntime(private val context: Context) {
     /** Path to the PRoot binary in the exec-allowed lib directory. */
     val prootPath: String by lazy { "$nativeLibDir/libproot.so" }
     val prootLoaderPath: String by lazy { "$nativeLibDir/libproot_loader.so" }
+
+    /** Termux PREFIX path as seen INSIDE the rootfs (absolute, not host). */
+    private val termuxPrefix = "/data/data/com.termux/files/usr"
+    private val termuxHome = "/data/data/com.termux/files/home"
 
     val isInstalled: Boolean get() = File(binDir, "bash").exists()
 
@@ -68,17 +101,19 @@ class TermuxRuntime(private val context: Context) {
     }
 
     /**
-     * Install the Termux bootstrap rootfs by extracting the bundled zip.
-     * After extraction, packages (nodejs, git, python3) are installed via
-     * apt — run inside the rootfs through PRoot so apt can exec dpkg, ar,
-     * tar, etc. without hitting the W^X SELinux block.
+     * Install the Termux bootstrap rootfs by extracting the bundled zip
+     * into the proot-distro layout: rootfsDir/data/data/com.termux/files/usr/
+     * After extraction, packages (nodejs, git, python3) are installed via apt.
      */
     suspend fun install(
         onProgress: (Float, String) -> Unit = { _, _ -> }
     ): Boolean = withContext(Dispatchers.IO) {
         if (isInstalled) {
             FileLogger.i(TAG, "Termux rootfs already installed")
-            return@withContext true
+            // Even if rootfs is extracted, tools might not be installed
+            // (e.g. if apt failed on a previous run). Check and install.
+            val toolsOk = ensureToolsInstalled(onProgress)
+            return@withContext toolsOk
         }
         if (_installInProgress) {
             FileLogger.w(TAG, "Termux install already in progress, skipping duplicate call")
@@ -104,9 +139,11 @@ class TermuxRuntime(private val context: Context) {
             }
             FileLogger.i(TAG, "Bootstrap zip copied", "bytes=${tempZip.length()} time=${System.currentTimeMillis() - copyStart}ms")
 
-            // Step 2: Extract using Java ZipInputStream
+            // Step 2: Extract bootstrap zip into prefixDir.
+            // The bootstrap zip contains the CONTENTS of usr/ — so we extract
+            // directly into prefixDir (which IS .../usr/).
             onProgress(0.1f, "Extracting rootfs (this takes a minute)...")
-            FileLogger.i(TAG, "Extraction start")
+            FileLogger.i(TAG, "Extraction start", "target=${prefixDir.absolutePath}")
             val extractStart = System.currentTimeMillis()
             var fileCount = 0
             java.util.zip.ZipInputStream(tempZip.inputStream()).use { zis ->
@@ -162,63 +199,40 @@ class TermuxRuntime(private val context: Context) {
                 FileLogger.i(TAG, "Symlinks created", "count=$symlinkCount failed=$symlinkFailed time=${System.currentTimeMillis() - symlinkStart}ms")
             }
 
-            val binSh = File(prefixDir, "bin/sh")
-            val binBash = File(prefixDir, "bin/bash")
+            val binSh = File(binDir, "sh")
+            val binBash = File(binDir, "bash")
             FileLogger.i(TAG, "Binary check", "sh=${binSh.exists()} bash=${binBash.exists()} sh_canonical=${binSh.canonicalPath}")
 
-            // Step 4: Set up apt sources.list, DNS, and writable dirs
+            // Step 4: Create home directory and tmp dir inside the rootfs
             onProgress(0.5f, "Configuring environment...")
+            File(rootfsDir, "data/data/com.termux/files/home").mkdirs()
+            File(prefixDir, "tmp").mkdirs()
+
+            // Set up apt sources.list (the bootstrap includes one, but we
+            // overwrite to ensure it points to the right repo).
             File(prefixDir, "etc/apt/sources.list.d").mkdirs()
             File(prefixDir, "etc/apt/apt.conf.d").mkdirs()
             File(prefixDir, "etc/apt/preferences.d").mkdirs()
-            File(prefixDir, "var/log").mkdirs()
-            File(prefixDir, "tmp").mkdirs()
-            // Create /home inside the rootfs — used as HOME for commands
-            // running under PRoot without the -0 (fake root) flag.
-            File(prefixDir, "home").mkdirs()
-            // dpkg state directories — apt needs these to track installs.
-            // The bootstrap may include them, but create if missing.
-            File(prefixDir, "var/lib/dpkg/info").mkdirs()
-            File(prefixDir, "var/lib/dpkg/updates").mkdirs()
-            File(prefixDir, "var/lib/dpkg/parts").mkdirs()
-            File(prefixDir, "var/cache/apt/archives/partial").mkdirs()
-            File(prefixDir, "var/cache/apt/archives/partial").mkdirs()
-            val dpkgStatus = File(prefixDir, "var/lib/dpkg/status")
-            if (!dpkgStatus.exists()) dpkgStatus.writeText("")
-            val dpkgAvailable = File(prefixDir, "var/lib/dpkg/available")
-            if (!dpkgAvailable.exists()) dpkgAvailable.writeText("")
-            // DNS resolution — PRoot bind-mounts /system but apt needs
-            // /etc/resolv.conf inside the rootfs to resolve package URLs.
-            val resolvConf = File(prefixDir, "etc/resolv.conf")
-            if (!resolvConf.exists()) {
-                resolvConf.writeText("nameserver 8.8.8.8\nnameserver 1.1.1.1\n")
-            }
             val sourcesList = File(prefixDir, "etc/apt/sources.list")
             sourcesList.parentFile?.mkdirs()
             sourcesList.writeText("deb https://packages.termux.dev/apt/termux-main/ stable main\n")
+
+            // DNS resolution inside the rootfs
+            val resolvConf = File(rootfsDir, "etc/resolv.conf")
+            resolvConf.parentFile?.mkdirs()
+            if (!resolvConf.exists()) {
+                resolvConf.writeText("nameserver 8.8.8.8\nnameserver 1.1.1.1\n")
+            }
             FileLogger.i(TAG, "Environment configured")
 
             // Step 5: Install packages via PRoot + apt
-            // This is the critical step that previously failed with "Permission denied"
-            // because apt, dpkg, ar etc. couldn't be exec'd from app_data_file.
-            // Now they run under PRoot, which ptrace-intercepts the execve calls.
             onProgress(0.6f, "Installing nodejs, git, python3 (downloads ~50MB)...")
-            FileLogger.i(TAG, "pkg install start", "packages=nodejs,git,python3")
-            val pkgStart = System.currentTimeMillis()
-            val pkgResult = executeInTermux("apt update -y && apt install -y nodejs git python3")
-            val pkgDuration = System.currentTimeMillis() - pkgStart
-            FileLogger.i(TAG, "pkg install result", "exit=${pkgResult.exitCode} time=${pkgDuration}ms output=${pkgResult.output.take(500)}")
-
-            if (pkgResult.exitCode != 0) {
-                FileLogger.w(TAG, "pkg install had issues, checking what's available")
-                val nodeCheck = File(binDir, "node")
-                if (!nodeCheck.exists()) {
-                    FileLogger.e(TAG, "Node not found after install", "path=${nodeCheck.absolutePath}")
-                }
+            val toolsOk = installTools()
+            if (!toolsOk) {
+                FileLogger.e(TAG, "Tool installation failed")
+                onProgress(0.0f, "Failed to install packages")
+                return@withContext false
             }
-
-            val npmCheck = File(binDir, "npm")
-            FileLogger.i(TAG, "Tool check", "node=${File(binDir, "node").exists()} npm=${npmCheck.exists()} git=${File(binDir, "git").exists()}")
 
             val totalDuration = System.currentTimeMillis() - startTime
             FileLogger.i(TAG, "Termux install success", "time=${totalDuration}ms")
@@ -227,7 +241,6 @@ class TermuxRuntime(private val context: Context) {
         } catch (e: Exception) {
             val totalDuration = System.currentTimeMillis() - startTime
             FileLogger.e(TAG, "Termux install failed", e, "time=${totalDuration}ms reason=${e.message}")
-            FileLogger.e(TAG, "SUMMARY: Termux install failed because ${e.message}")
             onProgress(0.0f, "Failed: ${e.message}")
             false
         } finally {
@@ -236,19 +249,73 @@ class TermuxRuntime(private val context: Context) {
     }
 
     /**
+     * Check if node/npm/git are installed. If not, run apt install.
+     * This is called both during initial install and during retries.
+     * Returns true if tools are available after this call.
+     */
+    suspend fun ensureToolsInstalled(
+        onProgress: (Float, String) -> Unit = { _, _ -> }
+    ): Boolean = withContext(Dispatchers.IO) {
+        val nodeExists = File(binDir, "node").exists()
+        val npmExists = File(binDir, "npm").exists()
+        val gitExists = File(binDir, "git").exists()
+        FileLogger.i(TAG, "Tool check", "node=$nodeExists npm=$npmExists git=$gitExists")
+
+        if (nodeExists && npmExists && gitExists) {
+            return@withContext true
+        }
+
+        onProgress(0.6f, "Installing nodejs, git, python3 (downloads ~50MB)...")
+        installTools()
+    }
+
+    /**
+     * Run apt update + apt install nodejs git python3 inside the rootfs
+     * under PRoot. Uses -o APT::Sandbox::User=root to disable apt's _apt
+     * sandbox (which is broken under PRoot).
+     */
+    private suspend fun installTools(): Boolean = withContext(Dispatchers.IO) {
+        FileLogger.i(TAG, "pkg install start", "packages=nodejs,git,python3")
+        val pkgStart = System.currentTimeMillis()
+
+        // Fix any half-configured packages from previous failed installs
+        val fixResult = executeInTermux("dpkg --configure -a 2>&1 || true", "")
+        FileLogger.i(TAG, "dpkg configure result", "exit=${fixResult.exitCode} output=${fixResult.output.take(500)}")
+
+        // apt update
+        val updateResult = executeInTermux(
+            "apt update -o APT::Sandbox::User=root 2>&1",
+            ""
+        )
+        FileLogger.i(TAG, "apt update result", "exit=${updateResult.exitCode} time=--ms output=${updateResult.output.take(2000)}")
+
+        // apt install
+        val installResult = executeInTermux(
+            "apt install -y -o APT::Sandbox::User=root nodejs git python3 2>&1",
+            ""
+        )
+        val pkgDuration = System.currentTimeMillis() - pkgStart
+        FileLogger.i(TAG, "pkg install result", "exit=${installResult.exitCode} time=${pkgDuration}ms output=${installResult.output.take(3000)}")
+
+        if (installResult.exitCode != 0) {
+            FileLogger.e(TAG, "apt install failed", "exit=${installResult.exitCode}")
+            // Check if node was installed despite errors
+            val nodeCheck = File(binDir, "node")
+            if (!nodeCheck.exists()) {
+                FileLogger.e(TAG, "Node not found after install", "path=${nodeCheck.absolutePath}")
+                return@withContext false
+            }
+        }
+
+        val npmCheck = File(binDir, "npm")
+        FileLogger.i(TAG, "Tool check", "node=${File(binDir, "node").exists()} npm=${npmCheck.exists()} git=${File(binDir, "git").exists()}")
+        File(binDir, "node").exists() && npmCheck.exists()
+    }
+
+    /**
      * Execute a command inside the Termux rootfs under PRoot.
      *
-     * PRoot flags used:
-     *   --kill-on-exit     — kill all children if proot dies
-     *   -0                 — fake root uid (some scripts expect this)
-     *   --link2symlink     — required on Android for hardlink emulation
-     *   -r <rootfs>        — use prefixDir as the root
-     *   -b <src>:<dst>     — bind mount (Android system dirs + our dirs)
-     *   -w <dir>           — set working dir inside rootfs
-     *
-     * The command is passed to /bin/sh -c inside the rootfs. All execve
-     * calls made by sh (and its children) are intercepted by proot via
-     * ptrace, so binaries in the rootfs run despite being on app_data_file.
+     * PRoot flags: see class docs for the full rationale.
      */
     suspend fun executeInTermux(
         command: String,
@@ -262,16 +329,12 @@ class TermuxRuntime(private val context: Context) {
         FileLogger.d(TAG, "Termux exec start", "cmd=${command.take(200)}")
 
         try {
-            // Build PRoot argv
+            // Build PRoot argv — matches proot-distro's termux-type invocation
             val prootArgs = mutableListOf(
                 prootPath,
                 "--kill-on-exit",
-                // NOTE: do NOT use -0 (fake root uid). Termux patches apt to
-                // refuse running as root with "Ability to run this command as
-                // root has been disabled permanently for safety purposes".
-                // Termux is designed to run as the app's regular UID.
-                "--link2symlink",
-                "-r", prefixDir.absolutePath,
+                "-L",  // fix_symlink_size — CRITICAL for Termux dpkg
+                "-r", rootfsDir.absolutePath,
                 // Bind Android system directories so binaries can find libs, /dev, /proc etc.
                 "-b", "/dev",
                 "-b", "/proc",
@@ -282,18 +345,12 @@ class TermuxRuntime(private val context: Context) {
                 "-b", "/odm",
                 "-b", "/linkerconfig",
                 "-b", "/data/local/tmp:/tmp",
-                // CRITICAL: Termux binaries have /data/data/com.termux/files/usr
-                // hardcoded as their PREFIX. apt looks for config at
-                // /data/data/com.termux/files/usr/etc/apt/apt.conf.d/
-                // and symlinks point to /data/data/com.termux/files/usr/bin/*.
-                // Bind-mount our prefixDir over that path so everything resolves.
-                "-b", "${prefixDir.absolutePath}:/data/data/com.termux/files/usr",
                 // Make our runtime dir visible inside the rootfs at /orbit
                 "-b", "$runtimeDir:/orbit",
-                // Set working directory to / (inside rootfs)
-                "-w", "/",
-                // Exec /bin/sh -c "command"
-                "/bin/sh", "-c", command
+                // Set working directory to Termux HOME
+                "-w", termuxHome,
+                // Exec the shell inside the Termux prefix
+                "$termuxPrefix/bin/sh", "-c", command
             )
 
             val pb = ProcessBuilder(prootArgs)
@@ -304,21 +361,14 @@ class TermuxRuntime(private val context: Context) {
             env["PROOT_LOADER"] = prootLoaderPath
             env["PROOT_LOADER_32"] = prootLoaderPath
             env["PROOT_TMP_DIR"] = tmpDir.absolutePath
-            // Inside the rootfs, set up Termux-like env.
-            // PREFIX is the Termux convention — many scripts expect it.
-            env["PREFIX"] = prefixDir.absolutePath
-            // PATH inside the rootfs: Termux puts binaries in /bin (symlinked
-            // from prefix/bin). Include /system/bin for toybox applets.
-            env["PATH"] = "/bin:/system/bin:/system/xbin"
-            // HOME must be a writable directory inside the rootfs. /home is
-            // in the bootstrap and writable by any user (no -0 needed).
-            env["HOME"] = "/home"
-            env["TMPDIR"] = "/tmp"
+            // Termux environment — must match what Termux binaries expect
+            env["PREFIX"] = termuxPrefix
+            env["PATH"] = "$termuxPrefix/bin:/system/bin:/system/xbin"
+            env["HOME"] = termuxHome
+            env["TMPDIR"] = "$termuxPrefix/tmp"
             env["LANG"] = "en_US.UTF-8"
             env["TERM"] = "xterm-256color"
-            // LD_LIBRARY_PATH includes Termux's lib dir (symlinks to prefix/lib)
-            // plus system lib dirs.
-            env["LD_LIBRARY_PATH"] = "/lib:/usr/lib:/system/lib64"
+            env["LD_LIBRARY_PATH"] = "$termuxPrefix/lib:/system/lib64"
 
             val process = pb.start()
 
@@ -354,7 +404,7 @@ class TermuxRuntime(private val context: Context) {
             val execDuration = System.currentTimeMillis() - execStart
 
             if (exitCode != 0) {
-                FileLogger.w(TAG, "Termux exec failed", "exit=$exitCode time=${execDuration}ms stderr=${stderr.take(300)}")
+                FileLogger.w(TAG, "Termux exec failed", "exit=$exitCode time=${execDuration}ms stderr=${stderr.take(500)}")
             } else {
                 FileLogger.d(TAG, "Termux exec success", "exit=0 time=${execDuration}ms output=${output.length}chars")
             }
@@ -370,9 +420,8 @@ class TermuxRuntime(private val context: Context) {
     fun isToolInstalled(tool: String): Boolean = File(binDir, tool).exists()
 
     /**
-     * Returns the path to node INSIDE the rootfs (e.g. /data/.../bin/node).
-     * Callers that want to exec node directly must do so via executeInTermux()
-     * — direct execve on this path will be blocked by SELinux.
+     * Returns the path to node INSIDE the rootfs (host path).
+     * Callers that want to exec node must do so via executeInTermux().
      */
     fun getNodePath(): String? {
         val node = File(binDir, "node")

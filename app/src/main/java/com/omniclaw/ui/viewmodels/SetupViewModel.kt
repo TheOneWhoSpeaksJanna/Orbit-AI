@@ -388,7 +388,7 @@ class SetupViewModel(
 
                 val termuxRuntime = appContainer.termuxRuntime
 
-                // Ensure rootfs is installed (extracts Alpine + installs node/npm/git)
+                // Ensure rootfs is installed (extracts bootstrap + installs node/npm/git)
                 if (!termuxRuntime.isInstalled) {
                     updateInstallState(agentName, progress = 0.1f, status = "Installing Linux environment...")
                     val rootfsOk = termuxRuntime.install { progress, status ->
@@ -396,6 +396,17 @@ class SetupViewModel(
                     }
                     if (!rootfsOk) {
                         throw IllegalStateException("Failed to install Linux rootfs environment")
+                    }
+                } else {
+                    // Rootfs is already extracted, but tools (node/npm/git) might
+                    // be missing if apt failed on a previous run. Ensure they're
+                    // installed before trying npm install.
+                    updateInstallState(agentName, progress = 0.3f, status = "Checking tools...")
+                    val toolsOk = termuxRuntime.ensureToolsInstalled { progress, status ->
+                        updateInstallState(agentName, progress = 0.3f + progress * 0.3f, status = status)
+                    }
+                    if (!toolsOk) {
+                        throw IllegalStateException("Failed to install nodejs/npm/git. Check logs.")
                     }
                 }
 
