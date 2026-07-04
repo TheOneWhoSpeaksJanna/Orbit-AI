@@ -166,11 +166,14 @@ class TermuxRuntime(private val context: Context) {
             val binBash = File(prefixDir, "bin/bash")
             FileLogger.i(TAG, "Binary check", "sh=${binSh.exists()} bash=${binBash.exists()} sh_canonical=${binSh.canonicalPath}")
 
-            // Step 4: Set up apt sources.list
+            // Step 4: Set up apt sources.list and writable dirs
             onProgress(0.5f, "Configuring environment...")
             File(prefixDir, "etc/apt/sources.list.d").mkdirs()
             File(prefixDir, "var/log").mkdirs()
             File(prefixDir, "tmp").mkdirs()
+            // Create /home inside the rootfs — used as HOME for commands
+            // running under PRoot without the -0 (fake root) flag.
+            File(prefixDir, "home").mkdirs()
             val sourcesList = File(prefixDir, "etc/apt/sources.list")
             sourcesList.parentFile?.mkdirs()
             sourcesList.writeText("deb https://packages.termux.dev/apt/termux-main/ stable main\n")
@@ -244,7 +247,10 @@ class TermuxRuntime(private val context: Context) {
             val prootArgs = mutableListOf(
                 prootPath,
                 "--kill-on-exit",
-                "-0",
+                // NOTE: do NOT use -0 (fake root uid). Termux patches apt to
+                // refuse running as root with "Ability to run this command as
+                // root has been disabled permanently for safety purposes".
+                // Termux is designed to run as the app's regular UID.
                 "--link2symlink",
                 "-r", prefixDir.absolutePath,
                 // Bind Android system directories so binaries can find libs, /dev, /proc etc.
@@ -255,6 +261,7 @@ class TermuxRuntime(private val context: Context) {
                 "-b", "/vendor",
                 "-b", "/apex",
                 "-b", "/odm",
+                "-b", "/linkerconfig",
                 "-b", "/data/local/tmp:/tmp",
                 // Make our runtime dir visible inside the rootfs at /orbit
                 "-b", "$runtimeDir:/orbit",
@@ -272,14 +279,21 @@ class TermuxRuntime(private val context: Context) {
             env["PROOT_LOADER"] = prootLoaderPath
             env["PROOT_LOADER_32"] = prootLoaderPath
             env["PROOT_TMP_DIR"] = tmpDir.absolutePath
-            // Inside the rootfs, set up Termux-like env
+            // Inside the rootfs, set up Termux-like env.
+            // PREFIX is the Termux convention — many scripts expect it.
             env["PREFIX"] = prefixDir.absolutePath
-            env["PATH"] = "/bin:/usr/bin:/sbin:/usr/sbin"
-            env["HOME"] = "/root"
+            // PATH inside the rootfs: Termux puts binaries in /bin (symlinked
+            // from prefix/bin). Include /system/bin for toybox applets.
+            env["PATH"] = "/bin:/system/bin:/system/xbin"
+            // HOME must be a writable directory inside the rootfs. /home is
+            // in the bootstrap and writable by any user (no -0 needed).
+            env["HOME"] = "/home"
             env["TMPDIR"] = "/tmp"
             env["LANG"] = "en_US.UTF-8"
             env["TERM"] = "xterm-256color"
-            env["LD_LIBRARY_PATH"] = "/lib:/usr/lib"
+            // LD_LIBRARY_PATH includes Termux's lib dir (symlinks to prefix/lib)
+            // plus system lib dirs.
+            env["LD_LIBRARY_PATH"] = "/lib:/usr/lib:/system/lib64"
 
             val process = pb.start()
 
