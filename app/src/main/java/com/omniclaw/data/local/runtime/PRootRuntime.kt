@@ -159,42 +159,27 @@ class PRootRuntime(private val context: Context) {
             onProgress(0.3f, "Extracting rootfs archive...")
             val extractStart = System.currentTimeMillis()
 
-            // Extract: try gzip first (if the file is still .tar.gz),
-            // then fall back to plain tar (if AAPT2 decompressed it).
-            val extractRootfs: (java.io.InputStream) -> Unit = { input ->
-                org.apache.commons.compress.archivers.tar.TarArchiveInputStream(input).use { tis ->
-                    var entry = tis.nextEntry
-                    while (entry != null) {
-                        val outFile = File(rootfsDir, entry.name)
-                        if (entry.isDirectory) {
-                            outFile.mkdirs()
-                        } else {
-                            outFile.parentFile?.mkdirs()
-                            FileOutputStream(outFile).use { fos ->
-                                tis.copyTo(fos)
-                            }
-                            // Preserve executable bits
-                            if (entry.mode and 0b001000000 != 0) {
-                                outFile.setExecutable(true, false)
-                            }
-                        }
-                        entry = tis.nextEntry
-                    }
-                }
-            }
+            // Use the system tar command to extract — it handles symlinks,
+            // hard links, and permissions natively. The Java TarArchiveInputStream
+            // doesn't handle symlinks, which breaks Alpine (where /bin/sh → /bin/busybox).
+            val tarProcess = ProcessBuilder(
+                "tar", "-xf", tempArchive.absolutePath, "-C", rootfsDir.absolutePath
+            ).apply {
+                environment()["PATH"] = "/system/bin:/system/xbin"
+            }.start()
+            val tarExit = tarProcess.waitFor()
+            val tarErr = tarProcess.errorStream.bufferedReader().readText().trim()
+            val extractDuration = System.currentTimeMillis() - extractStart
 
-            try {
-                java.util.zip.GZIPInputStream(tempArchive.inputStream()).use { gzip ->
-                    extractRootfs(gzip)
-                }
-                FileLogger.d(TAG, "Rootfs extracted", "format=gzip time=${System.currentTimeMillis() - extractStart}ms")
-            } catch (gzipEx: Exception) {
-                FileLogger.w(TAG, "Gzip extraction failed, trying plain tar", "reason=${gzipEx.message}")
-                tempArchive.inputStream().use { plain ->
-                    extractRootfs(plain)
-                }
-                FileLogger.d(TAG, "Rootfs extracted", "format=tar time=${System.currentTimeMillis() - extractStart}ms")
+            if (tarExit != 0) {
+                FileLogger.e(TAG, "tar extraction failed", "exit=$tarExit time=${extractDuration}ms stderr=${tarErr.take(300)}")
+                throw RuntimeException("tar extraction failed (exit=$tarExit): ${tarErr.take(200)}")
             }
+            FileLogger.d(TAG, "Rootfs extracted", "format=tar time=${extractDuration}ms")
+
+            // Verify symlinks were created
+            val binSh = File(rootfsDir, "bin/sh")
+            FileLogger.d(TAG, "Symlink check", "bin/sh exists=${binSh.exists()} canonical=${binSh.canonicalPath}")
 
             tempArchive.delete()
             onProgress(0.7f, "Rootfs extracted, configuring...")
