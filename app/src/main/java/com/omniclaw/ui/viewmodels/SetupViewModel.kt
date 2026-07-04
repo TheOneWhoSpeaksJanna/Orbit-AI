@@ -713,14 +713,14 @@ exec "$${'$'}NODE" "$${'$'}AGENT_ENTRY" "$${'$'}@"
             )
             repository.insertAgent(agent)
 
-            // Auto-install pre-bundled agent for this flavor
-            // DISABLED: Auto-install triggers PRoot rootfs install which can fail on
-            // some devices. Users can install agents manually from the Setup screen
-            // or terminal. Cloud mode (Z.AI, OpenAI, etc.) works without any local
-            // agent installation.
-            // if (FlavorConfig.presetAgentName.isNotBlank() && agentName == FlavorConfig.presetAgentName) {
-            //     installAgent(agentName)
-            // }
+            // Auto-install the pre-bundled agent for this flavor.
+            // This triggers PRoot rootfs extraction + apk add + npm install.
+            // The tar symlink fix (system tar instead of Java tar) should make
+            // PRoot work now. If it fails, the error is logged and the user
+            // can retry from the Setup screen.
+            if (FlavorConfig.presetAgentName.isNotBlank() && agentName == FlavorConfig.presetAgentName) {
+                installAgent(agentName)
+            }
 
             // Seed default Shizuku skill if not already present
             val existingSkills = repository.getAllSkills().firstOrNull().orEmpty()
