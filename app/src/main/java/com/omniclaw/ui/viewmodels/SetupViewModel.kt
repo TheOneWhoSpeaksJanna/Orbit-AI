@@ -498,7 +498,11 @@ class SetupViewModel(
                 // are available. This is the RELIABLE path.
                 updateInstallState(agentName, progress = 0.9f, status = STATUS_CREATING_SCRIPT)
 
-                val entryPoint = DIST_CANDIDATES.firstOrNull { File(targetDir, it).exists() } ?: "index.js"
+                // Always create the wrapper script, even if npm install failed.
+                // The wrapper uses PRoot to run the agent inside Alpine rootfs.
+                // If agent code is missing, the wrapper will error gracefully
+                // with a clear message instead of "No such file or directory".
+                val entryPoint = "index.js"  // default fallback
                 val prootBinary = appContainer.prootRuntime.prootBinary
                 val prootLoader = appContainer.prootRuntime.prootLoader
                 val rootfsPath = appContainer.prootRuntime.rootfsDir.absolutePath
@@ -514,14 +518,24 @@ class SetupViewModel(
 export PROOT_LOADER="$prootLoader"
 export PROOT_NO_SECCOMP=1
 export PROOT_TMP_DIR="$tmpPath"
+export PROOT_L2S_DIR="$rootfsPath/.l2s"
 export HOME="/root"
 export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 export TERM="xterm-256color"
 export LANG="C.UTF-8"
 unset LD_PRELOAD
 
+# Check if agent entry point exists
+AGENT_ENTRY="/agents/$targetDirName/$entryPoint"
+if [ ! -f "$${'$'}AGENT_ENTRY" ]; then
+    echo "ERROR: Agent code not found at $${'$'}AGENT_ENTRY" >&2
+    echo "The agent was not installed properly. Try reinstalling from Setup Wizard." >&2
+    exit 1
+fi
+
 exec "$prootBinary" \
     --kill-on-exit \
+    --link2symlink \
     --rootfs="$rootfsPath" \
     --cwd="/root" \
     --change-id=0:0 \
@@ -532,7 +546,7 @@ exec "$prootBinary" \
     --bind="$agentsPath:/agents" \
     --bind="$workspacePath:/workspace" \
     --bind="$tmpPath:/tmp" \
-    -- /usr/bin/node "/agents/$targetDirName/$entryPoint" "${'$'}@"
+    -- /usr/bin/node "$${'$'}AGENT_ENTRY" "${'$'}@"
                 """.trimIndent()
 
                 withContext(Dispatchers.IO) {

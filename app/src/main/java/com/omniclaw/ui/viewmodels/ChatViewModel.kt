@@ -319,8 +319,24 @@ exec "$${'$'}NODE" "$${'$'}AGENT_ENTRY" "$${'$'}@"
                     }
                 }
 
-                // Run agent via PRoot Alpine environment where node is pre-installed.
-                // The wrapper script calls proot, which runs node inside the rootfs.
+                // Guard: if the agent wrapper still doesn't exist after the
+                // safety net above, fail with a clear user-facing error.
+                val cmdFile = File(runCmd)
+                if (!cmdFile.exists()) {
+                    val errMsg = Message(
+                        id = UUID.randomUUID().toString(),
+                        sessionId = session.id,
+                        role = MessageRole.MODEL,
+                        content = "Agent is not installed yet. Go to Setup Wizard and install an agent first, " +
+                            "or install it from the terminal by running the setup again.",
+                        timestamp = System.currentTimeMillis()
+                    )
+                    repository.insertMessage(errMsg)
+                    _isLoading.value = false
+                    return@launch
+                }
+
+                // Run agent via the wrapper script.
                 try {
                     com.omniclaw.core.logging.FileLogger.i("ChatViewModel", "Agent exec start", "cmd=$runCmd content=${content.take(80)}")
                     val safeRunCmd = if (runCmd.startsWith('/')) "sh ${runCmd}" else runCmd
