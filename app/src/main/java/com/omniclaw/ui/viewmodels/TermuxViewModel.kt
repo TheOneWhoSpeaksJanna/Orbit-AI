@@ -78,46 +78,49 @@ class TermuxViewModel(
     val downloadProgress: StateFlow<DownloadProgress?> = _downloadProgress.asStateFlow()
 
     fun installTool(toolName: String) {
-        FileLogger.i(TAG, "installTool('$toolName') called")
+        FileLogger.i(TAG, "installTool start", "tool=$toolName")
         viewModelScope.launch(Dispatchers.IO) {
-            // Ensure BusyBox is installed before any tool operations
-            FileLogger.d(TAG, "installTool: ensuring BusyBox...")
-            appContainer.runtimeManager.installBusyBox()
+            val prootRuntime = appContainer.prootRuntime
+
+            // Ensure rootfs is installed
+            if (!prootRuntime.isRootfsInstalled) {
+                repository.insertTermuxLog(
+                    TermuxLog(
+                        id = java.util.UUID.randomUUID().toString(),
+                        command = "$PKG_INSTALL_PREFIX$toolName",
+                        output = "Initializing Linux environment (first launch)...",
+                        exitCode = -1,
+                        timestamp = System.currentTimeMillis()
+                    )
+                )
+                prootRuntime.installRootfs { progress, status ->
+                    FileLogger.d(TAG, "Rootfs install", "progress=$progress")
+                }
+            }
 
             val logId = java.util.UUID.randomUUID().toString()
-            var currentLogOutput = "$INSTALL_START_PREFIX$toolName$INSTALL_SUFFIX"
-
             repository.insertTermuxLog(
                 TermuxLog(
                     id = logId,
                     command = "$PKG_INSTALL_PREFIX$toolName",
-                    output = currentLogOutput,
+                    output = "$INSTALL_START_PREFIX$toolName$INSTALL_SUFFIX",
                     exitCode = -1,
                     timestamp = System.currentTimeMillis()
                 )
             )
 
-            FileLogger.i(TAG, "installTool: calling packageInstaller.installPackage('$toolName')...")
-            val success = appContainer.packageInstaller.installPackage(toolName) { progress, status ->
-                FileLogger.d(TAG, "installTool progress: $progress — $status")
-                _downloadProgress.value = DownloadProgress(
-                    title = status,
-                    progress = progress,
-                    mbPerSecond = 0f,
-                    timeRemainingSeconds = 0,
-                    isActive = progress < 1f
-                )
-            }
-
-            val finalStatus = if (success) "$SUCCESS_PREFIX$toolName." else "$FAILURE_PREFIX$toolName."
-            FileLogger.i(TAG, "installTool result: $finalStatus")
-            currentLogOutput += finalStatus
+            // Install via apk inside PRoot Alpine environment
+            FileLogger.i(TAG, "apk install start", "tool=$toolName")
+            val result = prootRuntime.executeInRootfs("apk add --no-cache $toolName", "")
+            val success = result.exitCode == 0
+            val finalStatus = if (success) "$SUCCESS_PREFIX$toolName." else "$FAILURE_PREFIX$toolName: ${result.output.take(200)}"
+            FileLogger.i(TAG, "apk install result", "success=$success exit=${result.exitCode}")
 
             repository.insertTermuxLog(
                 TermuxLog(
                     id = logId,
                     command = "$PKG_INSTALL_PREFIX$toolName",
-                    output = currentLogOutput,
+                    output = "$INSTALL_START_PREFIX$toolName$INSTALL_SUFFIX$finalStatus",
                     exitCode = if (success) 0 else 1,
                     timestamp = System.currentTimeMillis()
                 )

@@ -15,7 +15,6 @@
 .cxx
 local.properties
 .env
-debug.keystore
 aapt2-arm64
 .opencode/
 orbit-ai-apks-*/
@@ -24,3 +23,8 @@ orbit-ai-apks-*/
 # and should not be committed — they bloat the repo and are flavor-specific.
 app/src/*/assets/agent.tar.gz
 app/src/*/assets/agent.meta
+
+# NOTE: debug.keystore is intentionally NOT gitignored.
+# It must be committed so all builds (CI + local) use the same signing
+# certificate, otherwise update-installs fail with "already existing package"
+# due to signature mismatch.

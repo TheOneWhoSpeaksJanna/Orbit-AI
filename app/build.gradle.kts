@@ -107,16 +107,9 @@ android {
     }
     create("ciDebug") {
       val debugKeystore = file("debug.keystore")
-      if (!debugKeystore.exists()) {
-        // Generate debug keystore on CI where it's not committed (gitignored)
-        ProcessBuilder(
-          "keytool", "-genkeypair", "-keystore", debugKeystore.absolutePath,
-          "-alias", "androiddebugkey", "-keyalg", "RSA", "-keysize", "2048",
-          "-validity", "10000",
-          "-storepass", "android", "-keypass", "android",
-          "-dname", "CN=Android Debug, O=Android, C=US"
-        ).inheritIO().start().waitFor()
-      }
+      // debug.keystore is committed to the repo so all builds (CI + local)
+      // use the same signing cert. Do NOT generate a new one if missing —
+      // that causes update-install failures due to signature mismatch.
       storeFile = debugKeystore
       storePassword = System.getenv("CI_DEBUG_STORE_PASSWORD") ?: "android"
       keyAlias = "androiddebugkey"

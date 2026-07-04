@@ -112,7 +112,7 @@ fun SkillsScreen(
         }
 
         // Dynamic skill categories from catalog
-        items(skillCategories) { category ->
+        items(skillCategories, key = { it.name }) { category ->
             SkillCategorySection(category)
         }
     }

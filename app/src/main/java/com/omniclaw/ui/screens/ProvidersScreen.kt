@@ -19,6 +19,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Refresh
@@ -33,6 +34,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -85,12 +87,33 @@ private const val KEY_DELETE_CONFIRM = "Remove this API key?"
 // Brand colors are intentionally fixed - they identify the provider, not the app theme.
 private val PROVIDER_COLORS = mapOf(
     "Claude" to Color(0xFFCC7832),
+    "Anthropic Claude" to Color(0xFFCC7832),
     "OpenAI" to Color(0xFF10A37F),
     "Gemini" to Color(0xFF4285F4),
+    "Google Gemini" to Color(0xFF4285F4),
     "OpenRouter" to Color(0xFFFF6B35),
     "DeepSeek" to Color(0xFF4F6CF7),
     "Groq" to Color(0xFFF97316),
-    "Ollama" to Color(0xFF8B5CF6)
+    "Ollama" to Color(0xFF8B5CF6),
+    "Ollama (Local)" to Color(0xFF8B5CF6),
+    "Z.AI (Free GLM)" to Color(0xFF6366F1),
+    "Z.AI" to Color(0xFF6366F1),
+    "xAI (Grok)" to Color(0xFF000000),
+    "Mistral AI" to Color(0xFFFF7000),
+    "Together AI" to Color(0xFF00A170),
+    "GitHub Copilot" to Color(0xFF24292E),
+    "NVIDIA NIM" to Color(0xFF76B900),
+    "LM Studio (Local)" to Color(0xFF6366F1),
+    "AWS Bedrock" to Color(0xFFFF9900),
+    "Google Vertex AI" to Color(0xFF4285F4),
+    "Azure OpenAI" to Color(0xFF0078D4),
+    "Venice AI" to Color(0xFFE5B53A),
+    "Fireworks AI" to Color(0xFFE25822),
+    "Moonshot (Kimi)" to Color(0xFF1A1A1A),
+    "MiniMax" to Color(0xFFE60012),
+    "Near AI" to Color(0xFF00C896),
+    "DashScope (CN)" to Color(0xFFFF6A00),
+    "DashScope (Intl)" to Color(0xFFFF6A00)
 )
 
 @Composable
@@ -101,6 +124,12 @@ fun ProvidersScreen(
     val editingProvider by viewModel.editingProvider.collectAsState()
     val editApiKeyValue by viewModel.editApiKeyValue.collectAsState()
     var showDeleteConfirm by remember { mutableStateOf(false) }
+    var searchQuery by remember { mutableStateOf("") }
+
+    val filteredProviders = remember(providers, searchQuery) {
+        if (searchQuery.isBlank()) providers
+        else providers.filter { it.name.contains(searchQuery, ignoreCase = true) }
+    }
 
     LazyColumn(
         modifier = Modifier
@@ -122,10 +151,24 @@ fun ProvidersScreen(
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(12.dp))
+            OutlinedTextField(
+                value = searchQuery,
+                onValueChange = { searchQuery = it },
+                placeholder = { Text("Search providers...") },
+                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, modifier = Modifier.size(20.dp)) },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = MaterialTheme.colorScheme.primary,
+                    unfocusedBorderColor = MaterialTheme.colorScheme.outline
+                )
+            )
+            Spacer(modifier = Modifier.height(4.dp))
         }
 
-        itemsIndexed(providers, key = { _, item -> item.name }) { index, provider ->
+        itemsIndexed(filteredProviders, key = { _, item -> item.name }) { index, provider ->
             ProviderHealthCard(
                 provider = provider,
                 onVerify = { viewModel.verifyConnection(provider.name) },
@@ -370,19 +413,21 @@ private fun ProviderHealthCard(
 }
 
 private fun providerAccent(name: String): Color =
-    PROVIDER_COLORS[name] ?: Color(0xFF38BDF8)
+    PROVIDER_COLORS[name] ?: Color(0xFF6366F1)
 
 @Composable
 private fun providerIcon(name: String): Painter = when (name) {
-    "Claude" -> BrandIcons.Claude
+    "Claude", "Anthropic Claude" -> BrandIcons.Claude
     "OpenAI" -> BrandIcons.OpenAI
-    "Gemini" -> BrandIcons.Gemini
+    "Gemini", "Google Gemini" -> BrandIcons.Gemini
     "OpenRouter" -> BrandIcons.OpenRouter
     "DeepSeek" -> BrandIcons.DeepSeek
     "Groq" -> BrandIcons.Groq
-    "Ollama" -> BrandIcons.Ollama
-
-    else -> BrandIcons.OpenRouter
+    "Ollama", "Ollama (Local)" -> BrandIcons.Ollama
+    "Z.AI (Free GLM)", "Z.AI" -> BrandIcons.OpenRouter // TODO: create Z.AI icon
+    else -> remember { androidx.compose.ui.graphics.painter.BitmapPainter(
+        androidx.compose.ui.graphics.ImageBitmap(1, 1)
+    ) } // fallback: empty painter, not OpenRouter
 }
 
 @Composable

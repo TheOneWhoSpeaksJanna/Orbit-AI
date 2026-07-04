@@ -319,21 +319,12 @@ exec "$${'$'}NODE" "$${'$'}AGENT_ENTRY" "$${'$'}@"
                     }
                 }
 
-                // Ensure Node.js is available — agents run via a node-based wrapper script
+                // Run agent via PRoot Alpine environment where node is pre-installed.
+                // The wrapper script calls proot, which runs node inside the rootfs.
                 try {
-                    val nodeCheck = localCommandRunner.executeCommand("command -v node")
-                    if (nodeCheck.exitCode != 0 || nodeCheck.output.isBlank()) {
-                        packageInstaller.installPackage("nodejs") { _, _ -> }
-                    }
-                } catch (_: Exception) { /* best effort, let the command fail naturally */ }
-
-                try {
-                    val escaped = content.replace("\"", "\\\"")
-                    // Run wrapper scripts via sh to bypass executable permission issues on Android.
-                    // This works like "sh script.sh" vs "./script.sh" — sh reads the file directly
-                    // without needing the +x permission bit or a filesystem that supports exec.
-                    val safeRunCmd = if (runCmd.startsWith('/')) "sh ${runCmd}" else runCmd
                     com.omniclaw.core.logging.FileLogger.i("ChatViewModel", "Agent exec start", "cmd=$runCmd content=${content.take(80)}")
+                    val safeRunCmd = if (runCmd.startsWith('/')) "sh ${runCmd}" else runCmd
+                    val escaped = content.replace("\"", "\\\"")
                     val result = localCommandRunner.executeCommand("echo \"$escaped\" | $safeRunCmd")
                     com.omniclaw.core.logging.FileLogger.i("ChatViewModel", "Agent exec result", "exit=${result.exitCode} output=${result.output.take(150)}")
                     val modelMsg = Message(
@@ -499,7 +490,7 @@ exec "$${'$'}NODE" "$${'$'}AGENT_ENTRY" "$${'$'}@"
     companion object {
         private val RUN_COMMAND_REGEX = "\\[RUN: (.+?)]".toRegex()
         private val SUDO_COMMAND_REGEX = "\\[SUDO: (.+?)]".toRegex()
-        val DEFAULT_MODELS = listOf("gemini-2.0-flash-exp", "gpt-4o", "claude-sonnet-4-20250514", "glm-4.6")
+        val DEFAULT_MODELS = listOf("gemini-2.0-flash-exp", "gpt-4o", "claude-sonnet-4-20250514", "glm-5.2", "glm-4.6")
 
         /** Resolve the system shell path. Honors ANDROID_ROOT for custom ROMs. */
         private val SYSTEM_SH: String =

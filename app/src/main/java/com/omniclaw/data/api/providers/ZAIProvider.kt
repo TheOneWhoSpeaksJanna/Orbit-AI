@@ -199,7 +199,7 @@ class ZAIProvider(
     override val metadata: ProviderMetadata = ProviderMetadata(
         name = "Z.AI",
         displayName = "Z.AI (Free GLM)",
-        models = listOf("glm-4.6", "glm-4-plus", "glm-4-flash", "glm-4-air"),
+        models = listOf("glm-5.2", "glm-4.6", "glm-4-plus", "glm-4-flash", "glm-4-air"),
         supportsStreaming = true,
         requiresApiKey = true,  // Requires the session token
         defaultModel = DEFAULT_MODEL
@@ -211,7 +211,7 @@ class ZAIProvider(
     companion object {
         private const val API_URL = "https://internal-api.z.ai/v1/chat/completions"
         private const val API_KEY = "Z.ai"  // Public, free API key
-        private const val DEFAULT_MODEL = "glm-4.6"
+        private const val DEFAULT_MODEL = "glm-5.2"
 
         // Auto-retry settings
         private const val MAX_RETRIES = 10
