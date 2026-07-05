@@ -208,6 +208,16 @@ class TermuxRuntime(private val context: Context) {
             File(rootfsDir, "data/data/com.termux/files/home").mkdirs()
             File(prefixDir, "tmp").mkdirs()
 
+            // CRITICAL: apt's compiled-in cache path is
+            // /data/data/com.termux/cache/apt/archives/partial
+            // (NOT under files/usr/ — it's one level up, at files/../cache).
+            // Without this directory, apt install fails with:
+            //   E: Archives directory /data/data/com.termux/cache/apt/archives/partial is missing.
+            File(rootfsDir, "data/data/com.termux/cache/apt/archives/partial").mkdirs()
+            File(rootfsDir, "data/data/com.termux/cache/apt/archives/partial").setReadable(true, false)
+            File(rootfsDir, "data/data/com.termux/cache/apt/archives/partial").setWritable(true, false)
+            File(rootfsDir, "data/data/com.termux/cache/apt/archives/partial").setExecutable(true, false)
+
             // Set up apt sources.list (the bootstrap includes one, but we
             // overwrite to ensure it points to the right repo).
             File(prefixDir, "etc/apt/sources.list.d").mkdirs()
@@ -277,6 +287,11 @@ class TermuxRuntime(private val context: Context) {
     private suspend fun installTools(): Boolean = withContext(Dispatchers.IO) {
         FileLogger.i(TAG, "pkg install start", "packages=nodejs,git,python3")
         val pkgStart = System.currentTimeMillis()
+
+        // Ensure apt's cache directory exists (in case it was deleted or
+        // this is a retry after a partial install). apt's compiled-in path
+        // is /data/data/com.termux/cache/apt/archives/partial.
+        File(rootfsDir, "data/data/com.termux/cache/apt/archives/partial").mkdirs()
 
         // Fix any half-configured packages from previous failed installs
         val fixResult = executeInTermux("dpkg --configure -a 2>&1 || true", "")
