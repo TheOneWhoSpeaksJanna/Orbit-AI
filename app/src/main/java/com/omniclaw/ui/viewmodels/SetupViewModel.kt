@@ -140,13 +140,27 @@ private val AGENT_INSTALL_DIRS = mapOf(
 
 /**
  * NPM package names for each agent. Used to install the agent via npm
- * inside the PRoot Alpine environment.
+ * inside the Termux rootfs under PRoot.
  */
 private val NPM_PACKAGES = mapOf(
     AGENT_OPENCLAUDE to "@gitlawb/openclaude",
     AGENT_CLAUDE_CODE to "@anthropic-ai/claude-code",
     AGENT_OPENCODE to "@opencode-ai/cli",
     AGENT_CODEX to "@openai/codex"
+)
+
+/**
+ * Binary name for each agent after `npm install -g`.
+ * npm creates a symlink in $PREFIX/bin/ pointing to the package's bin entry.
+ * The runCommand stores just this binary name — it's found via PATH inside
+ * the rootfs when executed via termuxRuntime.executeInTermux().
+ */
+private val AGENT_BINARIES = mapOf(
+    AGENT_OPENCLAUDE to "openclaude",
+    AGENT_CLAUDE_CODE to "claude",
+    AGENT_OPENCODE to "opencode",
+    AGENT_CODEX to "codex",
+    AGENT_HERMES to "hermes"
 )
 
 private val SYSTEM_PROMPTS = mapOf(
@@ -412,47 +426,33 @@ class SetupViewModel(
 
                 updateInstallState(agentName, progress = 0.5f, status = "$STATUS_DOWNLOADING$agentName...")
 
-                // Install the agent via npm inside the PRoot environment.
-                // Inside PRoot, /orbit is bind-mounted to runtimeDir, so
-                // /orbit/agents/<name> persists across app restarts.
+                // Install the agent globally via npm inside the Termux rootfs.
+                // Global install creates a symlink in $PREFIX/bin/ so the agent
+                // can be launched by just its binary name (e.g. 'openclaude').
                 val npmPackage = NPM_PACKAGES[agentName]
                 if (npmPackage != null) {
-                    // Create agents directory (visible inside rootfs at /orbit/agents)
-                    termuxRuntime.executeInTermux("mkdir -p /orbit/agents/$targetDirName", "")
-
-                    // npm install the agent package — runs under PRoot so
-                    // node, npm, git etc. all exec via ptrace interception.
                     updateInstallState(agentName, progress = 0.6f, status = STATUS_INSTALLING_DEPS)
                     val installResult = termuxRuntime.executeInTermux(
-                        "cd /orbit/agents/$targetDirName && npm init -y && npm install $npmPackage",
+                        "npm install -g $npmPackage 2>&1",
                         ""
                     )
                     if (installResult.exitCode != 0) {
-                        FileLogger.w("SetupViewModel", "npm install warning", "output=${installResult.output.take(200)}")
+                        FileLogger.w("SetupViewModel", "npm install warning", "output=${installResult.output.take(2000)}")
                     }
                 } else {
                     // Hermes or unknown agent — no npm package, skip install.
                     FileLogger.i("SetupViewModel", "No npm package for agent, skipping npm install", "agent=$agentName")
                 }
 
-                // ── Store runCommand as a rootfs-relative command string ──
-                // Previously we created a wrapper shell script at bin/<name>
-                // and stored its absolute path as runCommand. That doesn't
-                // work on Android 10+ because wrapper scripts in app-private
-                // storage can't be exec'd (SELinux W^X block on app_data_file).
-                //
-                // Instead, runCommand is now a command string that gets
-                // executed inside the Termux rootfs via PRoot. ChatViewModel
-                // calls termuxRuntime.executeInTermux(runCommand, stdin).
-                // The command runs as /bin/sh -c "<runCommand>" under PRoot,
-                // so node, npm, git etc. all exec via ptrace interception.
+                // ── Store runCommand as the agent's binary name ──────────
+                // After `npm install -g`, the agent binary is in $PREFIX/bin/
+                // (e.g. /data/data/com.termux/files/usr/bin/openclaude).
+                // ChatViewModel calls termuxRuntime.executeInTermux(runCommand)
+                // which runs it under PRoot where PATH includes $PREFIX/bin.
                 updateInstallState(agentName, progress = 0.9f, status = STATUS_CREATING_SCRIPT)
 
-                // Find the actual entry point of the installed agent.
-                // npm install puts the package under node_modules/<pkg>/,
-                // but most CLI agents expose a bin entry that we can call
-                // directly. Default to the package's main entry.
-                val agentEntry = "node /orbit/agents/$targetDirName/index.js"
+                val binaryName = AGENT_BINARIES[agentName] ?: agentName.lowercase().replace(" ", "-")
+                val agentEntry = binaryName  // just the binary name, found via PATH
                 FileLogger.i("SetupViewModel", "Agent runCommand set", "cmd=$agentEntry")
 
                 // Persist the runCommand to the agent entity immediately
@@ -504,12 +504,12 @@ class SetupViewModel(
 
             val agentName = _selectedAgent.value
             val sysPrompt = SYSTEM_PROMPTS[agentName] ?: "You are an expert AI assistant."
-            val targetDirName = AGENT_INSTALL_DIRS[agentName] ?: agentName.lowercase().replace(" ", "-")
+            val binaryName = AGENT_BINARIES[agentName] ?: agentName.lowercase().replace(" ", "-")
 
-            // runCommand is now a command string executed inside the Termux
-            // rootfs via PRoot (not a wrapper script path). ChatViewModel
-            // calls termuxRuntime.executeInTermux(runCommand, stdin).
-            val runCommand = "node /orbit/agents/$targetDirName/index.js"
+            // runCommand is the agent's binary name (e.g. "openclaude").
+            // ChatViewModel runs it via termuxRuntime.executeInTermux(runCommand)
+            // which finds it in $PREFIX/bin via PATH inside the rootfs.
+            val runCommand = binaryName
 
             val agent = Agent(
                 id = agentName.lowercase().replace(" ", "-"),

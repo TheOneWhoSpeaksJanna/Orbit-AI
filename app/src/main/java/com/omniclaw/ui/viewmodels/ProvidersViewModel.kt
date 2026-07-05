@@ -36,6 +36,7 @@ private const val OLLAMA_PROVIDER = "Ollama"
 data class ProviderConfig(
     val name: String,
     val apiKeyConfigured: Boolean,
+    val requiresKey: Boolean = true,
     val connectionState: ConnectionState = ConnectionState.Idle
 )
 
@@ -82,10 +83,11 @@ class ProvidersViewModel(
         viewModelScope.launch {
             val catalog = com.omniclaw.data.local.runtime.ProviderCatalog.load(context)
             val configs = catalog.map { entry ->
-                val key = prefsManager.getApiKeyForProvider(entry.name).firstOrNull()
+                val key = prefsManager.getApiKeyForProvider(entry.id).firstOrNull()
                 ProviderConfig(
                     name = entry.name,
-                    apiKeyConfigured = !key.isNullOrBlank() || !entry.requiresKey
+                    apiKeyConfigured = !key.isNullOrBlank(),
+                    requiresKey = entry.requiresKey
                 )
             }
             _providers.value = configs
@@ -95,8 +97,12 @@ class ProvidersViewModel(
 
     private fun loadApiKeyStatus() {
         viewModelScope.launch {
+            val catalog = com.omniclaw.data.local.runtime.ProviderCatalog.load(context)
             val updated = _providers.value.map { provider ->
-                val key = prefsManager.getApiKeyForProvider(provider.name).firstOrNull()
+                val entry = catalog.find { it.name == provider.name }
+                val key = if (entry != null) {
+                    prefsManager.getApiKeyForProvider(entry.id).firstOrNull()
+                } else null
                 provider.copy(apiKeyConfigured = !key.isNullOrBlank())
             }
             _providers.value = updated
@@ -105,10 +111,13 @@ class ProvidersViewModel(
 
     fun verifyConnection(providerName: String) {
         viewModelScope.launch {
-            if (providerName == OLLAMA_PROVIDER) {
+            val catalog = com.omniclaw.data.local.runtime.ProviderCatalog.load(context)
+            val entry = catalog.find { it.name == providerName }
+            val providerId = entry?.id ?: providerName
+
+            if (providerId == "ollama") {
                 updateProviderState(providerName, ConnectionState.Verifying)
-                // For Ollama, the "key" slot holds the base URL — pass it through.
-                val baseUrl = prefsManager.getApiKeyForProvider(providerName).firstOrNull().orEmpty()
+                val baseUrl = prefsManager.getApiKeyForProvider(providerId).firstOrNull().orEmpty()
                 val result = withContext(Dispatchers.IO) {
                     performHealthCheck(providerName, baseUrl)
                 }
@@ -116,7 +125,7 @@ class ProvidersViewModel(
                 return@launch
             }
 
-            val keyFlow = prefsManager.getApiKeyForProvider(providerName)
+            val keyFlow = prefsManager.getApiKeyForProvider(providerId)
             val key = keyFlow.firstOrNull()
 
             if (key.isNullOrBlank()) {
@@ -136,16 +145,22 @@ class ProvidersViewModel(
 
     fun startEditApiKey(providerName: String) {
         viewModelScope.launch {
-            val currentKey = prefsManager.getApiKeyForProvider(providerName).firstOrNull() ?: ""
+            val catalog = com.omniclaw.data.local.runtime.ProviderCatalog.load(context)
+            val entry = catalog.find { it.name == providerName }
+            val providerId = entry?.id ?: providerName
+            val currentKey = prefsManager.getApiKeyForProvider(providerId).firstOrNull() ?: ""
             _editApiKeyValue.value = currentKey
             _editingProvider.value = providerName
         }
     }
 
     fun saveApiKey() {
-        val provider = _editingProvider.value ?: return
+        val providerName = _editingProvider.value ?: return
         viewModelScope.launch {
-            prefsManager.setApiKeyForProvider(provider, _editApiKeyValue.value)
+            val catalog = com.omniclaw.data.local.runtime.ProviderCatalog.load(context)
+            val entry = catalog.find { it.name == providerName }
+            val providerId = entry?.id ?: providerName
+            prefsManager.setApiKeyForProvider(providerId, _editApiKeyValue.value)
             _editingProvider.value = null
             _editApiKeyValue.value = ""
             loadApiKeyStatus()
@@ -153,9 +168,12 @@ class ProvidersViewModel(
     }
 
     fun removeApiKey() {
-        val provider = _editingProvider.value ?: return
+        val providerName = _editingProvider.value ?: return
         viewModelScope.launch {
-            prefsManager.removeApiKeyForProvider(provider)
+            val catalog = com.omniclaw.data.local.runtime.ProviderCatalog.load(context)
+            val entry = catalog.find { it.name == providerName }
+            val providerId = entry?.id ?: providerName
+            prefsManager.removeApiKeyForProvider(providerId)
             _editingProvider.value = null
             _editApiKeyValue.value = ""
             loadApiKeyStatus()
@@ -253,7 +271,7 @@ class ProvidersViewModel(
                 .get()
                 .build()
 
-            OLLAMA_PROVIDER -> {
+            OLLAMA_PROVIDER, "Ollama (Local)" -> {
                 val base = apiKey.trim().trimEnd('/').ifBlank { ApiConfig.OLLAMA_DEFAULT_BASE_URL }
                 Request.Builder()
                     .url("$base${ApiConfig.OLLAMA_TAGS_PATH}")

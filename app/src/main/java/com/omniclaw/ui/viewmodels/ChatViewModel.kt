@@ -249,9 +249,9 @@ class ChatViewModel(
                 }
 
                 if (runCmd.isNullOrBlank()) {
-                    // No runCommand stored — fall back to the standard
-                    // rootfs-relative path for the active agent id.
-                    runCmd = "node /orbit/agents/$activeAgentId/index.js"
+                    // No runCommand stored — fall back to the agent's binary name.
+                    // npm install -g puts it in $PREFIX/bin/, found via PATH.
+                    runCmd = activeAgentId
                 }
 
                 // Guard: if the Termux rootfs isn't installed yet, fail with

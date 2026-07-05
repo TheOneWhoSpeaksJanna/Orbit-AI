@@ -47,6 +47,9 @@ class PreferencesManager(private val context: Context) {
         // identifies the user. Get it from the Z.AI web interface.
         val ZAI_TOKEN = stringPreferencesKey("zai_token")
 
+        // Generic per-provider API key storage. Each provider gets its own
+        // DataStore key: "provider_key_<id>". This avoids the old bug where
+        // all unknown providers aliased to the Gemini key slot.
         val DOWNLOAD_URL = stringPreferencesKey("download_url")
         val DOWNLOAD_FILE = stringPreferencesKey("download_file")
         val DOWNLOAD_BYTES = longPreferencesKey("download_bytes")
@@ -54,13 +57,34 @@ class PreferencesManager(private val context: Context) {
 
         private const val PROVIDER_GEMINI = "gemini"
         private const val PROVIDER_OPENAI = "openai"
-        private const val PROVIDER_CLAUDE = "claude"
+        private const val PROVIDER_CLAUDE = "anthropic"
         private const val PROVIDER_OPENROUTER = "openrouter"
         private const val PROVIDER_DEEPSEEK = "deepseek"
         private const val PROVIDER_GROQ = "groq"
         private const val PROVIDER_OLLAMA = "ollama"
         private const val PROVIDER_ZAI = "z.ai"
         private const val PROVIDER_ZAI_FREE_GLM = "z.ai (free glm)"
+        private const val PROVIDER_XAI = "xai"
+        private const val PROVIDER_MISTRAL = "mistral"
+        private const val PROVIDER_TOGETHER = "together"
+        private const val PROVIDER_NVIDIA = "nvidia"
+        private const val PROVIDER_AWS = "aws"
+        private const val PROVIDER_AZURE = "azure"
+        private const val PROVIDER_VERTEX = "vertex"
+        private const val PROVIDER_LMSTUDIO = "lmstudio"
+        private const val PROVIDER_DASHSCOPE = "dashscope"
+        private const val PROVIDER_MOONSHOT = "moonshot"
+        private const val PROVIDER_VENICE = "venice"
+        private const val PROVIDER_FIREWORKS = "fireworks"
+        private const val PROVIDER_MINIMAX = "minimax"
+        private const val PROVIDER_NEARAI = "nearai"
+        private const val PROVIDER_XIAOMI = "xiaomi"
+        private const val PROVIDER_ATLAS = "atlas"
+        private const val PROVIDER_KIMI = "kimi"
+        private const val PROVIDER_OPENCODE_GATEWAY = "opencode_gateway"
+        private const val PROVIDER_OPENGATEWAY = "opengateway"
+        private const val PROVIDER_GITHUB = "github"
+        private const val PROVIDER_CUSTOM = "custom"
     }
 
     val themeMode: Flow<String?> = context.dataStore.data.map { prefs ->
@@ -139,17 +163,33 @@ class PreferencesManager(private val context: Context) {
         prefs[ZAI_TOKEN]
     }
 
+    /**
+     * Get the API key for a provider.
+     *
+     * Uses a generic per-provider DataStore key ("provider_key_<id>") for ALL
+     * providers. This replaces the old when() that aliased unknown providers
+     * to the Gemini key slot.
+     *
+     * The old named keys (gemini_api_key, openai_api_key, etc.) are kept for
+     * backward compatibility — if a generic key is not set, we fall back to
+     * the old named key so users don't lose their existing keys.
+     */
     fun getApiKeyForProvider(provider: String): Flow<String?> {
-        return when (provider.lowercase()) {
-            PROVIDER_GEMINI -> geminiApiKey
-            PROVIDER_OPENAI -> openAiApiKey
-            PROVIDER_CLAUDE -> claudeApiKey
-            PROVIDER_OPENROUTER -> openRouterApiKey
-            PROVIDER_DEEPSEEK -> deepSeekApiKey
-            PROVIDER_GROQ -> groqApiKey
-            PROVIDER_OLLAMA -> ollamaBaseUrl
-            PROVIDER_ZAI, PROVIDER_ZAI_FREE_GLM -> zaiToken
-            else -> geminiApiKey
+        val providerId = provider.lowercase().trim()
+        val genericKey = stringPreferencesKey("provider_key_$providerId")
+        return context.dataStore.data.map { prefs ->
+            // Try generic key first, then fall back to legacy named keys
+            prefs[genericKey] ?: when (providerId) {
+                PROVIDER_GEMINI -> prefs[GEMINI_API_KEY]
+                PROVIDER_OPENAI -> prefs[OPENAI_API_KEY]
+                PROVIDER_CLAUDE -> prefs[CLAUDE_API_KEY]
+                PROVIDER_OPENROUTER -> prefs[OPENROUTER_API_KEY]
+                PROVIDER_DEEPSEEK -> prefs[DEEPSEEK_API_KEY]
+                PROVIDER_GROQ -> prefs[GROQ_API_KEY]
+                PROVIDER_OLLAMA -> prefs[OLLAMA_BASE_URL]
+                PROVIDER_ZAI, PROVIDER_ZAI_FREE_GLM -> prefs[ZAI_TOKEN]
+                else -> null
+            }
         }
     }
 
@@ -225,17 +265,27 @@ class PreferencesManager(private val context: Context) {
         context.dataStore.edit { prefs -> prefs[ZAI_TOKEN] = token }
     }
 
+    /**
+     * Set the API key for a provider.
+     * Uses the generic per-provider key ("provider_key_<id>").
+     * Also writes to the legacy named key for backward compatibility.
+     */
     suspend fun setApiKeyForProvider(provider: String, key: String) {
-        when (provider.lowercase()) {
-            PROVIDER_GEMINI -> setGeminiApiKey(key)
-            PROVIDER_OPENAI -> setOpenAiApiKey(key)
-            PROVIDER_CLAUDE -> setClaudeApiKey(key)
-            PROVIDER_OPENROUTER -> setOpenRouterApiKey(key)
-            PROVIDER_DEEPSEEK -> setDeepSeekApiKey(key)
-            PROVIDER_GROQ -> setGroqApiKey(key)
-            PROVIDER_OLLAMA -> setOllamaBaseUrl(key)
-            PROVIDER_ZAI, PROVIDER_ZAI_FREE_GLM -> setZaiToken(key)
-            else -> setGeminiApiKey(key)
+        val providerId = provider.lowercase().trim()
+        val genericKey = stringPreferencesKey("provider_key_$providerId")
+        context.dataStore.edit { prefs ->
+            prefs[genericKey] = key
+            // Also write to legacy named key for backward compat
+            when (providerId) {
+                PROVIDER_GEMINI -> prefs[GEMINI_API_KEY] = key
+                PROVIDER_OPENAI -> prefs[OPENAI_API_KEY] = key
+                PROVIDER_CLAUDE -> prefs[CLAUDE_API_KEY] = key
+                PROVIDER_OPENROUTER -> prefs[OPENROUTER_API_KEY] = key
+                PROVIDER_DEEPSEEK -> prefs[DEEPSEEK_API_KEY] = key
+                PROVIDER_GROQ -> prefs[GROQ_API_KEY] = key
+                PROVIDER_OLLAMA -> prefs[OLLAMA_BASE_URL] = key
+                PROVIDER_ZAI, PROVIDER_ZAI_FREE_GLM -> prefs[ZAI_TOKEN] = key
+            }
         }
     }
 

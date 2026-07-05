@@ -297,6 +297,25 @@ class TermuxRuntime(private val context: Context) {
         val fixResult = executeInTermux("dpkg --configure -a 2>&1 || true", "")
         FileLogger.i(TAG, "dpkg configure result", "exit=${fixResult.exitCode} output=${fixResult.output.take(500)}")
 
+        // ── Try offline installation first (pre-bundled .deb files) ──
+        // If the assets/offline-debs/ directory was bundled in the APK,
+        // copy the .deb files to the rootfs and install via dpkg -i.
+        // This is ~10x faster than apt install (no network download).
+        val offlineOk = tryInstallOfflineDebs()
+        if (offlineOk) {
+            val pkgDuration = System.currentTimeMillis() - pkgStart
+            FileLogger.i(TAG, "Offline dpkg install success", "time=${pkgDuration}ms")
+            val npmCheck = File(binDir, "npm")
+            FileLogger.i(TAG, "Tool check", "node=${File(binDir, "node").exists()} npm=${npmCheck.exists()} git=${File(binDir, "git").exists()}")
+            if (File(binDir, "node").exists() && npmCheck.exists()) {
+                return@withContext true
+            }
+            FileLogger.w(TAG, "Offline install completed but tools not found, falling back to apt")
+        }
+
+        // ── Fall back to online apt install ──
+        FileLogger.i(TAG, "Falling back to apt install (online)")
+
         // apt update
         val updateResult = executeInTermux(
             "apt update -o APT::Sandbox::User=root 2>&1",
@@ -314,7 +333,6 @@ class TermuxRuntime(private val context: Context) {
 
         if (installResult.exitCode != 0) {
             FileLogger.e(TAG, "apt install failed", "exit=${installResult.exitCode}")
-            // Check if node was installed despite errors
             val nodeCheck = File(binDir, "node")
             if (!nodeCheck.exists()) {
                 FileLogger.e(TAG, "Node not found after install", "path=${nodeCheck.absolutePath}")
@@ -325,6 +343,73 @@ class TermuxRuntime(private val context: Context) {
         val npmCheck = File(binDir, "npm")
         FileLogger.i(TAG, "Tool check", "node=${File(binDir, "node").exists()} npm=${npmCheck.exists()} git=${File(binDir, "git").exists()}")
         File(binDir, "node").exists() && npmCheck.exists()
+    }
+
+    /**
+     * Try to install packages from pre-bundled .deb files in assets/offline-debs/.
+     * Returns true if the .deb files were found and dpkg -i succeeded.
+     * Returns false if no .deb files are bundled (falls back to apt install).
+     */
+    private suspend fun tryInstallOfflineDebs(): Boolean = withContext(Dispatchers.IO) {
+        val debsDir = File(runtimeDir, "offline-debs")
+        debsDir.mkdirs()
+
+        // Copy .deb files from assets to the rootfs (visible at /offline-debs
+        // via the runtimeDir:/orbit bind mount... wait, we need them inside
+        // the rootfs. Copy to rootfsDir/offline-debs so they're at /offline-debs
+        // inside PRoot.)
+        val rootfsDebsDir = File(rootfsDir, "offline-debs")
+        rootfsDebsDir.mkdirs()
+
+        var debCount = 0
+        try {
+            val assetFiles = context.assets.list("offline-debs") ?: emptyArray()
+            if (assetFiles.isEmpty()) {
+                FileLogger.i(TAG, "No offline-debs in assets, using online apt")
+                return@withContext false
+            }
+
+            FileLogger.i(TAG, "Copying offline debs", "count=${assetFiles.size}")
+            for (filename in assetFiles) {
+                if (!filename.endsWith(".deb")) continue
+                val outFile = File(rootfsDebsDir, filename)
+                context.assets.open("offline-debs/$filename").use { input ->
+                    FileOutputStream(outFile).use { output ->
+                        input.copyTo(output)
+                    }
+                }
+                debCount++
+            }
+            FileLogger.i(TAG, "Offline debs copied", "count=$debCount")
+        } catch (e: Exception) {
+            FileLogger.w(TAG, "Failed to copy offline debs", "reason=${e.message}")
+            return@withContext false
+        }
+
+        if (debCount == 0) {
+            return@withContext false
+        }
+
+        // Install all .deb files via dpkg -i (offline, no network needed).
+        // dpkg -i installs packages in dependency order if possible, but may
+        // leave some half-configured. Run dpkg --configure -a after to finish.
+        FileLogger.i(TAG, "dpkg -i start", "debs=$debCount")
+        val dpkgStart = System.currentTimeMillis()
+
+        val installResult = executeInTermux(
+            "dpkg -i /offline-debs/*.deb 2>&1 || true",
+            ""
+        )
+        FileLogger.i(TAG, "dpkg -i result", "exit=${installResult.exitCode} time=${System.currentTimeMillis() - dpkgStart}ms output=${installResult.output.take(2000)}")
+
+        // Configure any half-configured packages
+        val configResult = executeInTermux("dpkg --configure -a 2>&1 || true", "")
+        FileLogger.i(TAG, "dpkg configure result", "exit=${configResult.exitCode} output=${configResult.output.take(1000)}")
+
+        // Clean up .deb files to save space
+        rootfsDebsDir.deleteRecursively()
+
+        true
     }
 
     /**

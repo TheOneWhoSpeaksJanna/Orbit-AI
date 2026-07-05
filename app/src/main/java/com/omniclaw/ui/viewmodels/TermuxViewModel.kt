@@ -11,57 +11,25 @@ import com.omniclaw.core.logging.FileLogger
 import com.omniclaw.domain.models.TermuxLog
 import com.omniclaw.domain.repository.OmniClawRepository
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 private const val TAG = "TermuxViewModel"
-private const val PKG_INSTALL_PREFIX = "omniclaw-pkg install "
-private const val INSTALL_START_PREFIX = "Starting installation of "
-private const val INSTALL_SUFFIX = " via OmniClaw Package Manager...\n"
-private const val SUCCESS_PREFIX = "Successfully installed "
-private const val FAILURE_PREFIX = "Failed to install "
 private const val SUDO_PREFIX = "sudo "
 
-private val HELP_TEXT = """
-Orbit-AI Terminal — Available Commands:
-
-SHELL COMMANDS (run via BusyBox):
-  ls, cd, cp, mv, rm, mkdir, cat, grep, sed, awk, tar, wget, curl, find
-  Type any command name + --help for usage (e.g. "ls --help")
-
-PACKAGE MANAGEMENT:
-  omniclaw-pkg install <name>   Install a package (git, python, nodejs, curl)
-  omniclaw-pkg list             List installed packages
-
-BUILT-IN COMMANDS:
-  help                          Show this help message
-  env                           Show environment variables (PATH, LD_LIBRARY_PATH, etc.)
-  orbit-version                 Show app version and runtime info
-  ls-bin                        List all binaries in orbit_runtime/bin/
-  ls-packages                   List all installed packages
-
-SYSTEM (via Shizuku if enabled):
-  sudo <command>                Run command with elevated privileges
-
-TIPS:
-  - Long-press any output card to copy it to clipboard
-  - Tap the copy icon (top-right) to copy command + output
-  - If a command fails, check Settings → Diagnostics for the log path
-  - Use "env" to see if PATH and LD_LIBRARY_PATH are set correctly
-""".trimIndent()
-
-data class DownloadProgress(
-    val title: String,
-    val progress: Float,
-    val mbPerSecond: Float,
-    val timeRemainingSeconds: Int,
-    val isActive: Boolean
-)
-
+/**
+ * Terminal ViewModel — pure pass-through to the Termux rootfs via PRoot.
+ *
+ * No hardcoded commands. No custom command interpreter. No install buttons.
+ * Every command the user types is sent directly to the Termux shell inside
+ * the rootfs via termuxRuntime.executeInTermux(). This gives the user a REAL
+ * Linux terminal with bash, node, npm, git, python, apt, etc.
+ *
+ * The only special case is 'sudo' which routes through Shizuku for elevated
+ * (system-level) access on the Android host.
+ */
 class TermuxViewModel(
     private val repository: OmniClawRepository,
     private val appContainer: AppContainer
@@ -74,163 +42,19 @@ class TermuxViewModel(
             initialValue = emptyList()
         )
 
-    private val _downloadProgress = MutableStateFlow<DownloadProgress?>(null)
-    val downloadProgress: StateFlow<DownloadProgress?> = _downloadProgress.asStateFlow()
-
-    fun installTool(toolName: String) {
-        FileLogger.i(TAG, "installTool start", "tool=$toolName")
-        viewModelScope.launch(Dispatchers.IO) {
-            val termuxRuntime = appContainer.termuxRuntime
-
-            // Ensure rootfs is installed
-            if (!termuxRuntime.isInstalled) {
-                repository.insertTermuxLog(
-                    TermuxLog(
-                        id = java.util.UUID.randomUUID().toString(),
-                        command = "$PKG_INSTALL_PREFIX$toolName",
-                        output = "Initializing Linux environment (first launch)...",
-                        exitCode = -1,
-                        timestamp = System.currentTimeMillis()
-                    )
-                )
-                termuxRuntime.install { progress, status ->
-                    FileLogger.d(TAG, "Rootfs install", "progress=$progress")
-                }
-            }
-
-            val logId = java.util.UUID.randomUUID().toString()
-            repository.insertTermuxLog(
-                TermuxLog(
-                    id = logId,
-                    command = "$PKG_INSTALL_PREFIX$toolName",
-                    output = "$INSTALL_START_PREFIX$toolName$INSTALL_SUFFIX",
-                    exitCode = -1,
-                    timestamp = System.currentTimeMillis()
-                )
-            )
-
-            // Install via apt inside PRoot Termux rootfs.
-            // Termux uses apt (Debian-style), not apk (Alpine). Running under
-            // PRoot lets apt exec dpkg, ar, tar etc. via ptrace interception.
-            FileLogger.i(TAG, "apt install start", "tool=$toolName")
-            val result = termuxRuntime.executeInTermux("apt install -y $toolName", "")
-            val success = result.exitCode == 0
-            val finalStatus = if (success) "$SUCCESS_PREFIX$toolName." else "$FAILURE_PREFIX$toolName: ${result.output.take(200)}"
-            FileLogger.i(TAG, "apt install result", "success=$success exit=${result.exitCode}")
-
-            repository.insertTermuxLog(
-                TermuxLog(
-                    id = logId,
-                    command = "$PKG_INSTALL_PREFIX$toolName",
-                    output = "$INSTALL_START_PREFIX$toolName$INSTALL_SUFFIX$finalStatus",
-                    exitCode = if (success) 0 else 1,
-                    timestamp = System.currentTimeMillis()
-                )
-            )
-
-            _downloadProgress.value = null
-        }
-    }
-
+    /**
+     * Execute a command in the Termux rootfs. No interception, no built-in
+     * commands — just pass it straight through to the shell.
+     */
     fun executeCommand(command: String) {
         val trimmed = command.trim()
+        if (trimmed.isEmpty()) return
         FileLogger.i(TAG, "executeCommand: '$trimmed'")
 
-        // Intercept built-in commands that aren't shell builtins
-        if (trimmed == "help" || trimmed == "?") {
-            viewModelScope.launch(Dispatchers.IO) {
-                repository.insertTermuxLog(
-                    TermuxLog(
-                        id = java.util.UUID.randomUUID().toString(),
-                        command = trimmed,
-                        output = HELP_TEXT,
-                        exitCode = 0,
-                        timestamp = System.currentTimeMillis()
-                    )
-                )
-            }
-            return
-        }
-
-        if (trimmed == "omniclaw-pkg list" || trimmed == "ls-packages") {
-            viewModelScope.launch(Dispatchers.IO) {
-                val pkgDir = appContainer.runtimeManager.packagesDir
-                val packages = pkgDir.listFiles { f -> f.isDirectory }?.map { it.name } ?: emptyList()
-                val output = if (packages.isEmpty()) {
-                    "No packages installed. Use 'omniclaw-pkg install <name>' to install."
-                } else {
-                    "Installed packages (${packages.size}):\n" + packages.joinToString("\n") { "  - $it" }
-                }
-                repository.insertTermuxLog(
-                    TermuxLog(
-                        id = java.util.UUID.randomUUID().toString(),
-                        command = trimmed,
-                        output = output,
-                        exitCode = 0,
-                        timestamp = System.currentTimeMillis()
-                    )
-                )
-            }
-            return
-        }
-
-        if (trimmed == "ls-bin") {
-            viewModelScope.launch(Dispatchers.IO) {
-                val binDir = appContainer.runtimeManager.binDir
-                val bins = binDir.listFiles { f -> f.isFile }?.map { it.name }?.sorted() ?: emptyList()
-                val output = if (bins.isEmpty()) {
-                    "No binaries in ${binDir.absolutePath}"
-                } else {
-                    "Binaries in orbit_runtime/bin/ (${bins.size}):\n" + bins.joinToString("\n") { "  - $it" }
-                }
-                repository.insertTermuxLog(
-                    TermuxLog(
-                        id = java.util.UUID.randomUUID().toString(),
-                        command = trimmed,
-                        output = output,
-                        exitCode = 0,
-                        timestamp = System.currentTimeMillis()
-                    )
-                )
-            }
-            return
-        }
-
-        if (trimmed == "orbit-version") {
-            viewModelScope.launch(Dispatchers.IO) {
-                val output = buildString {
-                    appendLine("Orbit-AI Runtime Info")
-                    appendLine("  App version: ${com.omniclaw.BuildConfig.VERSION_NAME}")
-                    appendLine("  Flavor: ${com.omniclaw.BuildConfig.FLAVOR_APP_LABEL}")
-                    appendLine("  Runtime dir: ${appContainer.runtimeManager.runtimeDir.absolutePath}")
-                    appendLine("  Bin dir: ${appContainer.runtimeManager.binDir.absolutePath}")
-                    appendLine("  Packages dir: ${appContainer.runtimeManager.packagesDir.absolutePath}")
-                    appendLine("  BusyBox: ${appContainer.runtimeManager.busyBoxPath() ?: "NOT INSTALLED"}")
-                    appendLine("  Node binary: ${appContainer.runtimeManager.findNodeBinary() ?: "NOT INSTALLED"}")
-                    appendLine("  PATH: ${appContainer.runtimeManager.buildPath()}")
-                    appendLine("  LD_LIBRARY_PATH: ${appContainer.runtimeManager.buildLdLibraryPath()}")
-                }
-                repository.insertTermuxLog(
-                    TermuxLog(
-                        id = java.util.UUID.randomUUID().toString(),
-                        command = trimmed,
-                        output = output,
-                        exitCode = 0,
-                        timestamp = System.currentTimeMillis()
-                    )
-                )
-            }
-            return
-        }
-
         viewModelScope.launch(Dispatchers.IO) {
-            // ── NEW: Execute inside the PRoot Alpine environment ─────────
-            // The terminal now runs commands inside the Alpine Linux rootfs
-            // via PRoot, giving the user a REAL Linux shell with node, git,
-            // python, etc. — not the limited Android shell.
             val termuxRuntime = appContainer.termuxRuntime
 
-            // Ensure rootfs is installed
+            // Ensure rootfs is installed (first launch)
             if (!termuxRuntime.isInstalled) {
                 repository.insertTermuxLog(
                     TermuxLog(
@@ -258,10 +82,12 @@ class TermuxViewModel(
         }
     }
 
+    /**
+     * Execute a privileged command via Shizuku (Android system-level access).
+     */
     fun executePrivilegedCommand(command: String) {
         FileLogger.i(TAG, "executePrivilegedCommand: '$command'")
         viewModelScope.launch(Dispatchers.IO) {
-            // Sudo commands use Shizuku (Android system-level access)
             val executionResult = appContainer.localCommandRunner.executePrivilegedCommand(command)
             val log = TermuxLog(
                 id = java.util.UUID.randomUUID().toString(),

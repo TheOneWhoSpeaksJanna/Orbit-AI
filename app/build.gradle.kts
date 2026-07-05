@@ -149,9 +149,9 @@ android {
     }
   }
 
-  // Prevent AAPT2 from decompressing the Termux bootstrap zip.
+  // Prevent AAPT2 from decompressing the Termux bootstrap zip and .deb files.
   androidResources {
-    noCompress += listOf("zip")
+    noCompress += listOf("zip", "deb")
   }
   testOptions { unitTests { isIncludeAndroidResources = true } }
 
@@ -206,6 +206,29 @@ android {
         dependsOn(prepareAgent)
       }
     }
+  }
+
+  // ── Pre-bundle offline .deb packages ──────────────────────────────
+  // Downloads nodejs, git, python3 + all dependencies as .deb files
+  // from packages.termux.dev. These are bundled in assets/offline-debs/
+  // and installed via `dpkg -i` at runtime — eliminates the 5-minute
+  // apt download on first launch.
+  //
+  // This task is best-effort: if the download fails (network issue),
+  // the assets won't exist and TermuxRuntime falls back to apt install.
+  val downloadOfflinePackages = tasks.register<Exec>("downloadOfflinePackages") {
+    val script = rootProject.projectDir.resolve("scripts/download-offline-packages.py")
+    val outputDir = projectDir.resolve("src/main/assets/offline-debs")
+    commandLine("python3", script.absolutePath, outputDir.absolutePath)
+    // Only run if the output dir is empty or doesn't exist
+    outputs.dir(outputDir)
+    doFirst {
+      outputDir.mkdirs()
+    }
+  }
+
+  tasks.matching { it.name.startsWith("merge") && it.name.endsWith("Assets") }.configureEach {
+    dependsOn(downloadOfflinePackages)
   }
 }
 

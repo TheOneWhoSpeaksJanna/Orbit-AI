@@ -4,15 +4,12 @@ import android.content.pm.PackageManager
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.*
@@ -32,20 +29,13 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.omniclaw.ui.viewmodels.TermuxViewModel
 import rikka.shizuku.Shizuku
 
-private const val TITLE = "App Workspace & Execution"
+private const val TITLE = "Terminal"
 private const val CD_BACK = "Back"
 private const val CD_EXECUTE = "Execute"
 private const val CD_COPY = "Copy"
 private const val INPUT_LABEL = "Type a shell command..."
 private const val SUDO_LABEL = "Sudo"
-private const val CONFIRM_TITLE = "Execute Command?"
-private const val CONFIRM_TITLE_PRIVILEGED = "Execute Privileged Command?"
-private const val CONFIRM_NATIVE = "Execution happens directly on your device natively."
-private const val CONFIRM_PRIVILEGED = "WARNING: This will execute via Shizuku with elevated privileges. Destructive actions can occur."
-private const val CANCEL = "Cancel"
 private const val COPIED_TOAST = "Copied to clipboard"
-private const val MBPS_FORMAT = "%.1f MB/s"
-private const val SECONDS_REMAINING_FORMAT = "%ds remaining"
 
 private val CARD_BG = Color(0xFF0F172A)
 private val CMD_COLOR = Color(0xFF00F2FE)
@@ -53,8 +43,19 @@ private val SUCCESS_TEXT = Color(0xFFE2E8F0)
 private val ERROR_TEXT = Color(0xFFFCA5A5)
 private val DIVIDER_COLOR = Color(0xFF1E293B)
 
-private val QUICK_TOOLS = listOf("git", "python", "nodejs", "curl", "wget")
-
+/**
+ * Terminal screen — a real Linux terminal connected to the Termux rootfs.
+ *
+ * No install buttons (node/git/python are pre-bundled).
+ * No hardcoded commands.
+ * No confirmation dialogs — just type and press Enter, like a real terminal.
+ *
+ * Commands run inside the Termux rootfs via PRoot, giving the user access to
+ * bash, node, npm, git, python, apt, and everything else in the rootfs.
+ *
+ * The Sudo button routes commands through Shizuku for Android system-level
+ * access (settings, input, am, pm, etc.).
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TermuxScreen(
@@ -62,10 +63,8 @@ fun TermuxScreen(
     viewModel: TermuxViewModel = viewModel(factory = TermuxViewModel.Factory)
 ) {
     val logs by viewModel.logs.collectAsState()
-    val progress by viewModel.downloadProgress.collectAsState()
     var commandText by remember { mutableStateOf("") }
-    var showConfirmation by remember { mutableStateOf(false) }
-    var executeAsShizuku by remember { mutableStateOf(false) }
+    var executeAsSudo by remember { mutableStateOf(false) }
 
     val context = LocalContext.current
     var isShizukuActive by remember { mutableStateOf(false) }
@@ -80,6 +79,17 @@ fun TermuxScreen(
         isShizukuActive = isInstalled
                 && Shizuku.pingBinder()
                 && Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED
+    }
+
+    val submitCommand = {
+        if (commandText.isNotBlank()) {
+            if (executeAsSudo && isShizukuActive) {
+                viewModel.executePrivilegedCommand(commandText.trim())
+            } else {
+                viewModel.executeCommand(commandText.trim())
+            }
+            commandText = ""
+        }
     }
 
     Scaffold(
@@ -102,88 +112,7 @@ fun TermuxScreen(
                 .fillMaxSize()
                 .padding(padding)
         ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 8.dp, vertical = 4.dp)
-                    .horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                QUICK_TOOLS.forEach { tool ->
-                    SuggestionChip(
-                        onClick = { viewModel.installTool(tool) },
-                        label = { Text("Install $tool", fontSize = 12.sp) },
-                        icon = {
-                            Icon(
-                                Icons.Default.Build,
-                                contentDescription = null,
-                                modifier = Modifier.size(14.dp)
-                            )
-                        },
-                        colors = SuggestionChipDefaults.suggestionChipColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceVariant
-                        )
-                    )
-                }
-            }
-
-            if (progress != null && progress!!.isActive) {
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(8.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.primaryContainer
-                    )
-                ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Text(
-                                progress!!.title,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer
-                            )
-                            Text(
-                                "${(progress!!.progress * 100).toInt()}%",
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer
-                            )
-                        }
-                        Spacer(modifier = Modifier.height(8.dp))
-                        LinearProgressIndicator(
-                            progress = { progress!!.progress },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(8.dp)
-                                .clip(RoundedCornerShape(4.dp)),
-                            color = MaterialTheme.colorScheme.primary,
-                            trackColor = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.2f)
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Text(
-                                String.format(MBPS_FORMAT, progress!!.mbPerSecond),
-                                style = MaterialTheme.typography.bodySmall
-                            )
-                            Text(
-                                SECONDS_REMAINING_FORMAT.format(progress!!.timeRemainingSeconds),
-                                style = MaterialTheme.typography.bodySmall
-                            )
-                        }
-                    }
-                }
-            }
-
-            // Reverse once per logs change, not once per recomposition.
-            // The previous version called logs.reversed() inline in the items()
-            // call, which allocated a fresh ArrayList on every recomposition —
-            // including every keystroke into the command input above.
+            // Log output — newest at the bottom, auto-scrolls
             val reversedLogs = remember(logs) { logs.asReversed() }
             val clipboardManager = LocalClipboardManager.current
             val ctx = LocalContext.current
@@ -201,8 +130,6 @@ fun TermuxScreen(
                         output = log.output,
                         exitCode = log.exitCode,
                         onCopy = {
-                            // Copy the full command + output block so users can
-                            // paste it into bug reports or share it elsewhere.
                             val text = "$ ${log.command}\n${log.output}"
                             clipboardManager.setText(AnnotatedString(text))
                             android.widget.Toast.makeText(ctx, COPIED_TOAST, android.widget.Toast.LENGTH_SHORT).show()
@@ -211,6 +138,7 @@ fun TermuxScreen(
                 }
             }
 
+            // Command input bar
             Surface(
                 color = MaterialTheme.colorScheme.surface,
                 tonalElevation = 8.dp
@@ -227,47 +155,46 @@ fun TermuxScreen(
                         onValueChange = { commandText = it },
                         label = { Text(INPUT_LABEL) },
                         modifier = Modifier.weight(1f),
+                        singleLine = true,
                         colors = TextFieldDefaults.colors(
                             focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
                             unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
                             focusedIndicatorColor = Color.Transparent,
                             unfocusedIndicatorColor = Color.Transparent
                         ),
-                        shape = RoundedCornerShape(8.dp)
+                        shape = RoundedCornerShape(8.dp),
+                        keyboardActions = androidx.compose.foundation.text.KeyboardActions(
+                            onDone = { submitCommand() }
+                        )
                     )
 
+                    // Sudo toggle — only visible if Shizuku is active
                     if (isShizukuActive) {
                         Spacer(modifier = Modifier.width(8.dp))
-                        IconButton(
-                            onClick = {
-                                if (commandText.isNotBlank()) {
-                                    executeAsShizuku = true
-                                    showConfirmation = true
-                                }
+                        FilterChip(
+                            selected = executeAsSudo,
+                            onClick = { executeAsSudo = !executeAsSudo },
+                            label = {
+                                Text(
+                                    SUDO_LABEL,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
                             },
-                            modifier = Modifier.background(
-                                MaterialTheme.colorScheme.errorContainer,
-                                RoundedCornerShape(8.dp)
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = MaterialTheme.colorScheme.errorContainer,
+                                selectedLabelColor = MaterialTheme.colorScheme.onErrorContainer
                             )
-                        ) {
-                            Text(
-                                SUDO_LABEL,
-                                color = MaterialTheme.colorScheme.onErrorContainer,
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
+                        )
                     }
 
                     Spacer(modifier = Modifier.width(8.dp))
                     FloatingActionButton(
-                        onClick = {
-                            if (commandText.isNotBlank()) {
-                                executeAsShizuku = false
-                                showConfirmation = true
-                            }
-                        },
-                        containerColor = MaterialTheme.colorScheme.secondary
+                        onClick = { submitCommand() },
+                        containerColor = if (executeAsSudo && isShizukuActive)
+                            MaterialTheme.colorScheme.error
+                        else
+                            MaterialTheme.colorScheme.secondary
                     ) {
                         Icon(Icons.Default.PlayArrow, contentDescription = CD_EXECUTE)
                     }
@@ -275,64 +202,10 @@ fun TermuxScreen(
             }
         }
     }
-
-    if (showConfirmation) {
-        val isPrivileged = executeAsShizuku
-        AlertDialog(
-            onDismissRequest = { showConfirmation = false },
-            title = {
-                Text(if (isPrivileged) CONFIRM_TITLE_PRIVILEGED else CONFIRM_TITLE)
-            },
-            text = {
-                Text(
-                    "Are you sure you want to run this command locally?\n\n$ $commandText\n\n" +
-                            if (isPrivileged) CONFIRM_PRIVILEGED else CONFIRM_NATIVE
-                )
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        if (isPrivileged) {
-                            viewModel.executePrivilegedCommand(commandText)
-                        } else {
-                            viewModel.executeCommand(commandText)
-                        }
-                        commandText = ""
-                        showConfirmation = false
-                    },
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = if (isPrivileged)
-                            MaterialTheme.colorScheme.error
-                        else
-                            MaterialTheme.colorScheme.primary
-                    )
-                ) {
-                    Text(CD_EXECUTE)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showConfirmation = false }) {
-                    Text(CANCEL)
-                }
-            }
-        )
-    }
 }
 
 /**
  * One terminal log entry. Shows the command, output, and a copy button.
- *
- * Copy is exposed two ways so it's discoverable for both touch users and
- * users who are used to long-press-to-copy from terminal apps:
- *  1. An explicit copy icon button in the top-right corner of each card.
- *  2. Long-press anywhere on the card body.
- *
- * Both paths copy "$ <command>\n<output>" to the clipboard and show a Toast.
- *
- * Performance: the Card's colors are read outside the combinedClickable lambda
- * so they don't trigger recomposition. The output Text uses `maxLines = 50`
- * to prevent a single huge log from blowing out the layout — users can still
- * copy the full output via the copy button.
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -348,20 +221,19 @@ private fun TerminalLogCard(
             .fillMaxWidth()
             .padding(vertical = 4.dp)
             .combinedClickable(
-                onClick = {},           // no-op tap; the card is informational
-                onLongClick = onCopy    // long-press to copy
+                onClick = {},
+                onLongClick = onCopy
             ),
         colors = CardDefaults.cardColors(containerColor = CARD_BG),
         shape = RoundedCornerShape(8.dp)
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
-            // Header row: command on the left, copy button on the right.
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text(
-                    text = "orbit> $command",
+                    text = "$ $command",
                     color = CMD_COLOR,
                     fontFamily = FontFamily.Monospace,
                     fontWeight = FontWeight.Bold,
@@ -382,7 +254,7 @@ private fun TerminalLogCard(
             }
             Spacer(modifier = Modifier.height(4.dp))
             Text(
-                text = output,
+                text = output.ifBlank { "(no output)" },
                 color = if (isSuccess) SUCCESS_TEXT else ERROR_TEXT,
                 fontFamily = FontFamily.Monospace,
                 fontSize = 13.sp,
@@ -390,6 +262,15 @@ private fun TerminalLogCard(
                 maxLines = 50,
                 overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
             )
+            if (exitCode != 0 && exitCode != -1) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "[exit $exitCode]",
+                    color = ERROR_TEXT.copy(alpha = 0.7f),
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 11.sp
+                )
+            }
             Spacer(modifier = Modifier.height(4.dp))
             HorizontalDivider(color = DIVIDER_COLOR, thickness = 1.dp)
         }

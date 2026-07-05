@@ -69,6 +69,7 @@ private const val TITLE = "API Providers"
 private const val SUBTITLE = "Verify connectivity and manage endpoint configurations"
 private const val NO_API_KEY_LABEL = "No API key configured"
 private const val API_KEY_SET_LABEL = "API key set"
+private const val NO_KEY_REQUIRED_LABEL = "No key required"
 private const val CD_VERIFY = "Verify"
 private const val CD_TESTING = "Testing"
 private const val CD_EDIT = "Edit Key"
@@ -358,9 +359,17 @@ private fun ProviderHealthCard(
                 }
                 Spacer(modifier = Modifier.height(2.dp))
                 Text(
-                    text = if (provider.apiKeyConfigured) API_KEY_SET_LABEL else NO_API_KEY_LABEL,
+                    text = when {
+                        provider.apiKeyConfigured -> API_KEY_SET_LABEL
+                        !provider.requiresKey -> NO_KEY_REQUIRED_LABEL
+                        else -> NO_API_KEY_LABEL
+                    },
                     style = MaterialTheme.typography.labelSmall,
-                    color = if (provider.apiKeyConfigured) OrbitSuccess else OrbitWarning
+                    color = when {
+                        provider.apiKeyConfigured -> OrbitSuccess
+                        !provider.requiresKey -> MaterialTheme.colorScheme.onSurfaceVariant
+                        else -> OrbitWarning
+                    }
                 )
             }
             Spacer(modifier = Modifier.width(4.dp))
