@@ -436,23 +436,28 @@ class SetupViewModel(
                         "npm install -g $npmPackage 2>&1",
                         ""
                     )
+                    // Always log the full npm output so we can debug install issues
+                    FileLogger.i("SetupViewModel", "npm install -g result",
+                        "exit=${installResult.exitCode} output=${installResult.output.take(3000)}")
                     if (installResult.exitCode != 0) {
-                        FileLogger.w("SetupViewModel", "npm install warning", "output=${installResult.output.take(2000)}")
+                        FileLogger.w("SetupViewModel", "npm install failed", "exit=${installResult.exitCode}")
                     }
                 } else {
-                    // Hermes or unknown agent — no npm package, skip install.
                     FileLogger.i("SetupViewModel", "No npm package for agent, skipping npm install", "agent=$agentName")
                 }
 
-                // ── Store runCommand as the agent's binary name ──────────
-                // After `npm install -g`, the agent binary is in $PREFIX/bin/
-                // (e.g. /data/data/com.termux/files/usr/bin/openclaude).
-                // ChatViewModel calls termuxRuntime.executeInTermux(runCommand)
-                // which runs it under PRoot where PATH includes $PREFIX/bin.
+                // ── Verify the agent binary exists and determine runCommand ──
+                // npm install -g SHOULD create a symlink in $PREFIX/bin/, but
+                // some packages don't have a bin entry, or npm's prefix is wrong.
+                // We check multiple fallback strategies:
+                //   1. Check if the binary exists in $PREFIX/bin/ (ideal case)
+                //   2. If not, check npm's global bin dir
+                //   3. If not, find the package's main entry point via node -e
+                //   4. If all else fails, use npx (slower but always works)
                 updateInstallState(agentName, progress = 0.9f, status = STATUS_CREATING_SCRIPT)
 
                 val binaryName = AGENT_BINARIES[agentName] ?: agentName.lowercase().replace(" ", "-")
-                val agentEntry = binaryName  // just the binary name, found via PATH
+                val agentEntry = determineAgentEntryPoint(termuxRuntime, binaryName, npmPackage)
                 FileLogger.i("SetupViewModel", "Agent runCommand set", "cmd=$agentEntry")
 
                 // Persist the runCommand to the agent entity immediately
@@ -478,6 +483,87 @@ class SetupViewModel(
                 _agentInstallStates.value = _agentInstallStates.value + (agentName to _agentInstallStates.value[agentName]!!.copy(isInstalling = false))
             }
         }
+    }
+
+    /**
+     * Determine the correct runCommand for the agent.
+     *
+     * Tries multiple strategies in order:
+     * 1. Check if binaryName exists in $PREFIX/bin/ (ideal — npm created a symlink)
+     * 2. Check npm's global bin directory for the binary
+     * 3. Find the package's main entry point via `node -e "require.resolve(...)"`
+     * 4. Fall back to `npx <package>` (always works, slightly slower)
+     *
+     * Returns a command string that ChatViewModel runs via executeInTermux().
+     */
+    private suspend fun determineAgentEntryPoint(
+        termuxRuntime: com.omniclaw.data.local.runtime.TermuxRuntime,
+        binaryName: String,
+        npmPackage: String?
+    ): String {
+        // Strategy 1: Check if binary exists in $PREFIX/bin/
+        val checkBin = termuxRuntime.executeInTermux(
+            "which $binaryName 2>/dev/null || ls \$PREFIX/bin/$binaryName 2>/dev/null || echo NOT_FOUND",
+            ""
+        )
+        FileLogger.i("SetupViewModel", "Agent binary check",
+            "binaryName=$binaryName result=${checkBin.output.trim()}")
+        if (checkBin.output.trim() != "NOT_FOUND" && checkBin.output.trim().isNotEmpty()) {
+            FileLogger.i("SetupViewModel", "Using binary from PATH", "name=$binaryName")
+            return binaryName
+        }
+
+        // Strategy 2: List all files in $PREFIX/bin/ that might be the agent
+        val listBin = termuxRuntime.executeInTermux(
+            "ls \$PREFIX/bin/ 2>/dev/null | head -50",
+            ""
+        )
+        FileLogger.i("SetupViewModel", "PREFIX/bin contents", "files=${listBin.output.take(1000)}")
+
+        // Strategy 3: Find the package's main entry point via node
+        if (npmPackage != null) {
+            // Try to resolve the package's main entry
+            val resolveResult = termuxRuntime.executeInTermux(
+                "node -e \"try{console.log(require.resolve('$npmPackage'))}catch(e){console.log('RESOLVE_FAILED')}\" 2>/dev/null",
+                ""
+            )
+            val resolvedPath = resolveResult.output.trim()
+            FileLogger.i("SetupViewModel", "Node resolve result",
+                "package=$npmPackage path=$resolvedPath")
+            if (resolvedPath != "RESOLVE_FAILED" && resolvedPath.isNotEmpty() && !resolvedPath.startsWith("Error")) {
+                FileLogger.i("SetupViewModel", "Using node with resolved path", "path=$resolvedPath")
+                return "node \"$resolvedPath\""
+            }
+
+            // Strategy 3b: Find the package directory and look for common entry points
+            val findEntry = termuxRuntime.executeInTermux(
+                "find \$PREFIX/lib/node_modules/$npmPackage -maxdepth 1 -name '*.js' -o -name 'cli.js' -o -name 'index.js' -o -name 'main.js' 2>/dev/null | head -5",
+                ""
+            )
+            val foundFiles = findEntry.output.trim()
+            FileLogger.i("SetupViewModel", "Find entry points", "files=$foundFiles")
+            if (foundFiles.isNotEmpty()) {
+                // Pick the most likely entry point
+                val entry = foundFiles.split("\n").firstOrNull { it.contains("cli.js") }
+                    ?: foundFiles.split("\n").firstOrNull { it.contains("index.js") }
+                    ?: foundFiles.split("\n").firstOrNull { it.contains("main.js") }
+                    ?: foundFiles.split("\n").firstOrNull()
+                if (entry != null && entry.isNotEmpty()) {
+                    FileLogger.i("SetupViewModel", "Using node with found entry", "path=$entry")
+                    return "node \"$entry\""
+                }
+            }
+        }
+
+        // Strategy 4: Fall back to npx (always works for npm packages)
+        if (npmPackage != null) {
+            FileLogger.w("SetupViewModel", "Falling back to npx", "package=$npmPackage")
+            return "npx $npmPackage"
+        }
+
+        // Last resort: just use the binary name and hope for the best
+        FileLogger.w("SetupViewModel", "Could not determine entry point, using binary name", "name=$binaryName")
+        return binaryName
     }
 
     private fun updateInstallState(agentName: String, progress: Float? = null, status: String? = null, isInstalled: Boolean? = null) {
