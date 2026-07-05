@@ -28,3 +28,4 @@ app/src/*/assets/agent.meta
 # It must be committed so all builds (CI + local) use the same signing
 # certificate, otherwise update-installs fail with "already existing package"
 # due to signature mismatch.
+service-account.json

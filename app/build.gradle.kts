@@ -170,44 +170,6 @@ android {
     includeSourceInformation = true
   }
 
-  // Agent preparation tasks for flavor-specific pre-bundled agents
-  // Runs the prepare-agent.sh script to download and bundle each agent
-  // as a compressed asset in the flavor's asset directory.
-  androidComponents {
-    onVariants { variant ->
-      val flavorName = variant.flavorName ?: return@onVariants
-      if (flavorName == "normal") return@onVariants
-
-      val prepareAgent = tasks.register("prepareAgent${variant.name.replaceFirstChar { it.uppercase() }}") {
-        doLast {
-          val script = rootProject.projectDir.resolve("scripts/prepare-agent.sh")
-          val assetDir = projectDir.resolve("src/$flavorName/assets")
-          val archiveFile = assetDir.resolve("agent.tar.gz")
-
-          if (archiveFile.exists() && archiveFile.length() > 0L) {
-            logger.lifecycle("Agent archive exists for $flavorName (${archiveFile.length()} bytes), skipping")
-            logger.lifecycle("  Delete $archiveFile to force rebuild")
-            logger.lifecycle("  Or run: ${script.absolutePath} $flavorName")
-          } else {
-            logger.lifecycle("Preparing agent for $flavorName...")
-            val proc = ProcessBuilder(script.absolutePath, flavorName)
-              .directory(rootProject.projectDir)
-              .inheritIO()
-              .start()
-            val exitCode = proc.waitFor()
-            if (exitCode != 0) {
-              throw GradleException("Agent preparation failed with exit code $exitCode")
-            }
-          }
-        }
-      }
-
-      tasks.matching { it.name == "merge${variant.name.replaceFirstChar { it.uppercase() }}Assets" }.configureEach {
-        dependsOn(prepareAgent)
-      }
-    }
-  }
-
   // ── Pre-bundle offline .deb packages ──────────────────────────────
   // Downloads nodejs, git, python3 + all dependencies as .deb files
   // from packages.termux.dev. These are bundled in assets/offline-debs/
