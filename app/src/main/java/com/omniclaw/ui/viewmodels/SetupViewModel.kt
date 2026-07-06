@@ -20,6 +20,9 @@ import com.omniclaw.domain.api.AiProvider
 import com.omniclaw.domain.api.AiResult
 import com.omniclaw.domain.repository.OmniClawRepository
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.firstOrNull
@@ -307,6 +310,22 @@ class SetupViewModel(
     private val _setupPhase = MutableStateFlow(SetupPhase.IDLE)
     val setupPhase: StateFlow<SetupPhase> = _setupPhase.asStateFlow()
 
+    /**
+     * Live log stream for the FinalizingOverlay. Each log entry is a
+     * timestamped string that the UI displays in a scrolling list so
+     * the user can see exactly what's happening during installation.
+     */
+    private val _liveLogs = MutableSharedFlow<String>(replay = 50, extraBufferCapacity = 50)
+    val liveLogs: SharedFlow<String> = _liveLogs.asSharedFlow()
+
+    /** Emit a log to both FileLogger and the live UI stream. */
+    private fun emitLog(tag: String, event: String, details: String = "") {
+        val timestamp = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.US).format(java.util.Date())
+        val line = if (details.isNotBlank()) "$timestamp | $event | $details" else "$timestamp | $event"
+        FileLogger.i(tag, event, details)
+        _liveLogs.tryEmit(line)
+    }
+
     val canAdvance: Boolean
         get() {
             val step = filteredSteps.getOrNull(_currentStep.value) ?: return false
@@ -386,15 +405,27 @@ class SetupViewModel(
     // A second installAgent() call while one is running is a no-op.
     private val installJobs = mutableMapOf<String, kotlinx.coroutines.Job>()
 
-    fun installAgent(agentName: String) {
+    /**
+     * Install an agent. The guard prevents duplicate concurrent installs
+     * from rapid double-taps on the Install button.
+     *
+     * When called from completeSetup()/retryInstall(), pass skipGuard=true
+     * because those functions already have their own _setupPhase guard.
+     */
+    fun installAgent(agentName: String, skipGuard: Boolean = false) {
         // Synchronous guard — check BEFORE launching so a rapid double-tap
         // sees isInstalling=true and bails out. Without this, two coroutines
         // could both run npm install concurrently and corrupt the global
         // package metadata lockfile.
-        val currentState = _agentInstallStates.value[agentName]
-        if (currentState?.isInstalling == true) {
-            FileLogger.w("SetupViewModel", "installAgent already in progress, ignoring", "agent=$agentName")
-            return
+        // Skip the guard when called from completeSetup/retryInstall (they
+        // have their own _setupPhase guard and need to call installAgent
+        // even if isInstalling was pre-set).
+        if (!skipGuard) {
+            val currentState = _agentInstallStates.value[agentName]
+            if (currentState?.isInstalling == true) {
+                FileLogger.w("SetupViewModel", "installAgent already in progress, ignoring", "agent=$agentName")
+                return
+            }
         }
 
         // Cancel any previous job (shouldn't exist due to guard above, but
@@ -415,34 +446,37 @@ class SetupViewModel(
         installJobs[agentName] = viewModelScope.launch {
 
             try {
-                // ── NEW ARCHITECTURE: Use PRoot + Alpine rootfs ──────────
-                // The PRoot environment has node, npm, git pre-installed.
-                // Agents are installed via npm inside the rootfs and run
-                // via proot, giving them a full Linux environment.
+                emitLog("SetupViewModel", "Install start", "agent=$agentName")
                 updateInstallState(agentName, status = STATUS_CHECKING)
 
                 val termuxRuntime = appContainer.termuxRuntime
 
                 // Ensure rootfs is installed (extracts bootstrap + installs node/npm/git)
                 if (!termuxRuntime.isInstalled) {
+                    emitLog("SetupViewModel", "Installing Linux environment...")
                     updateInstallState(agentName, progress = 0.1f, status = "Installing Linux environment...")
                     val rootfsOk = termuxRuntime.install { progress, status ->
+                        emitLog("SetupViewModel", status, "progress=${(progress * 100).toInt()}%")
                         updateInstallState(agentName, progress = progress * 0.5f, status = status)
                     }
                     if (!rootfsOk) {
                         throw IllegalStateException("Failed to install Linux rootfs environment")
                     }
+                    emitLog("SetupViewModel", "Linux environment ready")
                 } else {
                     // Rootfs is already extracted, but tools (node/npm/git) might
                     // be missing if apt failed on a previous run. Ensure they're
                     // installed before trying npm install.
+                    emitLog("SetupViewModel", "Checking tools...")
                     updateInstallState(agentName, progress = 0.3f, status = "Checking tools...")
                     val toolsOk = termuxRuntime.ensureToolsInstalled { progress, status ->
+                        emitLog("SetupViewModel", status, "progress=${(progress * 100).toInt()}%")
                         updateInstallState(agentName, progress = 0.3f + progress * 0.3f, status = status)
                     }
                     if (!toolsOk) {
                         throw IllegalStateException("Failed to install nodejs/npm/git. Check logs.")
                     }
+                    emitLog("SetupViewModel", "Tools ready", "node/npm/git installed")
                 }
 
                 updateInstallState(agentName, progress = 0.5f, status = "$STATUS_DOWNLOADING$agentName...")
@@ -452,34 +486,26 @@ class SetupViewModel(
                 // can be launched by just its binary name (e.g. 'openclaude').
                 val npmPackage = NPM_PACKAGES[agentName]
                 if (npmPackage != null) {
+                    emitLog("SetupViewModel", "Installing agent", "npm install -g $npmPackage")
                     updateInstallState(agentName, progress = 0.6f, status = STATUS_INSTALLING_DEPS)
                     val installResult = termuxRuntime.executeInTermux(
                         "npm install -g $npmPackage 2>&1",
                         ""
                     )
-                    // Always log the full npm output so we can debug install issues
-                    FileLogger.i("SetupViewModel", "npm install -g result",
-                        "exit=${installResult.exitCode} output=${installResult.output.take(3000)}")
+                    emitLog("SetupViewModel", "npm install result", "exit=${installResult.exitCode} output=${installResult.output.take(500)}")
                     if (installResult.exitCode != 0) {
                         FileLogger.w("SetupViewModel", "npm install failed", "exit=${installResult.exitCode}")
                     }
                 } else {
-                    FileLogger.i("SetupViewModel", "No npm package for agent, skipping npm install", "agent=$agentName")
+                    emitLog("SetupViewModel", "No npm package for agent, skipping", "agent=$agentName")
                 }
 
-                // ── Verify the agent binary exists and determine runCommand ──
-                // npm install -g SHOULD create a symlink in $PREFIX/bin/, but
-                // some packages don't have a bin entry, or npm's prefix is wrong.
-                // We check multiple fallback strategies:
-                //   1. Check if the binary exists in $PREFIX/bin/ (ideal case)
-                //   2. If not, check npm's global bin dir
-                //   3. If not, find the package's main entry point via node -e
-                //   4. If all else fails, use npx (slower but always works)
+                emitLog("SetupViewModel", "Determining agent entry point...")
                 updateInstallState(agentName, progress = 0.9f, status = STATUS_CREATING_SCRIPT)
 
                 val binaryName = AGENT_BINARIES[agentName] ?: agentName.lowercase().replace(" ", "-")
                 val agentEntry = determineAgentEntryPoint(termuxRuntime, binaryName, npmPackage)
-                FileLogger.i("SetupViewModel", "Agent runCommand set", "cmd=$agentEntry")
+                emitLog("SetupViewModel", "Agent runCommand set", "cmd=$agentEntry")
 
                 // Persist the runCommand to the agent entity immediately
                 // so ChatViewModel can find it. completeSetup() also sets
@@ -495,9 +521,11 @@ class SetupViewModel(
                     FileLogger.w("SetupViewModel", "Could not update agent runCommand", "reason=${e.message}")
                 }
 
+                emitLog("SetupViewModel", "Agent installed", "$agentName ready")
                 updateInstallState(agentName, progress = 1f, status = "$agentName$STATUS_INSTALLED", isInstalled = true)
 
             } catch (e: Exception) {
+                emitLog("SetupViewModel", "Install FAILED", e.message ?: "unknown error")
                 FileLogger.e("SetupViewModel", "Agent install failed", e, "reason=${e.message}")
                 updateInstallState(agentName, status = "$STATUS_FAILED${e.message}", isInstalled = false)
             } finally {
@@ -642,19 +670,11 @@ class SetupViewModel(
             )
             repository.insertAgent(agent)
 
-            // ALWAYS install the selected agent (idempotent — re-install is a
-            // no-op if already installed). We synchronously mark isInstalling=true
-            // BEFORE launching installAgent so that waitForInstallComplete()
-            // doesn't match the initial isInstalling=false state and return
-            // immediately. This makes the loading overlay show real progress.
-            _agentInstallStates.value = _agentInstallStates.value + (agentName to
-                (_agentInstallStates.value[agentName] ?: AgentInstallState()).copy(
-                    isInstalling = true,
-                    progress = 0f,
-                    status = STATUS_STARTING,
-                    isInstalled = false
-                ))
-            installAgent(agentName)
+            // Install the agent. skipGuard=true because we already have the
+            // _setupPhase guard above, and installAgent() needs to run even
+            // though we haven't pre-set isInstalling (installAgent sets it
+            // itself inside the coroutine).
+            installAgent(agentName, skipGuard = true)
             val installSuccess = waitForInstallComplete(agentName)
             FileLogger.i("SetupViewModel", "completeSetup install finished", "success=$installSuccess")
 
@@ -698,14 +718,17 @@ class SetupViewModel(
         viewModelScope.launch {
             val agentName = _selectedAgent.value
             FileLogger.i("SetupViewModel", "retryInstall start", "agent=$agentName")
+            // Reset state to allow re-install. Don't pre-set isInstalling=true
+            // here — installAgent() sets it itself, and pre-setting would
+            // trigger the guard inside installAgent().
             _agentInstallStates.value = _agentInstallStates.value + (agentName to
                 (_agentInstallStates.value[agentName] ?: AgentInstallState()).copy(
-                    isInstalling = true,
+                    isInstalling = false,
                     progress = 0f,
                     status = "Retrying install...",
                     isInstalled = false
                 ))
-            installAgent(agentName)
+            installAgent(agentName, skipGuard = true)
             val installSuccess = waitForInstallComplete(agentName)
             FileLogger.i("SetupViewModel", "retryInstall finished", "success=$installSuccess")
             _setupPhase.value = if (installSuccess) SetupPhase.READY else SetupPhase.FAILED
@@ -713,18 +736,33 @@ class SetupViewModel(
     }
 
     /**
-     * Wait until the agent's isInstalling flag flips to false, then return
-     * the final isInstalled value. Used by completeSetup()/retryInstall()
-     * to block navigation to the dashboard until the install actually finishes.
+     * Wait until the install actually starts (isInstalling becomes true),
+     * then wait for it to finish (isInstalling becomes false), then return
+     * the final isInstalled value.
+     *
+     * Two-phase wait is needed because installAgent() sets isInstalling=true
+     * asynchronously inside a viewModelScope.launch. If we only waited for
+     * isInstalling==false, we'd match the initial false state immediately.
      */
     private suspend fun waitForInstallComplete(agentName: String): Boolean {
-        // StateFlow.firstOrNull emits the current value first, then waits for
-        // subsequent emissions. The predicate matches only when isInstalling
-        // becomes false (i.e. install has finished, success or failure).
+        // Phase 1: Wait for install to START (isInstalling becomes true)
+        // Timeout after 10 seconds in case installAgent() failed to launch
+        kotlinx.coroutines.withTimeoutOrNull(10_000) {
+            _agentInstallStates.firstOrNull { states ->
+                val state = states[agentName]
+                state?.isInstalling == true
+            }
+        } ?: run {
+            FileLogger.w("SetupViewModel", "waitForInstallComplete: install never started", "agent=$agentName")
+            return false
+        }
+
+        // Phase 2: Wait for install to FINISH (isInstalling becomes false)
         val finalStates = _agentInstallStates.firstOrNull { states ->
             val state = states[agentName] ?: return@firstOrNull false
             !state.isInstalling
         } ?: return false
+
         return finalStates[agentName]?.isInstalled ?: false
     }
 

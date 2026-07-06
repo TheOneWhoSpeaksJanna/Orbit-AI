@@ -185,10 +185,12 @@ fun SetupWizardScreen(
         // an uninstalled agent.
         if (setupPhase != SetupPhase.IDLE) {
             val agentState = agentInstallStates[selectedAgent] ?: SetupViewModel.AgentInstallState()
+            val liveLogs by viewModel.liveLogs.collectAsState(emptyList())
             FinalizingOverlay(
                 phase = setupPhase,
                 agentName = selectedAgent,
                 agentState = agentState,
+                liveLogs = liveLogs,
                 onSkip = { viewModel.skipFinalization() },
                 onRetry = { viewModel.retryInstall() },
                 onEnterApp = {
@@ -894,6 +896,7 @@ private fun FinalizingOverlay(
     phase: SetupPhase,
     agentName: String,
     agentState: SetupViewModel.AgentInstallState,
+    liveLogs: List<String>,
     onSkip: () -> Unit,
     onRetry: () -> Unit,
     onEnterApp: () -> Unit
@@ -1031,6 +1034,39 @@ private fun FinalizingOverlay(
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.fillMaxWidth()
                         )
+
+                        // Live log feed — shows real-time progress messages
+                        // so the user knows exactly what's happening.
+                        if (liveLogs.isNotEmpty()) {
+                            Spacer(modifier = Modifier.height(16.dp))
+                            val logScrollState = rememberScrollState()
+                            LaunchedEffect(liveLogs.size) {
+                                logScrollState.animateScrollTo(logScrollState.maxValue)
+                            }
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .heightIn(max = 120.dp)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                                    .padding(8.dp)
+                                    .verticalScroll(logScrollState)
+                            ) {
+                                Column {
+                                    liveLogs.forEach { line ->
+                                        Text(
+                                            text = line,
+                                            style = MaterialTheme.typography.labelSmall,
+                                            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            fontSize = 11.sp,
+                                            modifier = Modifier.fillMaxWidth()
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
                         Spacer(modifier = Modifier.height(24.dp))
 
                         // Skip link — proceeds to dashboard even if install isn't done
