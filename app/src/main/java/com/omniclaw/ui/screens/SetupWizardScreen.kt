@@ -14,6 +14,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.produceState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -185,7 +186,11 @@ fun SetupWizardScreen(
         // an uninstalled agent.
         if (setupPhase != SetupPhase.IDLE) {
             val agentState = agentInstallStates[selectedAgent] ?: SetupViewModel.AgentInstallState()
-            val liveLogs by viewModel.liveLogs.collectAsState(emptyList())
+            // Collect SharedFlow into a list for display. SharedFlow doesn't
+            // have collectAsState(initialValue), so we use produceState.
+            val liveLogs = produceState(initialValue = emptyList<String>(), viewModel.liveLogs) {
+                viewModel.liveLogs.collect { value = value + it }
+            }.value
             FinalizingOverlay(
                 phase = setupPhase,
                 agentName = selectedAgent,
