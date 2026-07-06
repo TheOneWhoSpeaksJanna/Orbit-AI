@@ -177,25 +177,32 @@ android {
   // apt download on first launch.
   //
   // IMPORTANT: The .debs go into FLAVOR-SPECIFIC asset dirs, not main.
-  // The 'normal' flavor does NOT get them (keeps the APK at ~93 MB).
+  // The 'normal' flavor does NOT get them (keeps the APK at ~50 MB).
   // Only agent flavors (openclaude, opencode, claudecode, codex) bundle
   // the ~120 MB of .debs. This task is best-effort: if the download
   // fails, TermuxRuntime falls back to apt install at runtime.
-  val agentFlavors = listOf("openclaude", "opencode", "claudecode", "codex")
-  agentFlavors.forEach { flavorName ->
-    val downloadTask = tasks.register<Exec>("downloadOfflinePackages${flavorName.replaceFirstChar { it.uppercase() }}") {
-      val script = rootProject.projectDir.resolve("scripts/download-offline-packages.py")
-      val outputDir = projectDir.resolve("src/$flavorName/assets/offline-debs")
-      commandLine("python3", script.absolutePath, outputDir.absolutePath)
-      outputs.dir(outputDir)
-      doFirst {
-        outputDir.mkdirs()
-      }
-    }
+  val agentFlavorSet = setOf("openclaude", "opencode", "claudecode", "codex")
+  androidComponents {
+    onVariants { variant ->
+      val flavorName = variant.flavorName ?: return@onVariants
+      if (flavorName !in agentFlavorSet) return@onVariants
 
-    // Only attach to this flavor's asset merge task
-    tasks.matching { it.name == "merge${flavorName}DebugAssets" || it.name == "merge${flavorName}ReleaseAssets" }.configureEach {
-      dependsOn(downloadTask)
+      val capitalizedVariant = variant.name.replaceFirstChar { it.uppercase() }
+      val downloadTaskName = "downloadOfflinePackages$capitalizedVariant"
+      val downloadTask = tasks.register<Exec>(downloadTaskName) {
+        val script = rootProject.projectDir.resolve("scripts/download-offline-packages.py")
+        val outputDir = projectDir.resolve("src/$flavorName/assets/offline-debs")
+        commandLine("python3", script.absolutePath, outputDir.absolutePath)
+        outputs.dir(outputDir)
+        doFirst {
+          outputDir.mkdirs()
+        }
+      }
+
+      // Attach to this variant's asset merge task
+      tasks.matching { it.name == "merge${capitalizedVariant}Assets" }.configureEach {
+        dependsOn(downloadTask)
+      }
     }
   }
 }
