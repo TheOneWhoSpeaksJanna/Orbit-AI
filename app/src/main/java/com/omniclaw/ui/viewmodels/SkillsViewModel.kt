@@ -17,8 +17,10 @@ import kotlinx.coroutines.launch
 
 class SkillsViewModel(
     agentsFlow: Flow<List<Agent>>,
-    private val context: android.content.Context
+    context: android.content.Context
 ) : ViewModel() {
+    // Use Application context to avoid Activity memory leaks
+    private val context: android.content.Context = context.applicationContext
 
     private val _agents = MutableStateFlow<List<Agent>>(emptyList())
     val agents: StateFlow<List<Agent>> = _agents.asStateFlow()

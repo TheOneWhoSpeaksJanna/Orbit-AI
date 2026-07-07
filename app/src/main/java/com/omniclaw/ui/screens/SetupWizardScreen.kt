@@ -706,7 +706,14 @@ fun StoragePermissionStep(viewModel: SetupViewModel) {
         } else {
             Button(
                 onClick = {
-                    val intent = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION).apply {
+                    // ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION requires API 30+.
+                    // On API 24-29, this constant doesn't exist at runtime despite being
+                    // inlined at compile time, so we guard with an explicit SDK check.
+                    val intent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                        Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION)
+                    } else {
+                        Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+                    }.apply {
                         data = android.net.Uri.parse("package:${context.packageName}")
                     }
                     context.startActivity(intent)

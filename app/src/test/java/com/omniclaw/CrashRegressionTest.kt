@@ -2,31 +2,24 @@ package com.omniclaw
 
 import org.junit.Test
 import org.junit.Before
-import org.junit.runner.RunWith
-import org.robolectric.RobolectricTestRunner
-import org.robolectric.annotation.Config
 
 /**
  * Crash Regression Tests — verify the race conditions and lifecycle bugs
  * fixed in the 13-phase reliability audit don't regress.
  *
- * These tests use Robolectric to simulate Android runtime behavior without
- * a real device. They can't test native code (PRoot/Termux) but they CAN
- * test:
- *  - ViewModel state management
- *  - Coroutine race conditions
- *  - UI state guards (button enabled/disabled)
- *  - Null safety in critical paths
+ * These are pure logic tests that don't need Android framework APIs.
+ * Previously used Robolectric (@RunWith(RobolectricTestRunner::class))
+ * but that caused "Couldn't create lock file ?/.robolectric-download-lock"
+ * in CI/containers where HOME is unset. Since none of these tests actually
+ * call Android APIs, the Robolectric runner was unnecessary overhead.
  *
  * Run: ./gradlew testNormalDebugUnitTest --tests "CrashRegressionTest"
  */
-@RunWith(RobolectricTestRunner::class)
-@Config(sdk = [34])
 class CrashRegressionTest {
 
     @Before
     fun setup() {
-        // Reset any static state if needed
+        // No Android-specific setup needed for pure logic tests
     }
 
     // ── Phase 4.1: installAgent race condition ──────────────────────

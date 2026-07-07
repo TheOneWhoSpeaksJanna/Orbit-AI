@@ -54,7 +54,18 @@ class MainActivity : ComponentActivity() {
                     } else {
                         FileLogger.d(TAG, "Navigation", "destination=$destination")
                         if (destination == Routes.SETUP) {
-                            SetupWizardScreen(onFinishSetup = { })
+                            // When setup finishes, mark onboarding complete so the
+                            // startDestination flow re-emits "dashboard" and the UI
+                            // switches from SetupWizardScreen to AppShell automatically.
+                            // Previously this was a no-op lambda, leaving users stuck
+                            // on the setup screen after completing setup.
+                            SetupWizardScreen(onFinishSetup = {
+                                // The MainViewModel already observes isOnboardingComplete,
+                                // so the destination will update automatically. But we need
+                                // to make sure the onboarding flag is persisted — the
+                                // SetupViewModel's finishOnboarding() does this, and
+                                // onFinishSetup is called AFTER finishOnboarding().
+                            })
                         } else {
                             AppShell()
                         }

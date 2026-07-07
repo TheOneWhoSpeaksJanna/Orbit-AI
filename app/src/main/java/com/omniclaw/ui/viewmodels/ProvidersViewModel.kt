@@ -51,6 +51,7 @@ sealed class ConnectionState {
 
 class ProvidersViewModel(
     private val prefsManager: PreferencesManager,
+    // Use Application context to avoid Activity memory leaks
     private val context: android.content.Context
 ) : ViewModel() {
 

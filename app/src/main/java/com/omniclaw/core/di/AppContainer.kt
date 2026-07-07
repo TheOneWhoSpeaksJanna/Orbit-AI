@@ -32,7 +32,7 @@ interface AppContainer {
 class DefaultAppContainer(private val context: Context) : AppContainer {
     private val database: OmniClawDatabase by lazy {
         Room.databaseBuilder(context, OmniClawDatabase::class.java, DATABASE_NAME)
-            .fallbackToDestructiveMigration()
+            .fallbackToDestructiveMigration(true)
             .build()
     }
 

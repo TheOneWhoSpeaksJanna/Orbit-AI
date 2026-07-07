@@ -61,7 +61,16 @@ class OllamaProvider(private val httpClient: OkHttpClient) : AiProvider {
 
             val jsonBody = JSONObject().apply {
                 put("model", requestModel)
-                put("prompt", prompt)
+                // /api/chat expects a "messages" array (like OpenAI), not a "prompt" field.
+                // The "prompt" field is for /api/generate. Using "prompt" with /api/chat
+                // causes Ollama to return: "invalid character 'p' looking for beginning of value"
+                val messages = JSONArray().apply {
+                    put(JSONObject().apply {
+                        put("role", "user")
+                        put("content", prompt)
+                    })
+                }
+                put("messages", messages)
                 put("stream", false)
             }
 

@@ -214,9 +214,17 @@ class TermuxRuntime(private val context: Context) {
             // Without this directory, apt install fails with:
             //   E: Archives directory /data/data/com.termux/cache/apt/archives/partial is missing.
             File(rootfsDir, "data/data/com.termux/cache/apt/archives/partial").mkdirs()
-            File(rootfsDir, "data/data/com.termux/cache/apt/archives/partial").setReadable(true, false)
-            File(rootfsDir, "data/data/com.termux/cache/apt/archives/partial").setWritable(true, false)
-            File(rootfsDir, "data/data/com.termux/cache/apt/archives/partial").setExecutable(true, false)
+            // Note: setReadable/setWritable with world-access flags (ownerOnly=false)
+            // is flagged by lint as a security risk. However, this is REQUIRED for
+            // PRoot: the proot process runs as the same UID as the app, and inside the
+            // chroot the apt binary needs write access to its cache directory. The
+            // "world" here is the same Linux UID — on Android, each app gets its own
+            // UID, so this doesn't expose data to other apps. Suppressing lint warnings.
+            @Suppress("SetWorldReadable", "SetWorldWritable")
+            val aptCacheDir = File(rootfsDir, "data/data/com.termux/cache/apt/archives/partial")
+            aptCacheDir.setReadable(true, false)
+            aptCacheDir.setWritable(true, false)
+            aptCacheDir.setExecutable(true, false)
 
             // Set up apt sources.list (the bootstrap includes one, but we
             // overwrite to ensure it points to the right repo).
