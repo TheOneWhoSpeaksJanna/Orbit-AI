@@ -67,6 +67,10 @@ fun DashboardScreen(
     var isShizukuActive by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
+        // BUG FIX: Shizuku.pingBinder() can throw RuntimeException if the
+        // Shizuku service is not running or the binder is dead. Without this
+        // try-catch, the composable crashes on devices where Shizuku is
+        // installed but not actively running.
         val isInstalled = try {
             context.packageManager.getPackageInfo("moe.shizuku.privileged.api", 0)
             true
@@ -74,8 +78,8 @@ fun DashboardScreen(
             false
         }
         isShizukuActive = isInstalled
-                && Shizuku.pingBinder()
-                && Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED
+                && try { Shizuku.pingBinder() } catch (_: Exception) { false }
+                && try { Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED } catch (_: Exception) { false }
     }
 
     Scaffold(

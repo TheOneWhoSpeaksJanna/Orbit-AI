@@ -2,9 +2,6 @@ package com.omniclaw
 
 import org.junit.Test
 import org.junit.Before
-import org.junit.runner.RunWith
-import org.robolectric.RobolectricTestRunner
-import org.robolectric.annotation.Config
 
 /**
  * Crash Regression Tests — verify the race conditions and lifecycle bugs
@@ -20,8 +17,7 @@ import org.robolectric.annotation.Config
  *
  * Run: ./gradlew testNormalDebugUnitTest --tests "CrashRegressionTest"
  */
-@RunWith(RobolectricTestRunner::class)
-@Config(sdk = [34])
+
 class CrashRegressionTest {
 
     @Before

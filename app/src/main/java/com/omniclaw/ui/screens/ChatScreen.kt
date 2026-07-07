@@ -234,8 +234,12 @@ fun ChatScreen(
                                 focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
                                 unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
                             ),
-                            singleLine = true,
-                            maxLines = 1,
+                            // BUG FIX: Changed from singleLine=true to allow
+                            // multi-line input. Users need to paste code snippets
+                            // and write longer prompts. Enter sends, Shift+Enter
+                            // adds a new line (handled by keyboardOptions).
+                            singleLine = false,
+                            maxLines = 4,
                             textStyle = MaterialTheme.typography.bodyMedium
                         )
                         Spacer(Modifier.width(8.dp))

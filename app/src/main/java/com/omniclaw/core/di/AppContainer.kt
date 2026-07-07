@@ -32,7 +32,9 @@ interface AppContainer {
 class DefaultAppContainer(private val context: Context) : AppContainer {
     private val database: OmniClawDatabase by lazy {
         Room.databaseBuilder(context, OmniClawDatabase::class.java, DATABASE_NAME)
-            .fallbackToDestructiveMigration()
+            // BUG FIX: Replaced deprecated fallbackToDestructiveMigration()
+            // with the new overload that explicitly specifies dropAllTables.
+            .fallbackToDestructiveMigration(dropAllTables = true)
             .build()
     }
 

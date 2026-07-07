@@ -69,6 +69,8 @@ fun TermuxScreen(
     val context = LocalContext.current
     var isShizukuActive by remember { mutableStateOf(false) }
 
+    // BUG FIX: Shizuku.pingBinder() can throw RuntimeException if the
+    // Shizuku service is not running or the binder is dead.
     LaunchedEffect(Unit) {
         val isInstalled = try {
             context.packageManager.getPackageInfo("moe.shizuku.privileged.api", 0)
@@ -77,8 +79,8 @@ fun TermuxScreen(
             false
         }
         isShizukuActive = isInstalled
-                && Shizuku.pingBinder()
-                && Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED
+                && try { Shizuku.pingBinder() } catch (_: Exception) { false }
+                && try { Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED } catch (_: Exception) { false }
     }
 
     val submitCommand = {

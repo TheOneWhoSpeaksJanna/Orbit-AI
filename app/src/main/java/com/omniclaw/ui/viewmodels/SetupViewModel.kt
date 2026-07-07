@@ -202,7 +202,7 @@ RULES:
     AGENT_CODEX to "You are Codex, an AI coding agent powered by OpenAI with strong instruction-following capabilities."
 )
 
-enum class SetupStep(@StringRes val labelResId: Int) {
+enum class SetupStep(@param:StringRes val labelResId: Int) {
     Welcome(R.string.step_welcome),
     Theme(R.string.step_theme),
     Agent(R.string.step_agent),
@@ -334,7 +334,12 @@ class SetupViewModel(
                 SetupStep.Theme -> _theme.value.isNotBlank()
                 SetupStep.Agent -> _selectedAgent.value.isNotBlank()
                 // Ollama doesn't require an API key — its key slot is an optional base URL.
-                SetupStep.Provider -> _apiKey.value.isNotBlank() || _selectedProvider.value == "Ollama"
+                // BUG FIX: Check for both "Ollama" and "Ollama (Local)" since the
+            // provider catalog may use either display name. Also check for any
+            // provider that doesn't require a key (requiresKey=false in catalog).
+            SetupStep.Provider -> _apiKey.value.isNotBlank() ||
+                    _selectedProvider.value.equals("Ollama", ignoreCase = true) ||
+                    _selectedProvider.value.equals("Ollama (Local)", ignoreCase = true)
                 SetupStep.Shizuku -> true
                 SetupStep.Storage -> true
                 SetupStep.Summary -> true
@@ -664,7 +669,21 @@ class SetupViewModel(
             prefsManager.setSelectedProvider(_selectedProvider.value)
             prefsManager.setSelectedModel(_selectedModel.value)
 
-            prefsManager.setApiKeyForProvider(_selectedProvider.value, _apiKey.value)
+            // BUG FIX: Resolve the provider display name to its catalog ID
+            // before storing the API key. The ProvidersScreen uses catalog IDs
+            // (e.g. "anthropic") but the setup wizard was using display names
+            // (e.g. "Anthropic Claude"), causing keys to be stored under
+            // different DataStore keys and not appearing in the Providers screen.
+            val providerIdForApiKey = try {
+                val catalog = com.omniclaw.data.local.runtime.ProviderCatalog.load(
+                    appContainer.runtimeManager.context
+                )
+                val entry = catalog.find { it.name == _selectedProvider.value }
+                entry?.id ?: _selectedProvider.value.lowercase().trim()
+            } catch (_: Exception) {
+                _selectedProvider.value.lowercase().trim()
+            }
+            prefsManager.setApiKeyForProvider(providerIdForApiKey, _apiKey.value)
 
             val agentName = _selectedAgent.value
             val sysPrompt = SYSTEM_PROMPTS[agentName] ?: "You are an expert AI assistant."

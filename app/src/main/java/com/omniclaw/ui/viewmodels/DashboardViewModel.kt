@@ -23,7 +23,9 @@ import kotlinx.coroutines.launch
 import java.util.UUID
 
 private const val DEFAULT_AGENT = "OpenClaude"
-private const val DEFAULT_PROVIDER = "Claude"
+// BUG FIX: Changed from "Claude" to "Gemini" for consistency with
+// SetupViewModel and ChatViewModel which both default to "Gemini".
+private const val DEFAULT_PROVIDER = "Gemini"
 
 class DashboardViewModel(
     private val repository: OmniClawRepository,

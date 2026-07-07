@@ -236,6 +236,16 @@ class ChatViewModel(
             )
             repository.insertMessage(userMsg)
 
+            // BUG FIX: Auto-update session title from first user message.
+            // Previously the title stayed "New Session" forever because there
+            // was no mechanism to update it.
+            if (session.title == NEW_SESSION_TITLE) {
+                val titleFromContent = content.take(50).replace("\n", " ").trim()
+                if (titleFromContent.isNotBlank()) {
+                    repository.updateSessionTitle(session.id, titleFromContent)
+                }
+            }
+
             val activeProvider = prefsManager.selectedProvider.firstOrNull() ?: DEFAULT_PROVIDER
             val activeModelName = prefsManager.selectedModel.firstOrNull() ?: ""
             val activeAgentId = prefsManager.selectedAgent.firstOrNull()
@@ -283,21 +293,21 @@ class ChatViewModel(
                     com.omniclaw.core.logging.FileLogger.i("ChatViewModel", "Agent exec start (PRoot)", "cmd=$runCmd content=${content.take(80)}")
                     val escaped = content.replace("\"", "\\\"").replace("`", "\\`").replace("$", "\\$")
 
-                    // Method 1: stdin pipe
-                    var fullCmd = "echo \"$escaped\" | $runCmd"
+                    // Method 1: stdin pipe (using single-quoted string for safety)
+                    var fullCmd = "echo '$escaped' | $runCmd"
                     var result = termuxRuntime.executeInTermux(fullCmd, "")
                     com.omniclaw.core.logging.FileLogger.i("ChatViewModel", "Agent exec (stdin)", "exit=${result.exitCode} output=${result.output.take(150)}")
 
                     // If stdin method failed or produced no output, try -p flag
                     if (result.exitCode != 0 || result.output.isBlank()) {
-                        fullCmd = "$runCmd -p \"$escaped\""
+                        fullCmd = "$runCmd -p '$escaped'"
                         result = termuxRuntime.executeInTermux(fullCmd, "")
                         com.omniclaw.core.logging.FileLogger.i("ChatViewModel", "Agent exec (-p flag)", "exit=${result.exitCode} output=${result.output.take(150)}")
                     }
 
                     // If -p flag also failed, try direct argument
                     if (result.exitCode != 0 || result.output.isBlank()) {
-                        fullCmd = "$runCmd \"$escaped\""
+                        fullCmd = "$runCmd '$escaped'"
                         result = termuxRuntime.executeInTermux(fullCmd, "")
                         com.omniclaw.core.logging.FileLogger.i("ChatViewModel", "Agent exec (direct arg)", "exit=${result.exitCode} output=${result.output.take(150)}")
                     }
@@ -397,19 +407,46 @@ class ChatViewModel(
         // corrupting the shared loopPromptBuilder / loopSessionId state.
         loopJob?.cancel()
         loopJob = viewModelScope.launch {
-            while (loopContinueLooping) {
+            var iterations = 0
+            // BUG FIX: Cap the AI loop at MAX_LOOP_ITERATIONS to prevent
+            // infinite API calls. Without this, if the AI consistently returns
+            // [RUN: ...] commands that get blocked, the loop runs forever,
+            // costing API credits and never terminating.
+            while (loopContinueLooping && iterations < MAX_LOOP_ITERATIONS) {
+                iterations++
                 val result = aiProvider.generateContent(
                     loopPromptBuilder.toString(), loopApiKey, loopActiveProvider, loopActiveModelName
                 )
 
-                val modelText = when (result) {
-                    is AiResult.Success -> result.text
-                    is AiResult.Error -> "Error: ${result.message}"
+                // BUG FIX: Distinguish between success and error responses.
+                // Previously, error messages were treated identically to model
+                // responses, which could cause the loop to try to parse [RUN: ...]
+                // from error text, and errors appeared as normal AI messages.
+                val modelText: String
+                val isErrorResponse: Boolean
+                when (result) {
+                    is AiResult.Success -> {
+                        modelText = result.text
+                        isErrorResponse = false
+                    }
+                    is AiResult.Error -> {
+                        modelText = "⚠️ API Error: ${result.message}"
+                        isErrorResponse = true
+                    }
                 }
 
-                if (modelText.contains("[RUN: ") || modelText.contains("[SUDO: ")) {
-                    val runMatch = RUN_COMMAND_REGEX.find(modelText)
-                    val sudoMatch = SUDO_COMMAND_REGEX.find(modelText)
+                // Don't try to parse tool calls from error responses
+                if (!isErrorResponse && (modelText.contains("[RUN: ") || modelText.contains("[SUDO: "))) {
+                    // BUG FIX: Find ALL tool calls in the response, not just the
+                    // first one. Previously, if the model returned both [RUN: ...]
+                    // and [SUDO: ...], only [RUN: ...] was executed because it was
+                    // checked first. Now we execute them in order of appearance.
+                    val allRunMatches = RUN_COMMAND_REGEX.findAll(modelText).toList()
+                    val allSudoMatches = SUDO_COMMAND_REGEX.findAll(modelText).toList()
+
+                    // Merge and sort by position in the text
+                    val allMatches = (allRunMatches.map { it to false } + allSudoMatches.map { it to true })
+                        .sortedBy { it.first.range.first }
 
                     val actionModelMsg = Message(
                         id = UUID.randomUUID().toString(),
@@ -420,12 +457,12 @@ class ChatViewModel(
                     )
                     repository.insertMessage(actionModelMsg)
 
-                    val pair = when {
-                        runMatch != null -> runMatch.groupValues[1] to false
-                        sudoMatch != null -> sudoMatch.groupValues[1] to true
-                        else -> null
-                    } ?: continue
-                    val (cmd, isSudo) = pair
+                    // Execute the first match; remaining matches will be handled
+                    // in subsequent loop iterations (the tool output is appended
+                    // to the prompt and the model sees the remaining commands).
+                    val firstMatch = allMatches.firstOrNull() ?: continue
+                    val (matchResult, isSudo) = firstMatch
+                    val cmd = matchResult.groupValues[1]
 
                     when (isCommandAllowed(cmd, isSudo)) {
                         PermissionResult.ALLOWED -> {
@@ -451,16 +488,32 @@ class ChatViewModel(
                         }
                     }
                 } else {
+                    // BUG FIX: Use TOOL role for API errors so they appear
+                    // distinctly from normal AI responses in the chat UI.
                     val modelMsg = Message(
                         id = UUID.randomUUID().toString(),
                         sessionId = loopSessionId,
-                        role = MessageRole.MODEL,
+                        role = if (isErrorResponse) MessageRole.TOOL else MessageRole.MODEL,
                         content = modelText,
                         timestamp = System.currentTimeMillis()
                     )
                     repository.insertMessage(modelMsg)
-                    loopContinueLooping = false
+                    // Always stop the loop on error to prevent cascading failures
+                    loopContinueLooping = !isErrorResponse
                 }
+            }
+            // BUG FIX: If we hit the iteration limit, add a message so the
+            // user knows the loop was terminated, not just silently stopped.
+            if (iterations >= MAX_LOOP_ITERATIONS && loopContinueLooping) {
+                val limitMsg = Message(
+                    id = UUID.randomUUID().toString(),
+                    sessionId = loopSessionId,
+                    role = MessageRole.MODEL,
+                    content = "Agent loop reached maximum iterations ($MAX_LOOP_ITERATIONS). Stopping to prevent infinite API calls.",
+                    timestamp = System.currentTimeMillis()
+                )
+                repository.insertMessage(limitMsg)
+                loopContinueLooping = false
             }
             _isLoading.value = false
         }
@@ -470,6 +523,10 @@ class ChatViewModel(
         private val RUN_COMMAND_REGEX = "\\[RUN: (.+?)]".toRegex()
         private val SUDO_COMMAND_REGEX = "\\[SUDO: (.+?)]".toRegex()
         val DEFAULT_MODELS = listOf("gemini-2.0-flash-exp", "gpt-4o", "claude-sonnet-4-20250514", "glm-5.2", "glm-4.6")
+
+        // Maximum number of AI loop iterations per user message.
+        // Prevents infinite loops when the AI keeps returning blocked commands.
+        private const val MAX_LOOP_ITERATIONS = 15
 
         val Factory: ViewModelProvider.Factory = object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")

@@ -59,9 +59,18 @@ class OllamaProvider(private val httpClient: OkHttpClient) : AiProvider {
         try {
             val requestModel = if (model.isNotBlank()) model else DEFAULT_MODEL
 
+            // BUG FIX: Use /api/chat format with "messages" array instead of
+            // /api/generate format with "prompt" string. The old code sent
+            // {"prompt": ...} to the /api/chat endpoint, which expects
+            // {"messages": [{"role":"user","content":...}]}.
             val jsonBody = JSONObject().apply {
                 put("model", requestModel)
-                put("prompt", prompt)
+                put("messages", JSONArray().apply {
+                    put(JSONObject().apply {
+                        put("role", "user")
+                        put("content", prompt)
+                    })
+                })
                 put("stream", false)
             }
 
@@ -75,12 +84,18 @@ class OllamaProvider(private val httpClient: OkHttpClient) : AiProvider {
 
             if (response.isSuccessful && responseBody != null) {
                 val jsonResponse = JSONObject(responseBody)
-                val text = jsonResponse.optJSONObject("message")?.optString("content")
-                    ?: jsonResponse.optString("response", "")
+                // /api/chat returns {"message": {"role":"assistant","content":"..."}}
+                val text = jsonResponse.optJSONObject("message")?.optString("content", "") ?: ""
                 if (text.isNotBlank()) {
                     AiResult.Success(text)
                 } else {
-                    AiResult.Error("Empty response from Ollama.")
+                    // Fallback: try /api/generate response format for compatibility
+                    val generateText = jsonResponse.optString("response", "")
+                    if (generateText.isNotBlank()) {
+                        AiResult.Success(generateText)
+                    } else {
+                        AiResult.Error("Empty response from Ollama.")
+                    }
                 }
             } else {
                 AiResult.Error("HTTP Error ${response.code}: ${responseBody ?: response.message}")
