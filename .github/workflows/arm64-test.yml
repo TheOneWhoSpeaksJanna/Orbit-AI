@@ -57,12 +57,17 @@ jobs:
             fi
           done
 
-          # Search for linker64 in NDK
-          LINKER=$(find ndk_extracted/ -name "linker64" -type f -size +1k 2>/dev/null | head -1)
+          # Search for linker64 in NDK (check ALL sizes, not just >1k)
+          echo "=== Searching for linker64 in NDK ==="
+          find ndk_extracted/ -name "linker64" 2>/dev/null
+          find ndk_extracted/ -name "linker*" 2>/dev/null | head -20
+
+          LINKER=$(find ndk_extracted/ -name "linker64" 2>/dev/null | head -1)
           if [ -n "$LINKER" ]; then
+            echo "Found linker64: $LINKER ($(stat -c%s "$LINKER") bytes)"
             sudo cp "$LINKER" /system/bin/linker64
             sudo chmod +x /system/bin/linker64
-            echo "  NDK: linker64 ($(stat -c%s "$LINKER") bytes)"
+            file /system/bin/linker64
           fi
 
           # Strategy 2: If linker64 not in NDK, extract from system image via Python ext4

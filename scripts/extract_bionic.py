@@ -37,6 +37,19 @@ def extract_ext4(path, output_dir):
     """Extract Bionic libs from an ext4 image using the ext4 module."""
     from ext4 import Volume
 
+    # Monkey-patch the superblock verification to skip checksum checks.
+    # Some AOSP system images have features the ext4 module doesn't validate
+    # correctly, but the data is still readable.
+    import ext4.superblock
+    if hasattr(ext4.superblock.Superblock, 'verify'):
+        original_verify = ext4.superblock.Superblock.verify
+        def patched_verify(self):
+            try:
+                original_verify(self)
+            except Exception as e:
+                print(f"  Warning: ext4 superblock verify failed ({e}), continuing anyway...")
+        ext4.superblock.Superblock.verify = patched_verify
+
     with open(path, 'rb') as f:
         vol = Volume(f)
         root = vol.root
