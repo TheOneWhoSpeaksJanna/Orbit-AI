@@ -74,47 +74,28 @@ jobs:
           # toolchains/llvm/prebuilt/linux-aarch64/sysroot/usr/lib/aarch64-linux-android/
           
           echo ""
-          echo "Downloading Android NDK r27c (aarch64)..."
-          # The NDK for aarch64 Linux host
-          wget -q "https://dl.google.com/android/repository/android-ndk-r27c-linux-aarch64.zip" -O /tmp/ndk.zip 2>/dev/null
-          
-          if [ -f /tmp/ndk.zip ] && [ $(stat -c%s /tmp/ndk.zip) -gt 1000000 ]; then
-            echo "NDK downloaded: $(du -h /tmp/ndk.zip | cut -f1)"
-            cd /tmp
-            unzip -q ndk.zip -d ndk_extracted/ 2>/dev/null
-            
-            # Find Bionic libraries in the NDK
-            echo "=== NDK sysroot libraries ==="
-            find ndk_extracted/ -name "linker64" 2>/dev/null | head -5
-            find ndk_extracted/ -name "libc.so" 2>/dev/null | head -5
-            
-            # The NDK has stub libraries, but it might have the real linker64
-            # at: sources/android/libc/
-            # Or at: toolchains/llvm/prebuilt/linux-aarch64/aarch64-linux-android/bin/
-            
-            # Try to find real (non-stub) Bionic libraries
-            LINKER=$(find ndk_extracted/ -name "linker64" -type f 2>/dev/null | head -1)
-            if [ -n "$LINKER" ]; then
-              echo "Found linker64: $LINKER ($(stat -c%s "$LINKER") bytes)"
-              sudo cp "$LINKER" /system/bin/linker64
-              sudo chmod +x /system/bin/linker64
-            fi
-            
-            # Check if the NDK's linker64 is a real binary or a stub
-            file /system/bin/linker64 2>/dev/null
+          echo "Downloading Android NDK r27c (x86_64 host, contains aarch64 targets)..."
+          wget -q "https://dl.google.com/android/repository/android-ndk-r27c-linux.zip" -O /tmp/ndk.zip
+          echo "NDK downloaded: $(du -h /tmp/ndk.zip | cut -f1)"
+          cd /tmp
+          unzip -q ndk.zip -d ndk_extracted/ 2>/dev/null
+
+          # Search for linker64 — it's in the sysroot at various API levels
+          echo "=== Searching for linker64 in NDK ==="
+          find ndk_extracted/ -name "linker64" 2>/dev/null
+
+          # The NDK has linker64 at:
+          # toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/<api>/linker64
+          LINKER=$(find ndk_extracted/ -name "linker64" -type f 2>/dev/null | head -1)
+          if [ -n "$LINKER" ]; then
+            echo "Found linker64: $LINKER ($(stat -c%s "$LINKER") bytes)"
+            sudo cp "$LINKER" /system/bin/linker64
+            sudo chmod +x /system/bin/linker64
+            file /system/bin/linker64
           else
-            echo "NDK download failed, trying x86_64 NDK..."
-            wget -q "https://dl.google.com/android/repository/android-ndk-r27c-linux.zip" -O /tmp/ndk.zip
-            cd /tmp
-            unzip -q ndk.zip -d ndk_extracted/ 2>/dev/null
-            
-            # The x86_64 NDK still contains aarch64 target libraries
-            LINKER=$(find ndk_extracted/ -name "linker64" -path "*/aarch64*" -type f 2>/dev/null | head -1)
-            if [ -n "$LINKER" ]; then
-              echo "Found linker64: $LINKER ($(stat -c%s "$LINKER") bytes)"
-              sudo cp "$LINKER" /system/bin/linker64
-              sudo chmod +x /system/bin/linker64
-            fi
+            echo "linker64 not found in NDK, trying sysroot lib64..."
+            # Some NDK versions put it at sysroot/usr/lib/aarch64-linux-android/linker64
+            find ndk_extracted/ -path "*/aarch64-linux-android*" -name "linker*" 2>/dev/null
           fi
           
           # Also look for libc.so and other Bionic libs
