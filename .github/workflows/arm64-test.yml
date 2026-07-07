@@ -323,22 +323,17 @@ jobs:
           PROOT="$PWD/app/src/main/jniLibs/arm64-v8a/libproot.so"
           export PROOT_LOADER="$PWD/app/src/main/jniLibs/arm64-v8a/libproot_loader.so"
 
-          # Copy offline .deb files from the openclaude flavor assets into rootfs
-          echo "=== Copying offline debs ==="
+          # Download offline .deb files directly from packages.termux.dev
+          # (They're gitignored so won't be in the checkout)
+          echo "=== Downloading offline debs ==="
           mkdir -p rootfs/offline-debs
-          if [ -d app/src/openclaude/assets/offline-debs ]; then
-            cp app/src/openclaude/assets/offline-debs/*.deb rootfs/offline-debs/ 2>/dev/null
-            echo "Copied $(ls rootfs/offline-debs/*.deb 2>/dev/null | wc -l) debs"
+          if [ -d app/src/openclaude/assets/offline-debs ] && ls app/src/openclaude/assets/offline-debs/*.deb >/dev/null 2>&1; then
+            cp app/src/openclaude/assets/offline-debs/*.deb rootfs/offline-debs/
+            echo "Copied $(ls rootfs/offline-debs/*.deb 2>/dev/null | wc -l) debs from assets"
           else
-            echo "No offline debs found in openclaude flavor, trying main assets..."
-            if [ -d app/src/main/assets/offline-debs ]; then
-              cp app/src/main/assets/offline-debs/*.deb rootfs/offline-debs/ 2>/dev/null
-              echo "Copied $(ls rootfs/offline-debs/*.deb 2>/dev/null | wc -l) debs"
-            else
-              echo "No offline debs found! Building will need to run downloadOfflinePackages first."
-              echo "Skipping dpkg -i test."
-              exit 0
-            fi
+            echo "No debs in assets, downloading from packages.termux.dev..."
+            python3 scripts/download-offline-packages.py rootfs/offline-debs
+            echo "Downloaded $(ls rootfs/offline-debs/*.deb 2>/dev/null | wc -l) debs"
           fi
 
           echo "=== Installing debs via dpkg -i ==="
