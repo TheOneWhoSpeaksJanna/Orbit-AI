@@ -1,0 +1,334 @@
+name: ARM64 Pipeline Test
+
+on:
+  push:
+    branches: ["main"]
+  workflow_dispatch:
+
+jobs:
+  arm64-test:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install system tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y simg2img e2fsprogs wget unzip file
+
+      - name: Verify ARM64 architecture
+        run: |
+          echo "=== Architecture ==="
+          uname -m
+          echo "=== ptrace test ==="
+          python3 -c "
+          import os, ctypes
+          pid = os.fork()
+          if pid == 0:
+              import time; time.sleep(2); os._exit(0)
+          else:
+              libc = ctypes.CDLL('libc.so.6', use_errno=True)
+              r = libc.ptrace(16, pid, 0, 0)
+              print('ptrace: ' + ('ALLOWED' if r == 0 else 'BLOCKED'))
+              os.waitpid(pid, 0)
+          "
+
+      # ── Step 1: Get Android Bionic libraries ──────────────────────
+      # The Termux binaries are ARM64 ELF files that need /system/bin/linker64
+      # (Android's Bionic dynamic linker) and /system/lib64/libc.so.
+      # These only exist on Android devices or in Android system images.
+      # We download the AOSP ATD system image and extract the real Bionic libs.
+      - name: Download Android system image
+        run: |
+          echo "Downloading AOSP ATD ARM64 system image (~300MB)..."
+          wget -q "https://dl.google.com/android/repository/sys-img/aosp_atd/arm64-v8a-35_r01.zip" -O system-image.zip
+          unzip -q system-image.zip
+          ls -la arm64-v8a/system.img
+
+      - name: Extract Bionic libraries from system image
+        run: |
+          # Convert sparse image to raw ext4
+          simg2img arm64-v8a/system.img system.raw 2>/dev/null || cp arm64-v8a/system.img system.raw
+          echo "Raw image size: $(du -h system.raw | cut -f1)"
+
+          # Mount the ext4 filesystem (we have sudo on GitHub runners)
+          sudo mkdir -p /mnt/system
+          sudo mount -o loop,ro system.raw /mnt/system
+
+          # Find the Bionic bootstrap libraries
+          # On Android 12+, real Bionic libs are in /system/lib64/bootstrap/
+          echo "=== Searching for Bionic libraries ==="
+          sudo find /mnt/system -name "linker64" -o -name "libc.so" 2>/dev/null | head -20
+
+          # Create /system directories (the path Termux binaries expect)
+          sudo mkdir -p /system/bin /system/lib64
+
+          # Strategy 1: Copy from bootstrap directory (these are the real runtime libs)
+          BOOTSTRAP="/mnt/system/system/lib64/bootstrap"
+          if [ -d "$BOOTSTRAP" ]; then
+            echo "Found bootstrap directory, copying Bionic libs..."
+            sudo cp "$BOOTSTRAP/libc.so" /system/lib64/ 2>/dev/null && echo "  ✓ libc.so" || echo "  ✗ libc.so"
+            sudo cp "$BOOTSTRAP/libm.so" /system/lib64/ 2>/dev/null && echo "  ✓ libm.so" || echo "  ✗ libm.so"
+            sudo cp "$BOOTSTRAP/libdl.so" /system/lib64/ 2>/dev/null && echo "  ✓ libdl.so" || echo "  ✗ libdl.so"
+            sudo cp "$BOOTSTRAP/libdl_android.so" /system/lib64/ 2>/dev/null && echo "  ✓ libdl_android.so" || true
+          fi
+
+          # Strategy 2: Extract linker64 from APEX (com.android.runtime)
+          # linker64 is a symlink -> /apex/com.android.runtime/bin/linker64
+          # The real binary is inside the APEX package
+          if [ ! -f /system/bin/linker64 ]; then
+            echo "linker64 not in bootstrap, extracting from APEX..."
+            APEX="/mnt/system/system/apex/com.android.runtime.apex"
+            if [ -f "$APEX" ]; then
+              sudo cp "$APEX" /tmp/runtime.apex
+              cd /tmp
+              # APEX is a zip containing apex_payload.img (ext4)
+              unzip -q runtime.apex -d apex_dir/
+              sudo mkdir -p /mnt/apex
+              sudo mount -o loop,ro apex_dir/apex_payload.img /mnt/apex
+
+              echo "=== APEX contents ==="
+              ls /mnt/apex/bin/ 2>/dev/null | head -10
+              ls /mnt/apex/lib64/bionic/ 2>/dev/null | head -10
+
+              # Copy linker64 from APEX
+              sudo cp /mnt/apex/bin/linker64 /system/bin/ 2>/dev/null && echo "  ✓ linker64 from APEX" || echo "  ✗ linker64 not in APEX"
+
+              # Copy any additional Bionic libs from APEX
+              sudo cp /mnt/apex/lib64/bionic/*.so /system/lib64/ 2>/dev/null || true
+
+              sudo umount /mnt/apex 2>/dev/null || true
+              cd -
+            fi
+          fi
+
+          # Also copy other system libs that Termux binaries might need
+          for lib in liblog.so libbase.so libc++.so libz.so libcrypto.so libssl.so; do
+            sudo find /mnt/system -name "$lib" -path "*/lib64/*" ! -path "*/apex/*" -exec cp {} /system/lib64/ \; 2>/dev/null || true
+          done
+
+          sudo umount /mnt/system 2>/dev/null || true
+
+          # Make linker64 executable
+          sudo chmod +x /system/bin/linker64 2>/dev/null || true
+
+          # Verify Bionic is set up
+          echo ""
+          echo "=== Bionic setup verification ==="
+          ls -la /system/bin/linker64 2>&1
+          file /system/bin/linker64 2>&1
+          ls -la /system/lib64/libc.so 2>&1
+          file /system/lib64/libc.so 2>&1
+
+      # ── Step 2: Set up Termux rootfs ──────────────────────────────
+      - name: Extract Termux bootstrap
+        run: |
+          mkdir -p rootfs/data/data/com.termux/files/usr
+          unzip -q app/src/main/assets/termux-bootstrap.zip \
+            -d rootfs/data/data/com.termux/files/usr/
+
+          # Create symlinks from SYMLINKS.txt
+          cd rootfs/data/data/com.termux/files/usr
+          count=0
+          while IFS= read -r line; do
+            [ -z "$line" ] && continue
+            target=$(echo "$line" | sed 's/←.*//' | sed 's/^\.\///')
+            linkname=$(echo "$line" | sed 's/.*←//' | sed 's/^\.\///')
+            dir=$(dirname "$linkname")
+            mkdir -p "$dir"
+            ln -sf "$target" "$linkname" 2>/dev/null && count=$((count+1)) || true
+          done < SYMLINKS.txt
+          echo "Created $count symlinks"
+          cd -
+
+          # Create necessary directories
+          mkdir -p rootfs/data/data/com.termux/files/home
+          mkdir -p rootfs/data/data/com.termux/files/usr/tmp
+          mkdir -p rootfs/data/data/com.termux/cache/apt/archives/partial
+          mkdir -p rootfs/etc
+          echo "nameserver 8.8.8.8" > rootfs/etc/resolv.conf
+
+          # apt sources.list
+          mkdir -p rootfs/data/data/com.termux/files/usr/etc/apt
+          echo "deb https://packages.termux.dev/apt/termux-main/ stable main" \
+            > rootfs/data/data/com.termux/files/usr/etc/apt/sources.list
+
+          # Verify
+          echo "=== Rootfs verification ==="
+          ls -la rootfs/data/data/com.termux/files/usr/bin/sh
+          ls -la rootfs/data/data/com.termux/files/usr/bin/bash
+          ls -la rootfs/data/data/com.termux/files/usr/bin/apt
+
+      # ── Step 3: Test the full pipeline ────────────────────────────
+      - name: Test 1 - Basic PRoot execution
+        run: |
+          chmod +x app/src/main/jniLibs/arm64-v8a/libproot.so
+          PROOT="$PWD/app/src/main/jniLibs/arm64-v8a/libproot.so"
+          export PROOT_LOADER="$PWD/app/src/main/jniLibs/arm64-v8a/libproot_loader.so"
+
+          echo "=== Test: echo hello via PRoot ==="
+          $PROOT --kill-on-exit \
+            -r rootfs \
+            -b /dev -b /proc -b /sys \
+            -b /system -b /system/bin -b /system/lib64 \
+            -b /data/local/tmp:/tmp \
+            -w /data/data/com.termux/files/home \
+            /data/data/com.termux/files/usr/bin/sh -c "echo 'Hello from PRoot on ARM64!'"
+          echo "EXIT=$?"
+
+      - name: Test 2 - dpkg --configure -a
+        run: |
+          PROOT="$PWD/app/src/main/jniLibs/arm64-v8a/libproot.so"
+          export PROOT_LOADER="$PWD/app/src/main/jniLibs/arm64-v8a/libproot_loader.so"
+
+          $PROOT --kill-on-exit \
+            -r rootfs \
+            -b /dev -b /proc -b /sys \
+            -b /system -b /system/bin -b /system/lib64 \
+            -b /data/local/tmp:/tmp \
+            -w /data/data/com.termux/files/home \
+            /data/data/com.termux/files/usr/bin/sh -c "dpkg --configure -a 2>&1 || true"
+          echo "EXIT=$?"
+
+      - name: Test 3 - apt update
+        run: |
+          PROOT="$PWD/app/src/main/jniLibs/arm64-v8a/libproot.so"
+          export PROOT_LOADER="$PWD/app/src/main/jniLibs/arm64-v8a/libproot_loader.so"
+
+          $PROOT --kill-on-exit \
+            -r rootfs \
+            -b /dev -b /proc -b /sys \
+            -b /system -b /system/bin -b /system/lib64 \
+            -b /data/local/tmp:/tmp \
+            -w /data/data/com.termux/files/home \
+            /data/data/com.termux/files/usr/bin/sh -c \
+            "apt update -o APT::Sandbox::User=root 2>&1"
+          echo "EXIT=$?"
+
+      - name: Test 4 - apt install nodejs git python3
+        run: |
+          PROOT="$PWD/app/src/main/jniLibs/arm64-v8a/libproot.so"
+          export PROOT_LOADER="$PWD/app/src/main/jniLibs/arm64-v8a/libproot_loader.so"
+
+          $PROOT --kill-on-exit \
+            -r rootfs \
+            -b /dev -b /proc -b /sys \
+            -b /system -b /system/bin -b /system/lib64 \
+            -b /data/local/tmp:/tmp \
+            -w /data/data/com.termux/files/home \
+            /data/data/com.termux/files/usr/bin/sh -c \
+            "apt install -y -o APT::Sandbox::User=root nodejs git python3 2>&1"
+          echo "EXIT=$?"
+
+          # Verify tools installed
+          echo "=== Tool verification ==="
+          $PROOT --kill-on-exit \
+            -r rootfs \
+            -b /dev -b /proc -b /sys \
+            -b /system -b /system/bin -b /system/lib64 \
+            -b /data/local/tmp:/tmp \
+            -w /data/data/com.termux/files/home \
+            /data/data/com.termux/files/usr/bin/sh -c \
+            "node --version && npm --version && git --version"
+
+      - name: Test 5 - npm install -g @gitlawb/openclaude
+        run: |
+          PROOT="$PWD/app/src/main/jniLibs/arm64-v8a/libproot.so"
+          export PROOT_LOADER="$PWD/app/src/main/jniLibs/arm64-v8a/libproot_loader.so"
+
+          $PROOT --kill-on-exit \
+            -r rootfs \
+            -b /dev -b /proc -b /sys \
+            -b /system -b /system/bin -b /system/lib64 \
+            -b /data/local/tmp:/tmp \
+            -w /data/data/com.termux/files/home \
+            /data/data/com.termux/files/usr/bin/sh -c \
+            "npm install -g @gitlawb/openclaude 2>&1"
+          echo "EXIT=$?"
+
+      - name: Test 6 - Agent entry point resolution
+        run: |
+          PROOT="$PWD/app/src/main/jniLibs/arm64-v8a/libproot.so"
+          export PROOT_LOADER="$PWD/app/src/main/jniLibs/arm64-v8a/libproot_loader.so"
+
+          echo "=== Check if openclaude binary exists ==="
+          $PROOT --kill-on-exit \
+            -r rootfs \
+            -b /dev -b /proc -b /sys \
+            -b /system -b /system/bin -b /system/lib64 \
+            -b /data/local/tmp:/tmp \
+            -w /data/data/com.termux/files/home \
+            /data/data/com.termux/files/usr/bin/sh -c \
+            "which openclaude 2>/dev/null || echo 'NOT IN PATH'"
+
+          echo "=== Try executing openclaude directly ==="
+          $PROOT --kill-on-exit \
+            -r rootfs \
+            -b /dev -b /proc -b /sys \
+            -b /system -b /system/bin -b /system/lib64 \
+            -b /data/local/tmp:/tmp \
+            -w /data/data/com.termux/files/home \
+            /data/data/com.termux/files/usr/bin/sh -c \
+            "openclaude --version 2>&1 || echo 'EXEC FAILED (shebang issue?)'"
+
+          echo "=== Resolve symlink ==="
+          $PROOT --kill-on-exit \
+            -r rootfs \
+            -b /dev -b /proc -b /sys \
+            -b /system -b /system/bin -b /system/lib64 \
+            -b /data/local/tmp:/tmp \
+            -w /data/data/com.termux/files/home \
+            /data/data/com.termux/files/usr/bin/sh -c \
+            "readlink -f \$PREFIX/bin/openclaude 2>/dev/null || echo 'SYMLINK FAILED'"
+
+          echo "=== Try node with resolved path ==="
+          $PROOT --kill-on-exit \
+            -r rootfs \
+            -b /dev -b /proc -b /sys \
+            -b /system -b /system/bin -b /system/lib64 \
+            -b /data/local/tmp:/tmp \
+            -w /data/data/com.termux/files/home \
+            /data/data/com.termux/files/usr/bin/sh -c \
+            "RESOLVED=\$(readlink -f \$PREFIX/bin/openclaude) && node \"\$RESOLVED\" --version 2>&1 || echo 'NODE EXEC FAILED'"
+
+      - name: Test 7 - Agent prompt execution
+        run: |
+          PROOT="$PWD/app/src/main/jniLibs/arm64-v8a/libproot.so"
+          export PROOT_LOADER="$PWD/app/src/main/jniLibs/arm64-v8a/libproot_loader.so"
+
+          echo "=== Send test prompt to agent via stdin ==="
+          $PROOT --kill-on-exit \
+            -r rootfs \
+            -b /dev -b /proc -b /sys \
+            -b /system -b /system/bin -b /system/lib64 \
+            -b /data/local/tmp:/tmp \
+            -w /data/data/com.termux/files/home \
+            /data/data/com.termux/files/usr/bin/sh -c \
+            'echo "hi" | openclaude 2>&1; echo "EXIT=$?"'
+
+          echo ""
+          echo "=== Try node with resolved path + stdin ==="
+          $PROOT --kill-on-exit \
+            -r rootfs \
+            -b /dev -b /proc -b /sys \
+            -b /system -b /system/bin -b /system/lib64 \
+            -b /data/local/tmp:/tmp \
+            -w /data/data/com.termux/files/home \
+            /data/data/com.termux/files/usr/bin/sh -c \
+            'RESOLVED=$(readlink -f $PREFIX/bin/openclaude) && echo "hi" | node "$RESOLVED" 2>&1; echo "EXIT=$?"'
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "========================================="
+          echo "ARM64 Pipeline Test Summary"
+          echo "========================================="
+          echo "Architecture: $(uname -m)"
+          echo ""
+          echo "If any test above shows EXIT=0, that step passed."
+          echo "If tests failed, check the logs above for the exact error."
+          echo "The most common failure point is Test 1 (basic PRoot exec)"
+          echo "which means the Bionic linker setup failed."
+          echo "========================================="
