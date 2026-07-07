@@ -53,66 +53,88 @@ jobs:
           simg2img arm64-v8a/system.img system.raw 2>/dev/null || cp arm64-v8a/system.img system.raw
           echo "Raw image size: $(du -h system.raw | cut -f1)"
 
-          # Mount the ext4 filesystem (we have sudo on GitHub runners)
-          sudo mkdir -p /mnt/system
-          sudo mount -o loop,ro system.raw /mnt/system
+          # Use debugfs to extract files (doesn't require mount)
+          # debugfs can read ext4 images without mounting
+          echo "=== Using debugfs to extract Bionic libraries ==="
 
-          # Find the Bionic bootstrap libraries
-          # On Android 12+, real Bionic libs are in /system/lib64/bootstrap/
-          echo "=== Searching for Bionic libraries ==="
-          sudo find /mnt/system -name "linker64" -o -name "libc.so" 2>/dev/null | head -20
+          # List bootstrap directory to see what's there
+          echo "=== Bootstrap dir listing ==="
+          debugfs -R "ls -l system/lib64/bootstrap" system.raw 2>/dev/null || echo "bootstrap dir not found"
 
-          # Create /system directories (the path Termux binaries expect)
+          # Extract Bionic bootstrap libraries
           sudo mkdir -p /system/bin /system/lib64
 
-          # Strategy 1: Copy from bootstrap directory (these are the real runtime libs)
-          BOOTSTRAP="/mnt/system/system/lib64/bootstrap"
-          if [ -d "$BOOTSTRAP" ]; then
-            echo "Found bootstrap directory, copying Bionic libs..."
-            sudo cp "$BOOTSTRAP/libc.so" /system/lib64/ 2>/dev/null && echo "  ✓ libc.so" || echo "  ✗ libc.so"
-            sudo cp "$BOOTSTRAP/libm.so" /system/lib64/ 2>/dev/null && echo "  ✓ libm.so" || echo "  ✗ libm.so"
-            sudo cp "$BOOTSTRAP/libdl.so" /system/lib64/ 2>/dev/null && echo "  ✓ libdl.so" || echo "  ✗ libdl.so"
-            sudo cp "$BOOTSTRAP/libdl_android.so" /system/lib64/ 2>/dev/null && echo "  ✓ libdl_android.so" || true
-          fi
+          # Extract from bootstrap directory
+          for lib in libc.so libm.so libdl.so libdl_android.so; do
+            echo "Extracting $lib..."
+            debugfs -R "dump system/lib64/bootstrap/$lib /tmp/$lib" system.raw 2>/dev/null
+            if [ -f "/tmp/$lib" ]; then
+              sudo cp "/tmp/$lib" /system/lib64/
+              echo "  ✓ $lib ($(stat -c%s /tmp/$lib) bytes)"
+            else
+              echo "  ✗ $lib not found"
+            fi
+          done
 
-          # Strategy 2: Extract linker64 from APEX (com.android.runtime)
-          # linker64 is a symlink -> /apex/com.android.runtime/bin/linker64
-          # The real binary is inside the APEX package
-          if [ ! -f /system/bin/linker64 ]; then
-            echo "linker64 not in bootstrap, extracting from APEX..."
-            APEX="/mnt/system/system/apex/com.android.runtime.apex"
-            if [ -f "$APEX" ]; then
-              sudo cp "$APEX" /tmp/runtime.apex
-              cd /tmp
-              # APEX is a zip containing apex_payload.img (ext4)
-              unzip -q runtime.apex -d apex_dir/
-              sudo mkdir -p /mnt/apex
-              sudo mount -o loop,ro apex_dir/apex_payload.img /mnt/apex
+          # Extract linker64 — it's a symlink in the system image.
+          # The real binary is inside the APEX. But debugfs can follow symlinks
+          # if we know the target. On Android 14+, linker64 points to
+          # /apex/com.android.runtime/bin/linker64
+          # Let's try to extract it from the APEX.
 
-              echo "=== APEX contents ==="
-              ls /mnt/apex/bin/ 2>/dev/null | head -10
-              ls /mnt/apex/lib64/bionic/ 2>/dev/null | head -10
+          # First, extract the APEX file
+          echo "=== Extracting APEX for linker64 ==="
+          debugfs -R "dump system/apex/com.android.runtime.apex /tmp/runtime.apex" system.raw 2>/dev/null
 
-              # Copy linker64 from APEX
-              sudo cp /mnt/apex/bin/linker64 /system/bin/ 2>/dev/null && echo "  ✓ linker64 from APEX" || echo "  ✗ linker64 not in APEX"
+          if [ -f /tmp/runtime.apex ]; then
+            echo "APEX extracted: $(stat -c%s /tmp/runtime.apex) bytes"
+            cd /tmp
+            # APEX is a zip containing apex_payload.img (ext4)
+            unzip -q runtime.apex -d apex_dir/ 2>/dev/null
 
-              # Copy any additional Bionic libs from APEX
-              sudo cp /mnt/apex/lib64/bionic/*.so /system/lib64/ 2>/dev/null || true
+            # List APEX payload contents
+            echo "=== APEX payload listing ==="
+            debugfs -R "ls bin" apex_dir/apex_payload.img 2>/dev/null | head -10
+            debugfs -R "ls lib64/bionic" apex_dir/apex_payload.img 2>/dev/null | head -10
 
-              sudo umount /mnt/apex 2>/dev/null || true
-              cd -
+            # Extract linker64 from APEX
+            debugfs -R "dump bin/linker64 /tmp/linker64" apex_dir/apex_payload.img 2>/dev/null
+            if [ -f /tmp/linker64 ]; then
+              sudo cp /tmp/linker64 /system/bin/linker64
+              sudo chmod +x /system/bin/linker64
+              echo "  ✓ linker64 from APEX ($(stat -c%s /tmp/linker64) bytes)"
+            else
+              echo "  ✗ linker64 not in APEX"
+            fi
+
+            # Extract additional Bionic libs from APEX
+            for lib in libc.so libm.so libdl.so libdl_android.so liblog.so; do
+              debugfs -R "dump lib64/bionic/$lib /tmp/apex_$lib" apex_dir/apex_payload.img 2>/dev/null
+              if [ -f "/tmp/apex_$lib" ] && [ $(stat -c%s "/tmp/apex_$lib") -gt 1000 ]; then
+                sudo cp "/tmp/apex_$lib" /system/lib64/
+                echo "  ✓ $lib from APEX"
+              fi
+            done
+
+            cd -
+          else
+            echo "APEX not found, trying direct linker64 extraction..."
+            # Try extracting linker64 directly (might be a symlink, debugfs follows it)
+            debugfs -R "dump system/bin/linker64 /tmp/linker64" system.raw 2>/dev/null
+            if [ -f /tmp/linker64 ]; then
+              sudo cp /tmp/linker64 /system/bin/linker64
+              sudo chmod +x /system/bin/linker64
+              echo "  ✓ linker64 direct ($(stat -c%s /tmp/linker64) bytes)"
             fi
           fi
 
-          # Also copy other system libs that Termux binaries might need
+          # Extract other system libs that Termux binaries might need
           for lib in liblog.so libbase.so libc++.so libz.so libcrypto.so libssl.so; do
-            sudo find /mnt/system -name "$lib" -path "*/lib64/*" ! -path "*/apex/*" -exec cp {} /system/lib64/ \; 2>/dev/null || true
+            debugfs -R "dump system/lib64/$lib /tmp/$lib" system.raw 2>/dev/null
+            if [ -f "/tmp/$lib" ] && [ $(stat -c%s "/tmp/$lib") -gt 1000 ]; then
+              sudo cp "/tmp/$lib" /system/lib64/ 2>/dev/null && echo "  ✓ $lib" || true
+            fi
           done
-
-          sudo umount /mnt/system 2>/dev/null || true
-
-          # Make linker64 executable
-          sudo chmod +x /system/bin/linker64 2>/dev/null || true
 
           # Verify Bionic is set up
           echo ""
