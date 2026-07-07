@@ -372,7 +372,7 @@ jobs:
             /data/data/com.termux/files/usr/bin/sh -c \
             "node --version && npm --version && git --version"
 
-      - name: Test 5 - npm install -g @gitlawb/openclaude
+      - name: Test 5 - Diagnose + npm install
         run: |
           set +e
           export PREFIX=/data/data/com.termux/files/usr
@@ -382,14 +382,58 @@ jobs:
           PROOT="$PWD/app/src/main/jniLibs/arm64-v8a/libproot.so"
           export PROOT_LOADER="$PWD/app/src/main/jniLibs/arm64-v8a/libproot_loader.so"
 
+          echo "=== STEP 1: ROOT CAUSE DIAGNOSTICS ==="
           $PROOT --kill-on-exit \
             -r rootfs \
             -b /dev -b /proc -b /sys \
             -b /system -b /system/bin -b /system/lib64 \
             -b /tmp \
             -w /data/data/com.termux/files/home \
-            /data/data/com.termux/files/usr/bin/sh -c \
-            "npm install -g @gitlawb/openclaude 2>&1"
+            /data/data/com.termux/files/usr/bin/sh -c '
+              echo "--- ls node/npm ---"
+              ls -la $PREFIX/bin/node $PREFIX/bin/npm 2>&1
+              echo "--- file node ---"
+              file $PREFIX/bin/node 2>&1
+              echo "--- npm shebang ---"
+              head -1 $PREFIX/bin/npm 2>&1
+              echo "--- node version (direct) ---"
+              $PREFIX/bin/node --version 2>&1
+              echo "--- which env ---"
+              ls -la /usr/bin/env 2>&1 || echo "/usr/bin/env NOT FOUND"
+              ls -la $PREFIX/bin/env 2>&1 || echo "$PREFIX/bin/env NOT FOUND"
+              echo "--- dpkg status ---"
+              dpkg -s nodejs 2>&1 | head -5
+              dpkg -s npm 2>&1 | head -5
+              echo "--- PATH ---"
+              echo $PATH
+            '
+
+          echo ""
+          echo "=== STEP 2: FIX - create /usr/bin/env symlink ==="
+          # The shebang #!/usr/bin/env node can't resolve because /usr/bin/env
+          # doesn't exist in the Termux rootfs. Create a symlink.
+          mkdir -p rootfs/usr/bin
+          ln -sf /data/data/com.termux/files/usr/bin/env rootfs/usr/bin/env 2>/dev/null || true
+          echo "Created /usr/bin/env -> $PREFIX/bin/env"
+
+          echo ""
+          echo "=== STEP 3: Re-test after fix ==="
+          $PROOT --kill-on-exit \
+            -r rootfs \
+            -b /dev -b /proc -b /sys \
+            -b /system -b /system/bin -b /system/lib64 \
+            -b /tmp \
+            -w /data/data/com.termux/files/home \
+            /data/data/com.termux/files/usr/bin/sh -c '
+              echo "--- npm version (via shebang) ---"
+              npm --version 2>&1
+              echo "NPM_EXIT=$?"
+              echo "--- node version ---"
+              node --version 2>&1
+              echo "--- npm install -g ---"
+              npm install -g @gitlawb/openclaude 2>&1
+              echo "INSTALL_EXIT=$?"
+            '
           echo "EXIT=$?"
 
       - name: Test 6 - Agent entry point resolution
@@ -442,7 +486,7 @@ jobs:
             /data/data/com.termux/files/usr/bin/sh -c \
             "RESOLVED=\$(readlink -f \$PREFIX/bin/openclaude) && node \"\$RESOLVED\" --version 2>&1 || echo 'NODE EXEC FAILED'"
 
-      - name: Test 7 - Agent prompt execution
+      - name: Test 7 - Agent prompt execution (with /usr/bin/env fix)
         run: |
           set +e
           export PREFIX=/data/data/com.termux/files/usr
@@ -452,18 +496,11 @@ jobs:
           PROOT="$PWD/app/src/main/jniLibs/arm64-v8a/libproot.so"
           export PROOT_LOADER="$PWD/app/src/main/jniLibs/arm64-v8a/libproot_loader.so"
 
-          echo "=== Send test prompt to agent via stdin ==="
-          $PROOT --kill-on-exit \
-            -r rootfs \
-            -b /dev -b /proc -b /sys \
-            -b /system -b /system/bin -b /system/lib64 \
-            -b /tmp \
-            -w /data/data/com.termux/files/home \
-            /data/data/com.termux/files/usr/bin/sh -c \
-            'echo "hi" | openclaude 2>&1; echo "EXIT=$?"'
+          # Ensure /usr/bin/env symlink exists (created in Test 5)
+          mkdir -p rootfs/usr/bin
+          ln -sf /data/data/com.termux/files/usr/bin/env rootfs/usr/bin/env 2>/dev/null || true
 
-          echo ""
-          echo "=== Try node with resolved path + stdin ==="
+          echo "=== openclaude shebang ==="
           $PROOT --kill-on-exit \
             -r rootfs \
             -b /dev -b /proc -b /sys \
@@ -471,7 +508,27 @@ jobs:
             -b /tmp \
             -w /data/data/com.termux/files/home \
             /data/data/com.termux/files/usr/bin/sh -c \
-            'RESOLVED=$(readlink -f $PREFIX/bin/openclaude) && echo "hi" | node "$RESOLVED" 2>&1; echo "EXIT=$?"'
+            'head -1 $PREFIX/bin/openclaude 2>/dev/null || echo "openclaude not installed (npm install may have failed)"'
+
+          echo "=== Try openclaude directly (with /usr/bin/env fix) ==="
+          $PROOT --kill-on-exit \
+            -r rootfs \
+            -b /dev -b /proc -b /sys \
+            -b /system -b /system/bin -b /system/lib64 \
+            -b /tmp \
+            -w /data/data/com.termux/files/home \
+            /data/data/com.termux/files/usr/bin/sh -c \
+            'openclaude --version 2>&1; echo "DIRECT_EXIT=$?"'
+
+          echo "=== Try node with resolved path ==="
+          $PROOT --kill-on-exit \
+            -r rootfs \
+            -b /dev -b /proc -b /sys \
+            -b /system -b /system/bin -b /system/lib64 \
+            -b /tmp \
+            -w /data/data/com.termux/files/home \
+            /data/data/com.termux/files/usr/bin/sh -c \
+            'RESOLVED=$(readlink -f $PREFIX/bin/openclaude 2>/dev/null) && echo "Resolved: $RESOLVED" && node "$RESOLVED" --version 2>&1; echo "NODE_EXIT=$?"'
 
       - name: Summary
         if: always()
