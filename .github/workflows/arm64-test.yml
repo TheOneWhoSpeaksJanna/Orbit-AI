@@ -313,7 +313,7 @@ jobs:
             "apt update -o APT::Sandbox::User=root 2>&1"
           echo "EXIT=$?"
 
-      - name: Test 4 - apt install nodejs git python3
+      - name: Test 4 - Install tools from offline debs (like the app does)
         run: |
           set +e
           export PREFIX=/data/data/com.termux/files/usr
@@ -323,6 +323,25 @@ jobs:
           PROOT="$PWD/app/src/main/jniLibs/arm64-v8a/libproot.so"
           export PROOT_LOADER="$PWD/app/src/main/jniLibs/arm64-v8a/libproot_loader.so"
 
+          # Copy offline .deb files from the openclaude flavor assets into rootfs
+          echo "=== Copying offline debs ==="
+          mkdir -p rootfs/offline-debs
+          if [ -d app/src/openclaude/assets/offline-debs ]; then
+            cp app/src/openclaude/assets/offline-debs/*.deb rootfs/offline-debs/ 2>/dev/null
+            echo "Copied $(ls rootfs/offline-debs/*.deb 2>/dev/null | wc -l) debs"
+          else
+            echo "No offline debs found in openclaude flavor, trying main assets..."
+            if [ -d app/src/main/assets/offline-debs ]; then
+              cp app/src/main/assets/offline-debs/*.deb rootfs/offline-debs/ 2>/dev/null
+              echo "Copied $(ls rootfs/offline-debs/*.deb 2>/dev/null | wc -l) debs"
+            else
+              echo "No offline debs found! Building will need to run downloadOfflinePackages first."
+              echo "Skipping dpkg -i test."
+              exit 0
+            fi
+          fi
+
+          echo "=== Installing debs via dpkg -i ==="
           $PROOT --kill-on-exit \
             -r rootfs \
             -b /dev -b /proc -b /sys \
@@ -330,8 +349,18 @@ jobs:
             -b /tmp \
             -w /data/data/com.termux/files/home \
             /data/data/com.termux/files/usr/bin/sh -c \
-            "apt install -y -o APT::Sandbox::User=root nodejs git python3 2>&1"
+            "dpkg -i /offline-debs/*.deb 2>&1; echo DPKG_EXIT=\$?"
           echo "EXIT=$?"
+
+          echo "=== Configure packages ==="
+          $PROOT --kill-on-exit \
+            -r rootfs \
+            -b /dev -b /proc -b /sys \
+            -b /system -b /system/bin -b /system/lib64 \
+            -b /tmp \
+            -w /data/data/com.termux/files/home \
+            /data/data/com.termux/files/usr/bin/sh -c \
+            "dpkg --configure -a 2>&1; echo CONFIGURE_EXIT=\$?"
 
           echo "=== Tool verification ==="
           $PROOT --kill-on-exit \
