@@ -49,86 +49,113 @@ jobs:
 
       - name: Extract Bionic libraries from system image
         run: |
+          set +e  # Don't exit on error — we want to try all strategies
+
           # Convert sparse image to raw ext4
           simg2img arm64-v8a/system.img system.raw 2>/dev/null || cp arm64-v8a/system.img system.raw
           echo "Raw image size: $(du -h system.raw | cut -f1)"
 
-          # Use debugfs to extract files (doesn't require mount)
-          # debugfs can read ext4 images without mounting
-          echo "=== Using debugfs to extract Bionic libraries ==="
-
-          # List bootstrap directory to see what's there
-          echo "=== Bootstrap dir listing ==="
-          debugfs -R "ls -l system/lib64/bootstrap" system.raw 2>/dev/null || echo "bootstrap dir not found"
-
-          # Extract Bionic bootstrap libraries
           sudo mkdir -p /system/bin /system/lib64
 
-          # Extract from bootstrap directory
+          # First, let's explore the filesystem to find Bionic libs
+          echo "=== Root directory listing ==="
+          debugfs -R "ls" system.raw 2>/dev/null
+
+          echo "=== /system directory listing ==="
+          debugfs -R "ls system" system.raw 2>/dev/null
+
+          echo "=== /system/lib64 directory listing ==="
+          debugfs -R "ls system/lib64" system.raw 2>/dev/null
+
+          echo "=== /system/lib64/bootstrap directory listing ==="
+          debugfs -R "ls system/lib64/bootstrap" system.raw 2>/dev/null
+
+          echo "=== /system/apex directory listing ==="
+          debugfs -R "ls system/apex" system.raw 2>/dev/null
+
+          # Try to find all .so files and linker64
+          echo "=== Searching for Bionic libraries ==="
+          debugfs -R "ncheck system/lib64/bootstrap/libc.so" system.raw 2>/dev/null
+          debugfs -R "ncheck system/lib64/libc.so" system.raw 2>/dev/null
+          debugfs -R "ncheck system/bin/linker64" system.raw 2>/dev/null
+
+          # Extract Bionic libs from bootstrap directory
           for lib in libc.so libm.so libdl.so libdl_android.so; do
-            echo "Extracting $lib..."
+            echo "Trying to extract system/lib64/bootstrap/$lib..."
             debugfs -R "dump system/lib64/bootstrap/$lib /tmp/$lib" system.raw 2>/dev/null
-            if [ -f "/tmp/$lib" ]; then
+            if [ -f "/tmp/$lib" ] && [ $(stat -c%s "/tmp/$lib") -gt 1000 ]; then
               sudo cp "/tmp/$lib" /system/lib64/
               echo "  ✓ $lib ($(stat -c%s /tmp/$lib) bytes)"
             else
-              echo "  ✗ $lib not found"
+              # Try without bootstrap/
+              echo "  Trying system/lib64/$lib..."
+              debugfs -R "dump system/lib64/$lib /tmp/$lib" system.raw 2>/dev/null
+              if [ -f "/tmp/$lib" ] && [ $(stat -c%s "/tmp/$lib") -gt 1000 ]; then
+                sudo cp "/tmp/$lib" /system/lib64/
+                echo "  ✓ $lib from system/lib64 ($(stat -c%s /tmp/$lib) bytes)"
+              else
+                echo "  ✗ $lib not found anywhere"
+              fi
             fi
           done
 
-          # Extract linker64 — it's a symlink in the system image.
-          # The real binary is inside the APEX. But debugfs can follow symlinks
-          # if we know the target. On Android 14+, linker64 points to
-          # /apex/com.android.runtime/bin/linker64
-          # Let's try to extract it from the APEX.
+          # Extract linker64
+          echo "=== Extracting linker64 ==="
+          # Try system/bin/linker64 first
+          debugfs -R "dump system/bin/linker64 /tmp/linker64" system.raw 2>/dev/null
+          if [ -f "/tmp/linker64" ] && [ $(stat -c%s "/tmp/linker64") -gt 1000 ]; then
+            sudo cp /tmp/linker64 /system/bin/linker64
+            sudo chmod +x /system/bin/linker64
+            echo "  ✓ linker64 ($(stat -c%s /tmp/linker64) bytes)"
+          else
+            # Try from APEX
+            echo "  Trying APEX extraction..."
+            # List apex files to find the right one
+            debugfs -R "ls system/apex" system.raw 2>/dev/null | grep -i "runtime"
 
-          # First, extract the APEX file
-          echo "=== Extracting APEX for linker64 ==="
-          debugfs -R "dump system/apex/com.android.runtime.apex /tmp/runtime.apex" system.raw 2>/dev/null
+            # Try different APEX names
+            for apex_name in com.android.runtime.apex com.android.runtime.release.apex; do
+              echo "  Trying $apex_name..."
+              debugfs -R "dump system/apex/$apex_name /tmp/runtime.apex" system.raw 2>/dev/null
+              if [ -f /tmp/runtime.apex ] && [ $(stat -c%s /tmp/runtime.apex) -gt 100000 ]; then
+                echo "  APEX found: $(stat -c%s /tmp/runtime.apex) bytes"
+                cd /tmp
+                rm -rf apex_dir/
+                unzip -q runtime.apex -d apex_dir/ 2>/dev/null
+                ls apex_dir/ 2>/dev/null
 
-          if [ -f /tmp/runtime.apex ]; then
-            echo "APEX extracted: $(stat -c%s /tmp/runtime.apex) bytes"
-            cd /tmp
-            # APEX is a zip containing apex_payload.img (ext4)
-            unzip -q runtime.apex -d apex_dir/ 2>/dev/null
+                # Check if apex_payload.img exists
+                if [ -f apex_dir/apex_payload.img ]; then
+                  echo "  APEX payload found"
+                  # List contents
+                  debugfs -R "ls bin" apex_dir/apex_payload.img 2>/dev/null
+                  debugfs -R "ls lib64" apex_dir/apex_payload.img 2>/dev/null
+                  debugfs -R "ls lib64/bionic" apex_dir/apex_payload.img 2>/dev/null
 
-            # List APEX payload contents
-            echo "=== APEX payload listing ==="
-            debugfs -R "ls bin" apex_dir/apex_payload.img 2>/dev/null | head -10
-            debugfs -R "ls lib64/bionic" apex_dir/apex_payload.img 2>/dev/null | head -10
+                  # Extract linker64
+                  debugfs -R "dump bin/linker64 /tmp/linker64" apex_dir/apex_payload.img 2>/dev/null
+                  if [ -f /tmp/linker64 ] && [ $(stat -c%s /tmp/linker64) -gt 1000 ]; then
+                    sudo cp /tmp/linker64 /system/bin/linker64
+                    sudo chmod +x /system/bin/linker64
+                    echo "  ✓ linker64 from APEX ($(stat -c%s /tmp/linker64) bytes)"
+                  fi
 
-            # Extract linker64 from APEX
-            debugfs -R "dump bin/linker64 /tmp/linker64" apex_dir/apex_payload.img 2>/dev/null
-            if [ -f /tmp/linker64 ]; then
-              sudo cp /tmp/linker64 /system/bin/linker64
-              sudo chmod +x /system/bin/linker64
-              echo "  ✓ linker64 from APEX ($(stat -c%s /tmp/linker64) bytes)"
-            else
-              echo "  ✗ linker64 not in APEX"
-            fi
-
-            # Extract additional Bionic libs from APEX
-            for lib in libc.so libm.so libdl.so libdl_android.so liblog.so; do
-              debugfs -R "dump lib64/bionic/$lib /tmp/apex_$lib" apex_dir/apex_payload.img 2>/dev/null
-              if [ -f "/tmp/apex_$lib" ] && [ $(stat -c%s "/tmp/apex_$lib") -gt 1000 ]; then
-                sudo cp "/tmp/apex_$lib" /system/lib64/
-                echo "  ✓ $lib from APEX"
+                  # Extract Bionic libs from APEX
+                  for lib in libc.so libm.so libdl.so libdl_android.so liblog.so; do
+                    debugfs -R "dump lib64/bionic/$lib /tmp/apex_$lib" apex_dir/apex_payload.img 2>/dev/null
+                    if [ -f "/tmp/apex_$lib" ] && [ $(stat -c%s "/tmp/apex_$lib") -gt 1000 ]; then
+                      sudo cp "/tmp/apex_$lib" /system/lib64/ 2>/dev/null
+                      echo "  ✓ $lib from APEX"
+                    fi
+                  done
+                fi
+                cd -
+                break
               fi
             done
-
-            cd -
-          else
-            echo "APEX not found, trying direct linker64 extraction..."
-            # Try extracting linker64 directly (might be a symlink, debugfs follows it)
-            debugfs -R "dump system/bin/linker64 /tmp/linker64" system.raw 2>/dev/null
-            if [ -f /tmp/linker64 ]; then
-              sudo cp /tmp/linker64 /system/bin/linker64
-              sudo chmod +x /system/bin/linker64
-              echo "  ✓ linker64 direct ($(stat -c%s /tmp/linker64) bytes)"
-            fi
           fi
 
-          # Extract other system libs that Termux binaries might need
+          # Extract other system libs
           for lib in liblog.so libbase.so libc++.so libz.so libcrypto.so libssl.so; do
             debugfs -R "dump system/lib64/$lib /tmp/$lib" system.raw 2>/dev/null
             if [ -f "/tmp/$lib" ] && [ $(stat -c%s "/tmp/$lib") -gt 1000 ]; then
@@ -136,13 +163,19 @@ jobs:
             fi
           done
 
-          # Verify Bionic is set up
+          # Verify
           echo ""
           echo "=== Bionic setup verification ==="
           ls -la /system/bin/linker64 2>&1
           file /system/bin/linker64 2>&1
           ls -la /system/lib64/libc.so 2>&1
           file /system/lib64/libc.so 2>&1
+          echo "=== All /system/lib64 contents ==="
+          ls -la /system/lib64/ 2>&1
+
+          # Don't fail the build if Bionic extraction is incomplete —
+          # we want to see how far PRoot gets even without all libs
+          exit 0
 
       # ── Step 2: Set up Termux rootfs ──────────────────────────────
       - name: Extract Termux bootstrap
