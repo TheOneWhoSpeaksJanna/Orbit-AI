@@ -242,6 +242,7 @@ jobs:
             -b /dev -b /proc -b /sys \
             -b /system -b /system/bin -b /system/lib64 \
             -b /tmp \
+            -b /etc/resolv.conf \
             -w /data/data/com.termux/files/home \
             /data/data/com.termux/files/usr/bin/sh -c "echo 'Hello from PRoot on ARM64!'"
           echo "EXIT=$?"
@@ -261,6 +262,7 @@ jobs:
             -b /dev -b /proc -b /sys \
             -b /system -b /system/bin -b /system/lib64 \
             -b /tmp \
+            -b /etc/resolv.conf \
             -w /data/data/com.termux/files/home \
             /data/data/com.termux/files/usr/bin/sh -c "dpkg --configure -a 2>&1 || true"
           echo "EXIT=$?"
@@ -280,6 +282,7 @@ jobs:
             -b /dev -b /proc -b /sys \
             -b /system -b /system/bin -b /system/lib64 \
             -b /tmp \
+            -b /etc/resolv.conf \
             -w /data/data/com.termux/files/home \
             /data/data/com.termux/files/usr/bin/sh -c \
             "apt update -o APT::Sandbox::User=root 2>&1"
@@ -300,6 +303,7 @@ jobs:
             -b /dev -b /proc -b /sys \
             -b /system -b /system/bin -b /system/lib64 \
             -b /tmp \
+            -b /etc/resolv.conf \
             -w /data/data/com.termux/files/home \
             /data/data/com.termux/files/usr/bin/sh -c \
             "apt install -y -o APT::Sandbox::User=root nodejs git python3 2>&1"
@@ -311,6 +315,7 @@ jobs:
             -b /dev -b /proc -b /sys \
             -b /system -b /system/bin -b /system/lib64 \
             -b /tmp \
+            -b /etc/resolv.conf \
             -w /data/data/com.termux/files/home \
             /data/data/com.termux/files/usr/bin/sh -c \
             "node --version && npm --version && git --version"
@@ -330,6 +335,7 @@ jobs:
             -b /dev -b /proc -b /sys \
             -b /system -b /system/bin -b /system/lib64 \
             -b /tmp \
+            -b /etc/resolv.conf \
             -w /data/data/com.termux/files/home \
             /data/data/com.termux/files/usr/bin/sh -c \
             "npm install -g @gitlawb/openclaude 2>&1"
@@ -351,6 +357,7 @@ jobs:
             -b /dev -b /proc -b /sys \
             -b /system -b /system/bin -b /system/lib64 \
             -b /tmp \
+            -b /etc/resolv.conf \
             -w /data/data/com.termux/files/home \
             /data/data/com.termux/files/usr/bin/sh -c \
             "which openclaude 2>/dev/null || echo 'NOT IN PATH'"
@@ -361,6 +368,7 @@ jobs:
             -b /dev -b /proc -b /sys \
             -b /system -b /system/bin -b /system/lib64 \
             -b /tmp \
+            -b /etc/resolv.conf \
             -w /data/data/com.termux/files/home \
             /data/data/com.termux/files/usr/bin/sh -c \
             "openclaude --version 2>&1 || echo 'EXEC FAILED'"
@@ -371,6 +379,7 @@ jobs:
             -b /dev -b /proc -b /sys \
             -b /system -b /system/bin -b /system/lib64 \
             -b /tmp \
+            -b /etc/resolv.conf \
             -w /data/data/com.termux/files/home \
             /data/data/com.termux/files/usr/bin/sh -c \
             "readlink -f \$PREFIX/bin/openclaude 2>/dev/null || echo 'SYMLINK FAILED'"
@@ -381,6 +390,7 @@ jobs:
             -b /dev -b /proc -b /sys \
             -b /system -b /system/bin -b /system/lib64 \
             -b /tmp \
+            -b /etc/resolv.conf \
             -w /data/data/com.termux/files/home \
             /data/data/com.termux/files/usr/bin/sh -c \
             "RESOLVED=\$(readlink -f \$PREFIX/bin/openclaude) && node \"\$RESOLVED\" --version 2>&1 || echo 'NODE EXEC FAILED'"
@@ -401,6 +411,7 @@ jobs:
             -b /dev -b /proc -b /sys \
             -b /system -b /system/bin -b /system/lib64 \
             -b /tmp \
+            -b /etc/resolv.conf \
             -w /data/data/com.termux/files/home \
             /data/data/com.termux/files/usr/bin/sh -c \
             'echo "hi" | openclaude 2>&1; echo "EXIT=$?"'
@@ -412,6 +423,7 @@ jobs:
             -b /dev -b /proc -b /sys \
             -b /system -b /system/bin -b /system/lib64 \
             -b /tmp \
+            -b /etc/resolv.conf \
             -w /data/data/com.termux/files/home \
             /data/data/com.termux/files/usr/bin/sh -c \
             'RESOLVED=$(readlink -f $PREFIX/bin/openclaude) && echo "hi" | node "$RESOLVED" 2>&1; echo "EXIT=$?"'
