@@ -225,20 +225,20 @@ jobs:
           # uses Android's netd daemon which isn't available in PRoot.
           # Workaround: resolve packages.termux.dev on the host (IPv4 only)
           # and add it to /etc/hosts inside the rootfs.
-          TERMUX_IP=$(getent ahostsv4 packages.termux.dev | head -1 | awk '{print $1}' || dig +short A packages.termux.dev | head -1 || host -t A packages.termux.dev | head -1 | awk '{print $NF}')
-          echo "Resolved packages.termux.dev to IPv4: $TERMUX_IP"
-          if [ -n "$TERMUX_IP" ] && [[ "$TERMUX_IP" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "$TERMUX_IP packages.termux.dev" > rootfs/etc/hosts
+          TERMUX_IP=$(curl -s -o /dev/null -w '%{remote_ip}' https://packages.termux.dev/ 2>/dev/null || getent ahostsv4 packages.termux.dev 2>/dev/null | head -1 | awk '{print $1}')
+          echo "Resolved packages.termux.dev to: $TERMUX_IP"
+          # Always write to /etc/hosts, even if empty (at least the file exists)
+          echo "# hosts file for PRoot" > rootfs/etc/hosts
+          if [ -n "$TERMUX_IP" ]; then
+            echo "$TERMUX_IP packages.termux.dev" >> rootfs/etc/hosts
             cp rootfs/etc/hosts rootfs/system/etc/hosts 2>/dev/null
-          else
-            echo "WARNING: Could not resolve IPv4 address, trying fallback..."
-            # Try curl to get the IP
-            TERMUX_IP=$(curl -s -o /dev/null -w '%{remote_ip}' https://packages.termux.dev/ 2>/dev/null)
-            echo "curl resolved to: $TERMUX_IP"
-            if [ -n "$TERMUX_IP" ]; then
-              echo "$TERMUX_IP packages.termux.dev" > rootfs/etc/hosts
-              cp rootfs/etc/hosts rootfs/system/etc/hosts 2>/dev/null
-            fi
+          fi
+          # Also resolve registry.npmjs.org for npm install later
+          NPM_IP=$(curl -s -o /dev/null -w '%{remote_ip}' https://registry.npmjs.org/ 2>/dev/null)
+          echo "Resolved registry.npmjs.org to: $NPM_IP"
+          if [ -n "$NPM_IP" ]; then
+            echo "$NPM_IP registry.npmjs.org" >> rootfs/etc/hosts
+            cp rootfs/etc/hosts rootfs/system/etc/hosts 2>/dev/null
           fi
           echo "=== resolv.conf contents ==="
           cat rootfs/etc/resolv.conf
