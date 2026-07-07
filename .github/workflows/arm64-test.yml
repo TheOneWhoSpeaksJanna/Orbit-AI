@@ -215,12 +215,10 @@ jobs:
           mkdir -p rootfs/data/data/com.termux/files/usr/tmp
           mkdir -p rootfs/data/data/com.termux/cache/apt/archives/partial
           mkdir -p rootfs/etc
-          # Copy host's resolv.conf for DNS resolution inside PRoot
-          # If that fails, create one with public DNS servers
-          cp /etc/resolv.conf rootfs/etc/resolv.conf 2>/dev/null || {
-            echo "nameserver 8.8.8.8" > rootfs/etc/resolv.conf
-            echo "nameserver 1.1.1.1" >> rootfs/etc/resolv.conf
-          }
+          # Create resolv.conf with real DNS servers (not systemd-resolved stub)
+          # The host's /etc/resolv.conf has 127.0.0.53 which doesn't work inside PRoot
+          echo "nameserver 8.8.8.8" > rootfs/etc/resolv.conf
+          echo "nameserver 1.1.1.1" >> rootfs/etc/resolv.conf
           echo "=== resolv.conf contents ==="
           cat rootfs/etc/resolv.conf
           mkdir -p rootfs/data/data/com.termux/files/usr/etc/apt
