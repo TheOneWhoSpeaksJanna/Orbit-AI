@@ -20,8 +20,7 @@ import org.json.JSONObject
  * Generic OpenAI-compatible provider.
  *
  * Works with ANY provider that uses the standard OpenAI Chat Completions API
- * format: POST to {
-    internal val TAG = "GenericOpenAIProvider"baseUrl}/chat/completions with a JSON body containing
+ * format: POST to {baseUrl}/chat/completions with a JSON body containing
  * "model" and "messages", and Authorization: Bearer {apiKey}.
  *
  * This handles 20+ providers from the catalog that are marked
@@ -38,6 +37,7 @@ class GenericOpenAIProvider(
     private val defaultModel: String = ""
 ) : AiProvider {
 
+    private val TAG = "GenericOpenAIProvider"
     private val jsonMediaType = "application/json; charset=utf-8".toMediaType()
 
     /** Normalize the base URL: ensure it ends with /v1 for the chat endpoint. */

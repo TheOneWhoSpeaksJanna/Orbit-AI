@@ -73,7 +73,7 @@ class OllamaProvider(private val httpClient: OkHttpClient) : AiProvider {
                 .build()
 
             val response = httpClient.newCall(request).execute()
-                FileLogger.d(TAG, "HTTP response", "code=${response.code} model=$model")
+                FileLogger.d(TAG, "HTTP response", "code=${response.code} model=$requestModel")
             val responseBody = response.body?.string()
 
             if (response.isSuccessful && responseBody != null) {
@@ -116,7 +116,7 @@ class OllamaProvider(private val httpClient: OkHttpClient) : AiProvider {
                     .get()
                     .build()
                 val response = httpClient.newCall(request).execute()
-                FileLogger.d(TAG, "HTTP response", "code=${response.code} model=$model")
+                FileLogger.d(TAG, "HTTP response", "code=${response.code} model=$requestModel")
                 val body = response.body?.string() ?: ""
                 if (!response.isSuccessful) return@withContext emptyList()
 
@@ -148,7 +148,7 @@ class OllamaProvider(private val httpClient: OkHttpClient) : AiProvider {
                     .get()
                     .build()
                 val response = httpClient.newCall(request).execute()
-                FileLogger.d(TAG, "HTTP response", "code=${response.code} model=$model")
+                FileLogger.d(TAG, "HTTP response", "code=${response.code} model=$requestModel")
                 response.isSuccessful.also { response.close() }
             } catch (_: Exception) {
                 false
