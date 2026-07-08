@@ -1,4 +1,5 @@
 package com.omniclaw.data.api.providers
+import com.omniclaw.core.logging.FileLogger
 
 import com.omniclaw.core.config.ApiConfig
 import com.omniclaw.domain.api.AiEvent
@@ -17,6 +18,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 class ClaudeProvider(private val httpClient: OkHttpClient) : AiProvider {
+    private val TAG = "ClaudeProvider"
 
     private val jsonMediaType = "application/json; charset=utf-8".toMediaType()
 
@@ -56,6 +58,7 @@ class ClaudeProvider(private val httpClient: OkHttpClient) : AiProvider {
                     .build()
 
                 val response = httpClient.newCall(request).execute()
+                FileLogger.d(TAG, "HTTP response", "code=${response.code} model=$requestModel")
                 val responseBody = response.body?.string()
 
                 if (response.isSuccessful && responseBody != null) {
@@ -72,6 +75,7 @@ class ClaudeProvider(private val httpClient: OkHttpClient) : AiProvider {
                     AiResult.Error("HTTP Error ${response.code}: ${responseBody ?: response.message}")
                 }
             } catch (e: Exception) {
+            FileLogger.e(TAG, "generateContent failed", e)
                 AiResult.Error("Network Error: ${e.message}")
             }
         }

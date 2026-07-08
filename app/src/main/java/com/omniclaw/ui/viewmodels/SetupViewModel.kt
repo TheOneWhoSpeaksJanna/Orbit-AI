@@ -11,6 +11,7 @@ import com.omniclaw.OmniClawApplication
 import com.omniclaw.R
 import com.omniclaw.core.config.FlavorConfig
 import com.omniclaw.core.logging.FileLogger
+import com.omniclaw.core.logging.CoroutineExceptionHandlerFactory
 import com.omniclaw.data.local.prefs.PreferencesManager
 import com.omniclaw.data.local.runner.LocalCommandRunner
 import com.omniclaw.data.local.runtime.OmniClawRuntimeManager
@@ -236,6 +237,7 @@ class SetupViewModel(
     private val runtimeManager: OmniClawRuntimeManager,
     private val appContainer: com.omniclaw.core.di.AppContainer
 ) : ViewModel() {
+    private val exceptionHandler = CoroutineExceptionHandlerFactory.create("SetupViewModel")
 
     private val _currentStep = MutableStateFlow(0)
     val currentStep: StateFlow<Int> = _currentStep.asStateFlow()
@@ -349,7 +351,7 @@ class SetupViewModel(
 
     fun setTheme(mode: String) {
         _theme.value = mode
-        viewModelScope.launch { prefsManager.setThemeMode(mode) }
+        viewModelScope.launch(exceptionHandler) { prefsManager.setThemeMode(mode) }
     }
     fun setShizukuEnabled(enabled: Boolean) { _shizukuEnabled.value = enabled }
     fun setSelectedAgent(agent: String) { _selectedAgent.value = agent }
@@ -358,7 +360,7 @@ class SetupViewModel(
     fun setApiKey(key: String) { _apiKey.value = key }
 
     fun testConnection() {
-        viewModelScope.launch {
+        viewModelScope.launch(exceptionHandler) {
             _isTestingConnection.value = true
             _testConnectionSuccess.value = null
             _testConnectionError.value = null
@@ -443,7 +445,7 @@ class SetupViewModel(
             isInstalled = false
         ))
 
-        installJobs[agentName] = viewModelScope.launch {
+        installJobs[agentName] = viewModelScope.launch(exceptionHandler) {
 
             try {
                 emitLog("SetupViewModel", "Install start", "agent=$agentName")
@@ -655,7 +657,7 @@ class SetupViewModel(
         }
         _setupPhase.value = SetupPhase.FINALIZING
 
-        viewModelScope.launch {
+        viewModelScope.launch(exceptionHandler) {
             FileLogger.i("SetupViewModel", "completeSetup start", "agent=${_selectedAgent.value}")
 
             prefsManager.setThemeMode(_theme.value)
@@ -729,7 +731,7 @@ class SetupViewModel(
         }
         _setupPhase.value = SetupPhase.FINALIZING
 
-        viewModelScope.launch {
+        viewModelScope.launch(exceptionHandler) {
             val agentName = _selectedAgent.value
             FileLogger.i("SetupViewModel", "retryInstall start", "agent=$agentName")
             // Reset state to allow re-install. Don't pre-set isInstalling=true
@@ -781,7 +783,7 @@ class SetupViewModel(
     }
 
     fun finishOnboarding() {
-        viewModelScope.launch {
+        viewModelScope.launch(exceptionHandler) {
             prefsManager.setOnboardingComplete(true)
         }
     }

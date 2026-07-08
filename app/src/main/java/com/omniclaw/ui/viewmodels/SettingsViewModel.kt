@@ -22,6 +22,7 @@ class SettingsViewModel(
     private val prefsManager: PreferencesManager,
     private val repository: OmniClawRepository
 ) : ViewModel() {
+    private val exceptionHandler = CoroutineExceptionHandlerFactory.create("SettingsViewModel")
 
     private val _themeMode = MutableStateFlow(THEME_DEFAULT)
     val themeMode: StateFlow<String> = _themeMode.asStateFlow()
@@ -49,7 +50,7 @@ class SettingsViewModel(
     }
 
     private fun loadSettings() {
-        viewModelScope.launch {
+        viewModelScope.launch(exceptionHandler) {
             _themeMode.value = prefsManager.themeMode.firstOrNull() ?: THEME_DEFAULT
             _agentPermissionLevel.value = prefsManager.agentPermissionLevel.firstOrNull() ?: "NORMAL"
             _agentRulesAllowed.value = prefsManager.agentRulesAllowed.firstOrNull() ?: ""
@@ -60,31 +61,31 @@ class SettingsViewModel(
 
     fun updateThemeMode(mode: String) {
         _themeMode.value = mode
-        viewModelScope.launch { prefsManager.setThemeMode(mode) }
+        viewModelScope.launch(exceptionHandler) { prefsManager.setThemeMode(mode) }
     }
 
     fun updateAgentPermissionLevel(level: String) {
         _agentPermissionLevel.value = level
-        viewModelScope.launch { prefsManager.setAgentPermissionLevel(level) }
+        viewModelScope.launch(exceptionHandler) { prefsManager.setAgentPermissionLevel(level) }
     }
 
     fun updateAgentRulesAllowed(rules: String) {
         _agentRulesAllowed.value = rules
-        viewModelScope.launch { prefsManager.setAgentRulesAllowed(rules) }
+        viewModelScope.launch(exceptionHandler) { prefsManager.setAgentRulesAllowed(rules) }
     }
 
     fun updateAgentRulesAsk(rules: String) {
         _agentRulesAsk.value = rules
-        viewModelScope.launch { prefsManager.setAgentRulesAsk(rules) }
+        viewModelScope.launch(exceptionHandler) { prefsManager.setAgentRulesAsk(rules) }
     }
 
     fun updateAgentRulesDenied(rules: String) {
         _agentRulesDenied.value = rules
-        viewModelScope.launch { prefsManager.setAgentRulesDenied(rules) }
+        viewModelScope.launch(exceptionHandler) { prefsManager.setAgentRulesDenied(rules) }
     }
 
     fun loadSkills() {
-        viewModelScope.launch {
+        viewModelScope.launch(exceptionHandler) {
             repository.getAllSkills().collect { list ->
                 _skills.value = list
             }
@@ -92,13 +93,13 @@ class SettingsViewModel(
     }
 
     fun toggleSkillEnabled(skillId: String, enabled: Boolean) {
-        viewModelScope.launch {
+        viewModelScope.launch(exceptionHandler) {
             repository.setSkillEnabled(skillId, enabled)
         }
     }
 
     fun updateSkillContent(skillId: String, content: String) {
-        viewModelScope.launch {
+        viewModelScope.launch(exceptionHandler) {
             repository.updateSkillContent(skillId, content)
         }
     }

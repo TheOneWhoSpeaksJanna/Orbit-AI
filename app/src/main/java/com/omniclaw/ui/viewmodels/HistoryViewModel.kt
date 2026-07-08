@@ -18,12 +18,13 @@ class HistoryViewModel(
     sessionsFlow: Flow<List<ChatSession>>,
     private val repository: OmniClawRepository
 ) : ViewModel() {
+    private val exceptionHandler = CoroutineExceptionHandlerFactory.create("HistoryViewModel")
 
     private val _state = MutableStateFlow<List<ChatSession>>(emptyList())
     val state: StateFlow<List<ChatSession>> = _state.asStateFlow()
 
     init {
-        viewModelScope.launch {
+        viewModelScope.launch(exceptionHandler) {
             sessionsFlow.collect { sessions ->
                 _state.value = sessions
             }
@@ -31,13 +32,13 @@ class HistoryViewModel(
     }
 
     fun deleteSession(sessionId: String) {
-        viewModelScope.launch {
+        viewModelScope.launch(exceptionHandler) {
             repository.deleteSession(sessionId)
         }
     }
 
     fun renameSession(sessionId: String, newTitle: String) {
-        viewModelScope.launch {
+        viewModelScope.launch(exceptionHandler) {
             repository.updateSessionTitle(sessionId, newTitle)
         }
     }

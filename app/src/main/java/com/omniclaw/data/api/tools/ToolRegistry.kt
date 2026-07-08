@@ -1,5 +1,6 @@
 package com.omniclaw.data.api.tools
 
+import com.omniclaw.core.logging.FileLogger
 import com.omniclaw.domain.api.ParsedToolCall
 import com.omniclaw.domain.api.Tool
 import com.omniclaw.domain.api.ToolResult
@@ -21,12 +22,20 @@ class ToolRegistry(
     fun containsToolCall(text: String): Boolean = toolCallPattern.containsMatchIn(text)
 
     suspend fun execute(parsed: ParsedToolCall): ToolResult {
+        FileLogger.i("ToolRegistry", "dispatch", "tool=${parsed.toolName} cmd=${parsed.params.take(200)}")
+
         val tool = tools.find { it.name.equals(parsed.toolName, ignoreCase = true) }
-            ?: return ToolResult(
+        if (tool == null) {
+            FileLogger.w("ToolRegistry", "No tool registered", "name=${parsed.toolName} available=${tools.map { it.name }}")
+            return ToolResult(
                 output = "Error: No tool registered for '${parsed.toolName}'",
                 exitCode = -1,
                 command = parsed.params
             )
-        return tool.execute(parsed.params)
+        }
+
+        val result = tool.execute(parsed.params)
+        FileLogger.i("ToolRegistry", "result", "tool=${parsed.toolName} exitCode=${result.exitCode} output=${result.output.take(200)}")
+        return result
     }
 }

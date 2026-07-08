@@ -1,4 +1,5 @@
 package com.omniclaw.data.api.providers
+import com.omniclaw.core.logging.FileLogger
 
 import com.omniclaw.core.config.ApiConfig
 import com.omniclaw.data.api.GeminiRequest
@@ -22,6 +23,7 @@ import retrofit2.converter.moshi.MoshiConverterFactory
 import com.squareup.moshi.Moshi
 
 class GeminiProvider(private val httpClient: OkHttpClient) : AiProvider {
+    private val TAG = "GeminiProvider"
 
     private val moshi = Moshi.Builder().build()
     private val jsonMediaType = "application/json; charset=utf-8".toMediaType()
@@ -117,6 +119,7 @@ class GeminiProvider(private val httpClient: OkHttpClient) : AiProvider {
                     AiResult.Error("No valid response from Gemini.")
                 }
             } catch (e: Exception) {
+            FileLogger.e(TAG, "generateContent failed", e)
                 AiResult.Error(e.message ?: "Network error occurred")
             }
         }

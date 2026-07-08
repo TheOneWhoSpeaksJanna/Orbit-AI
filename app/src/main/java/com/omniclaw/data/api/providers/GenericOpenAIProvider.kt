@@ -1,4 +1,5 @@
 package com.omniclaw.data.api.providers
+import com.omniclaw.core.logging.FileLogger
 
 import com.omniclaw.domain.api.AiEvent
 import com.omniclaw.domain.api.AiProvider
@@ -19,7 +20,8 @@ import org.json.JSONObject
  * Generic OpenAI-compatible provider.
  *
  * Works with ANY provider that uses the standard OpenAI Chat Completions API
- * format: POST to {baseUrl}/chat/completions with a JSON body containing
+ * format: POST to {
+    private val TAG = "GenericOpenAIProvider"baseUrl}/chat/completions with a JSON body containing
  * "model" and "messages", and Authorization: Bearer {apiKey}.
  *
  * This handles 20+ providers from the catalog that are marked
@@ -82,6 +84,7 @@ class GenericOpenAIProvider(
                     .build()
 
                 val response = httpClient.newCall(request).execute()
+                FileLogger.d(TAG, "HTTP response", "code=${response.code} model=$requestModel")
                 val responseBody = response.body?.string()
 
                 if (response.isSuccessful && responseBody != null) {
@@ -98,6 +101,7 @@ class GenericOpenAIProvider(
                     AiResult.Error("HTTP ${response.code} from $providerName: ${responseBody ?: response.message}")
                 }
             } catch (e: Exception) {
+            FileLogger.e(TAG, "generateContent failed", e)
                 AiResult.Error("Network Error ($providerName): ${e.message}")
             }
         }

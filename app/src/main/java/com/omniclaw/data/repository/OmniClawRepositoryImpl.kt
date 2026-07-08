@@ -1,4 +1,5 @@
 package com.omniclaw.data.repository
+import com.omniclaw.core.logging.FileLogger
 
 import com.omniclaw.data.local.dao.OmniClawDao
 import com.omniclaw.data.local.entity.*
@@ -10,6 +11,7 @@ import kotlinx.coroutines.flow.map
 class OmniClawRepositoryImpl(
     private val dao: OmniClawDao
 ) : OmniClawRepository {
+    private val TAG = "OmniClawRepository"
 
     override fun getAllProjects(): Flow<List<Project>> =
         dao.getAllProjects().map { list -> list.map { it.toProject() } }
@@ -25,6 +27,7 @@ class OmniClawRepositoryImpl(
         dao.getSessionsForProject(projectId).map { list -> list.map { it.toSession() } }
 
     override suspend fun insertSession(session: ChatSession) {
+        FileLogger.d(TAG, "insertSession", "id=${session.id} title=${session.title}")
         dao.insertSession(session.toEntity())
     }
 
@@ -32,6 +35,7 @@ class OmniClawRepositoryImpl(
         dao.getMessagesForSession(sessionId).map { list -> list.map { it.toMessage() } }
 
     override suspend fun insertMessage(message: Message) {
+        FileLogger.d(TAG, "insertMessage", "sessionId=${message.sessionId} role=${message.role}")
         dao.insertMessage(message.toEntity())
     }
 
@@ -52,6 +56,7 @@ class OmniClawRepositoryImpl(
         dao.getAllAgents().map { list -> list.map { it.toAgent() } }
 
     override suspend fun insertAgent(agent: Agent) {
+        FileLogger.i(TAG, "insertAgent", "id=${agent.id} name=${agent.name} runCmd=${agent.runCommand}")
         dao.insertAgent(agent.toEntity())
     }
 
@@ -69,6 +74,7 @@ class OmniClawRepositoryImpl(
         dao.getAllSkills().map { list -> list.map { it.toSkill() } }
 
     override suspend fun insertSkill(skill: Skill) {
+        FileLogger.i(TAG, "insertSkill", "id=${skill.id} name=${skill.name}")
         dao.insertSkill(skill.toEntity())
     }
 

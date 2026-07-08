@@ -8,6 +8,7 @@ import androidx.lifecycle.viewmodel.CreationExtras
 import com.omniclaw.OmniClawApplication
 import com.omniclaw.core.config.ApiConfig
 import com.omniclaw.core.logging.FileLogger
+import com.omniclaw.core.logging.CoroutineExceptionHandlerFactory
 import com.omniclaw.data.local.prefs.PreferencesManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -53,6 +54,7 @@ class ProvidersViewModel(
     private val prefsManager: PreferencesManager,
     private val context: android.content.Context
 ) : ViewModel() {
+    private val exceptionHandler = CoroutineExceptionHandlerFactory.create("ProvidersViewModel")
 
     private val _providers = MutableStateFlow<List<ProviderConfig>>(emptyList())
     val providers: StateFlow<List<ProviderConfig>> = _providers.asStateFlow()
@@ -80,7 +82,7 @@ class ProvidersViewModel(
      * 30+ providers that OpenClaude supports.
      */
     private fun loadProviders() {
-        viewModelScope.launch {
+        viewModelScope.launch(exceptionHandler) {
             val catalog = com.omniclaw.data.local.runtime.ProviderCatalog.load(context)
             val configs = catalog.map { entry ->
                 val key = prefsManager.getApiKeyForProvider(entry.id).firstOrNull()
@@ -96,7 +98,7 @@ class ProvidersViewModel(
     }
 
     private fun loadApiKeyStatus() {
-        viewModelScope.launch {
+        viewModelScope.launch(exceptionHandler) {
             val catalog = com.omniclaw.data.local.runtime.ProviderCatalog.load(context)
             val updated = _providers.value.map { provider ->
                 val entry = catalog.find { it.name == provider.name }
@@ -110,7 +112,7 @@ class ProvidersViewModel(
     }
 
     fun verifyConnection(providerName: String) {
-        viewModelScope.launch {
+        viewModelScope.launch(exceptionHandler) {
             val catalog = com.omniclaw.data.local.runtime.ProviderCatalog.load(context)
             val entry = catalog.find { it.name == providerName }
             val providerId = entry?.id ?: providerName
@@ -144,7 +146,7 @@ class ProvidersViewModel(
     }
 
     fun startEditApiKey(providerName: String) {
-        viewModelScope.launch {
+        viewModelScope.launch(exceptionHandler) {
             val catalog = com.omniclaw.data.local.runtime.ProviderCatalog.load(context)
             val entry = catalog.find { it.name == providerName }
             val providerId = entry?.id ?: providerName
@@ -156,7 +158,7 @@ class ProvidersViewModel(
 
     fun saveApiKey() {
         val providerName = _editingProvider.value ?: return
-        viewModelScope.launch {
+        viewModelScope.launch(exceptionHandler) {
             val catalog = com.omniclaw.data.local.runtime.ProviderCatalog.load(context)
             val entry = catalog.find { it.name == providerName }
             val providerId = entry?.id ?: providerName
@@ -169,7 +171,7 @@ class ProvidersViewModel(
 
     fun removeApiKey() {
         val providerName = _editingProvider.value ?: return
-        viewModelScope.launch {
+        viewModelScope.launch(exceptionHandler) {
             val catalog = com.omniclaw.data.local.runtime.ProviderCatalog.load(context)
             val entry = catalog.find { it.name == providerName }
             val providerId = entry?.id ?: providerName

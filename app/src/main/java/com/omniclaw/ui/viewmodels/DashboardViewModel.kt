@@ -29,11 +29,12 @@ class DashboardViewModel(
     private val repository: OmniClawRepository,
     private val appContainer: AppContainer
 ) : ViewModel() {
+    private val exceptionHandler = CoroutineExceptionHandlerFactory.create("DashboardViewModel")
 
     init {
         // Clean up empty sessions left behind when users navigate away
         // without sending a message (e.g. tapping New Session then going back)
-        viewModelScope.launch {
+        viewModelScope.launch(exceptionHandler) {
             repository.deleteEmptySessions()
         }
     }
@@ -99,7 +100,7 @@ class DashboardViewModel(
     )
 
     fun createNewProject(name: String, description: String) {
-        viewModelScope.launch {
+        viewModelScope.launch(exceptionHandler) {
             val project = Project(
                 id = UUID.randomUUID().toString(),
                 name = name,

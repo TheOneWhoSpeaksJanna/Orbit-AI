@@ -1,4 +1,5 @@
 package com.omniclaw.data.api.providers
+import com.omniclaw.core.logging.FileLogger
 
 import com.omniclaw.core.config.ApiConfig
 import com.omniclaw.domain.api.AiEvent
@@ -27,6 +28,7 @@ import org.json.JSONObject
  * Docs: https://github.com/ollama/ollama/blob/main/docs/api.md
  */
 class OllamaProvider(private val httpClient: OkHttpClient) : AiProvider {
+    private val TAG = "OllamaProvider"
 
     private val jsonMediaType = "application/json; charset=utf-8".toMediaType()
 
@@ -71,6 +73,7 @@ class OllamaProvider(private val httpClient: OkHttpClient) : AiProvider {
                 .build()
 
             val response = httpClient.newCall(request).execute()
+                FileLogger.d(TAG, "HTTP response", "code=${response.code} model=$requestModel")
             val responseBody = response.body?.string()
 
             if (response.isSuccessful && responseBody != null) {
@@ -86,6 +89,7 @@ class OllamaProvider(private val httpClient: OkHttpClient) : AiProvider {
                 AiResult.Error("HTTP Error ${response.code}: ${responseBody ?: response.message}")
             }
         } catch (e: Exception) {
+            FileLogger.e(TAG, "generateContent failed", e)
             AiResult.Error("Network Error: ${e.message}")
         }
     }
@@ -112,6 +116,7 @@ class OllamaProvider(private val httpClient: OkHttpClient) : AiProvider {
                     .get()
                     .build()
                 val response = httpClient.newCall(request).execute()
+                FileLogger.d(TAG, "HTTP response", "code=${response.code} model=$requestModel")
                 val body = response.body?.string() ?: ""
                 if (!response.isSuccessful) return@withContext emptyList()
 
@@ -143,6 +148,7 @@ class OllamaProvider(private val httpClient: OkHttpClient) : AiProvider {
                     .get()
                     .build()
                 val response = httpClient.newCall(request).execute()
+                FileLogger.d(TAG, "HTTP response", "code=${response.code} model=$requestModel")
                 response.isSuccessful.also { response.close() }
             } catch (_: Exception) {
                 false

@@ -8,6 +8,7 @@ import androidx.lifecycle.viewmodel.CreationExtras
 import com.omniclaw.OmniClawApplication
 import com.omniclaw.core.di.AppContainer
 import com.omniclaw.core.logging.FileLogger
+import com.omniclaw.core.logging.CoroutineExceptionHandlerFactory
 import com.omniclaw.domain.models.TermuxLog
 import com.omniclaw.domain.repository.OmniClawRepository
 import kotlinx.coroutines.Dispatchers
@@ -34,6 +35,7 @@ class TermuxViewModel(
     private val repository: OmniClawRepository,
     private val appContainer: AppContainer
 ) : ViewModel() {
+    private val exceptionHandler = CoroutineExceptionHandlerFactory.create("TermuxViewModel")
 
     val logs: StateFlow<List<TermuxLog>> = repository.getAllTermuxLogs()
         .stateIn(

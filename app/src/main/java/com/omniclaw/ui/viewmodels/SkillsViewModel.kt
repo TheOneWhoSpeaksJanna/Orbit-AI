@@ -19,6 +19,7 @@ class SkillsViewModel(
     agentsFlow: Flow<List<Agent>>,
     private val context: android.content.Context
 ) : ViewModel() {
+    private val exceptionHandler = CoroutineExceptionHandlerFactory.create("SkillsViewModel")
 
     private val _agents = MutableStateFlow<List<Agent>>(emptyList())
     val agents: StateFlow<List<Agent>> = _agents.asStateFlow()
@@ -27,7 +28,7 @@ class SkillsViewModel(
     val skillCategories: StateFlow<List<SkillCategory>> = _skillCategories.asStateFlow()
 
     init {
-        viewModelScope.launch {
+        viewModelScope.launch(exceptionHandler) {
             agentsFlow.collect { agentList ->
                 _agents.value = agentList
             }

@@ -1,4 +1,5 @@
 package com.omniclaw.data.api.providers
+import com.omniclaw.core.logging.FileLogger
 
 import com.omniclaw.core.config.ApiConfig
 import com.omniclaw.domain.api.AiEvent
@@ -18,6 +19,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 class OpenRouterProvider(private val httpClient: OkHttpClient) : AiProvider {
+    private val TAG = "OpenRouterProvider"
 
     private val jsonMediaType = "application/json; charset=utf-8".toMediaType()
 
@@ -61,6 +63,7 @@ class OpenRouterProvider(private val httpClient: OkHttpClient) : AiProvider {
                     .build()
 
                 val response = httpClient.newCall(request).execute()
+                FileLogger.d(TAG, "HTTP response", "code=${response.code} model=$requestModel")
                 val body = response.body?.string() ?: ""
                 if (!response.isSuccessful) {
                     val errorMsg = try {
@@ -79,6 +82,7 @@ class OpenRouterProvider(private val httpClient: OkHttpClient) : AiProvider {
                 }
                 AiResult.Error("No response from OpenRouter")
             } catch (e: Exception) {
+            FileLogger.e(TAG, "generateContent failed", e)
                 AiResult.Error("OpenRouter error: ${e.message}")
             }
         }
@@ -107,6 +111,7 @@ class OpenRouterProvider(private val httpClient: OkHttpClient) : AiProvider {
                     .post(jsonBody.toString().toRequestBody(jsonMediaType))
                     .build()
                 val response = httpClient.newCall(request).execute()
+                FileLogger.d(TAG, "HTTP response", "code=${response.code} model=$requestModel")
                 response.isSuccessful
             } catch (_: Exception) {
                 false
@@ -129,6 +134,7 @@ class OpenRouterProvider(private val httpClient: OkHttpClient) : AiProvider {
                     .build()
 
                 val response = httpClient.newCall(request).execute()
+                FileLogger.d(TAG, "HTTP response", "code=${response.code} model=$requestModel")
                 val body = response.body?.string() ?: ""
 
                 if (!response.isSuccessful) {

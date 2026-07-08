@@ -48,6 +48,7 @@ class ChatViewModel(
     private val openCodeRepository: OpenCodeRepository,
     private val termuxRuntime: TermuxRuntime
 ) : ViewModel() {
+    private val exceptionHandler = CoroutineExceptionHandlerFactory.create("ChatViewModel")
 
     private val _currentSession = MutableStateFlow<ChatSession?>(null)
     val currentSession: StateFlow<ChatSession?> = _currentSession.asStateFlow()
@@ -93,7 +94,7 @@ class ChatViewModel(
     fun confirmPendingCommand() {
         val pending = _pendingCommand.value ?: return
         _pendingCommand.value = null
-        viewModelScope.launch {
+        viewModelScope.launch(exceptionHandler) {
             executeCommandAndContinue(pending.command, pending.isSudo)
         }
     }
@@ -101,7 +102,7 @@ class ChatViewModel(
     fun denyPendingCommand() {
         val pending = _pendingCommand.value ?: return
         _pendingCommand.value = null
-        viewModelScope.launch {
+        viewModelScope.launch(exceptionHandler) {
             val blockMsg = Message(
                 id = UUID.randomUUID().toString(),
                 sessionId = loopSessionId,
@@ -158,7 +159,7 @@ class ChatViewModel(
         .stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
     fun loadModelsForCurrentProvider() {
-        viewModelScope.launch {
+        viewModelScope.launch(exceptionHandler) {
             val provider = prefsManager.selectedProvider.firstOrNull() ?: DEFAULT_PROVIDER
             val models = aiProvider.getModels(provider)
             _availableModels.value = if (models.isNotEmpty()) models else DEFAULT_MODELS
@@ -166,7 +167,7 @@ class ChatViewModel(
     }
 
     fun fetchDetailedModels() {
-        viewModelScope.launch {
+        viewModelScope.launch(exceptionHandler) {
             val provider = prefsManager.selectedProvider.firstOrNull() ?: DEFAULT_PROVIDER
             if (provider != "OpenRouter") return@launch
             _isFetchingModels.value = true
@@ -187,7 +188,7 @@ class ChatViewModel(
     }
 
     fun setSelectedModel(model: String) {
-        viewModelScope.launch {
+        viewModelScope.launch(exceptionHandler) {
             prefsManager.setSelectedModel(model)
         }
     }
@@ -196,7 +197,7 @@ class ChatViewModel(
 
     fun loadSession(sessionId: String) {
         loadSessionJob?.cancel()
-        loadSessionJob = viewModelScope.launch {
+        loadSessionJob = viewModelScope.launch(exceptionHandler) {
             repository.getAllSessions().firstOrNull()?.find { it.id == sessionId }?.let {
                 _currentSession.value = it
             }
@@ -207,7 +208,7 @@ class ChatViewModel(
     }
 
     fun startNewSession(projectId: String?) {
-        viewModelScope.launch {
+        viewModelScope.launch(exceptionHandler) {
             val session = ChatSession(
                 id = UUID.randomUUID().toString(),
                 projectId = projectId,
@@ -223,7 +224,7 @@ class ChatViewModel(
 
     fun sendMessage(content: String) {
         val session = _currentSession.value ?: return
-        viewModelScope.launch {
+        viewModelScope.launch(exceptionHandler) {
             // Persist session on first message (blank sessions never hit the DB)
             repository.insertSession(session)
 
@@ -396,7 +397,7 @@ class ChatViewModel(
         // This prevents two loop coroutines from running concurrently and
         // corrupting the shared loopPromptBuilder / loopSessionId state.
         loopJob?.cancel()
-        loopJob = viewModelScope.launch {
+        loopJob = viewModelScope.launch(exceptionHandler) {
             while (loopContinueLooping) {
                 val result = aiProvider.generateContent(
                     loopPromptBuilder.toString(), loopApiKey, loopActiveProvider, loopActiveModelName
