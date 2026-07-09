@@ -282,26 +282,39 @@ class ChatViewModel(
                 // 2. -p flag (agent -p "prompt") — common flag for prompt input
                 // 3. direct argument (agent "prompt") — some agents accept this
                 try {
+                    // Get the API key from the app's provider config and pass it
+                    // to the agent via environment variables. Most CLI agents
+                    // (openclaude, claude, codex, opencode) read API keys from
+                    // env vars, not from the app's DataStore.
+                    val apiKey = prefsManager.getApiKeyForProvider(activeProvider).firstOrNull() ?: ""
+                    val model = activeModelName.ifBlank { "auto" }
+
+                    // Build env var exports based on the provider
+                    // Most OpenAI-compatible agents accept OPENAI_API_KEY + OPENAI_BASE_URL
+                    // OpenRouter specifically uses OPENROUTER_API_KEY
+                    val envExports = buildEnvExports(activeProvider, apiKey, model)
+                    com.omniclaw.core.logging.FileLogger.i("ChatViewModel", "Agent env", "provider=$activeProvider model=$model keyLen=${apiKey.length}")
+
                     com.omniclaw.core.logging.FileLogger.i("ChatViewModel", "Agent exec start (PRoot)", "cmd=$runCmd content=${content.take(80)}")
                     val escaped = content.replace("\"", "\\\"").replace("`", "\\`").replace("$", "\\$")
 
-                    // Method 1: stdin pipe
-                    var fullCmd = "echo \"$escaped\" | $runCmd"
+                    // Method 1: stdin pipe (with env vars prepended)
+                    var fullCmd = "$envExports echo \"$escaped\" | $runCmd"
                     var result = termuxRuntime.executeInTermux(fullCmd, "")
-                    com.omniclaw.core.logging.FileLogger.i("ChatViewModel", "Agent exec (stdin)", "exit=${result.exitCode} output=${result.output.take(150)}")
+                    com.omniclaw.core.logging.FileLogger.i("ChatViewModel", "Agent exec (stdin)", "exit=${result.exitCode} output=${result.output.take(2000)}")
 
                     // If stdin method failed or produced no output, try -p flag
                     if (result.exitCode != 0 || result.output.isBlank()) {
-                        fullCmd = "$runCmd -p \"$escaped\""
+                        fullCmd = "$envExports $runCmd -p \"$escaped\""
                         result = termuxRuntime.executeInTermux(fullCmd, "")
-                        com.omniclaw.core.logging.FileLogger.i("ChatViewModel", "Agent exec (-p flag)", "exit=${result.exitCode} output=${result.output.take(150)}")
+                        com.omniclaw.core.logging.FileLogger.i("ChatViewModel", "Agent exec (-p flag)", "exit=${result.exitCode} output=${result.output.take(2000)}")
                     }
 
                     // If -p flag also failed, try direct argument
                     if (result.exitCode != 0 || result.output.isBlank()) {
-                        fullCmd = "$runCmd \"$escaped\""
+                        fullCmd = "$envExports $runCmd \"$escaped\""
                         result = termuxRuntime.executeInTermux(fullCmd, "")
-                        com.omniclaw.core.logging.FileLogger.i("ChatViewModel", "Agent exec (direct arg)", "exit=${result.exitCode} output=${result.output.take(150)}")
+                        com.omniclaw.core.logging.FileLogger.i("ChatViewModel", "Agent exec (direct arg)", "exit=${result.exitCode} output=${result.output.take(2000)}")
                     }
 
                     val modelMsg = Message(
@@ -466,6 +479,52 @@ class ChatViewModel(
             }
             _isLoading.value = false
         }
+    }
+
+    /**
+     * Build environment variable exports for the agent based on the app's
+     * selected provider. This passes the API key from the app's DataStore
+     * to the CLI agent running inside PRoot.
+     *
+     * Most CLI agents (openclaude, claude, codex, opencode) read API keys
+     * from environment variables. Without this, the agent doesn't know
+     * which provider/API key to use and asks the user to log in.
+     */
+    private fun buildEnvExports(provider: String, apiKey: String, model: String): String {
+        if (apiKey.isBlank()) return ""
+
+        val exports = StringBuilder()
+
+        // Always set OPENAI_API_KEY — most agents accept this as a generic key
+        exports.append("export OPENAI_API_KEY='$apiKey'")
+
+        // Set provider-specific env vars + base URL
+        when {
+            provider.contains("OpenRouter", ignoreCase = true) -> {
+                exports.append(" && export OPENROUTER_API_KEY='$apiKey'")
+                exports.append(" && export OPENAI_BASE_URL='https://openrouter.ai/api/v1'")
+            }
+            provider.contains("Anthropic", ignoreCase = true) || provider.contains("Claude", ignoreCase = true) -> {
+                exports.append(" && export ANTHROPIC_API_KEY='$apiKey'")
+            }
+            provider.contains("DeepSeek", ignoreCase = true) -> {
+                exports.append(" && export OPENAI_BASE_URL='https://api.deepseek.com/v1'")
+            }
+            provider.contains("Groq", ignoreCase = true) -> {
+                exports.append(" && export OPENAI_BASE_URL='https://api.groq.com/openai/v1'")
+            }
+            provider.contains("xAI", ignoreCase = true) || provider.contains("Grok", ignoreCase = true) -> {
+                exports.append(" && export OPENAI_BASE_URL='https://api.x.ai/v1'")
+            }
+        }
+
+        // Set the model if specified
+        if (model.isNotBlank() && model != "auto") {
+            exports.append(" && export OPENAI_MODEL='$model'")
+        }
+
+        exports.append(" && ")
+        return exports.toString()
     }
 
     companion object {
