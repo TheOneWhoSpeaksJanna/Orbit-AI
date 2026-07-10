@@ -149,9 +149,10 @@ android {
     }
   }
 
-  // Prevent AAPT2 from decompressing the Termux bootstrap zip and .deb files.
+  // Prevent AAPT2 from decompressing the Termux bootstrap zip, .deb files,
+  // and the openclaude npm tarball.
   androidResources {
-    noCompress += listOf("zip", "deb")
+    noCompress += listOf("zip", "deb", "tgz")
   }
   testOptions { unitTests { isIncludeAndroidResources = true } }
 
@@ -202,6 +203,26 @@ android {
       // Attach to this variant's asset merge task
       tasks.matching { it.name == "merge${capitalizedVariant}Assets" }.configureEach {
         dependsOn(downloadTask)
+      }
+
+      // ── Pre-bundle OpenClaude npm tarball ──────────────────────────
+      // Downloads @gitlawb/openclaude as a .tgz during the build so
+      // the app can install it offline (no npm registry access needed
+      // on first launch). Only for the openclaude flavor.
+      if (flavorName == "openclaude") {
+        val downloadTarballTask = tasks.register<Exec>("downloadOpenclaudeTarball$capitalizedVariant") {
+          val script = rootProject.projectDir.resolve("scripts/download-openclaude-tarball.py")
+          val outputDir = projectDir.resolve("src/$flavorName/assets")
+          commandLine("python3", script.absolutePath, outputDir.absolutePath)
+          outputs.dir(outputDir)
+          doFirst {
+            outputDir.mkdirs()
+          }
+        }
+
+        tasks.matching { it.name == "merge${capitalizedVariant}Assets" }.configureEach {
+          dependsOn(downloadTarballTask)
+        }
       }
     }
   }

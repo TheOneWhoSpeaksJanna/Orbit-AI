@@ -29,6 +29,10 @@ app/src/*/assets/agent.meta
 # from packages.termux.dev — don't commit them.
 app/src/*/assets/offline-debs/
 
+# OpenClaude npm tarball is downloaded by downloadOpenclaudeTarball*
+# Gradle task during build. Don't commit it.
+app/src/*/assets/openclaude.tgz
+
 # NOTE: debug.keystore is intentionally NOT gitignored.
 # It must be committed so all builds (CI + local) use the same signing
 # certificate, otherwise update-installs fail with "already existing package"

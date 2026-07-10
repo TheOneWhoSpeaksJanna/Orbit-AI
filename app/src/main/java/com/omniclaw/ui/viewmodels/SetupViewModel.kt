@@ -483,20 +483,39 @@ class SetupViewModel(
 
                 updateInstallState(agentName, progress = 0.5f, status = "$STATUS_DOWNLOADING$agentName...")
 
-                // Install the agent globally via npm inside the Termux rootfs.
-                // Global install creates a symlink in $PREFIX/bin/ so the agent
-                // can be launched by just its binary name (e.g. 'openclaude').
+                // Install the agent. Try local tarball first (pre-bundled in APK
+                // assets), fall back to npm registry download if not available.
                 val npmPackage = NPM_PACKAGES[agentName]
                 if (npmPackage != null) {
-                    emitLog("SetupViewModel", "Installing agent", "npm install -g $npmPackage")
                     updateInstallState(agentName, progress = 0.6f, status = STATUS_INSTALLING_DEPS)
-                    val installResult = termuxRuntime.executeInTermux(
-                        "npm install -g $npmPackage 2>&1",
-                        ""
-                    )
-                    emitLog("SetupViewModel", "npm install result", "exit=${installResult.exitCode} output=${installResult.output.take(500)}")
-                    if (installResult.exitCode != 0) {
-                        FileLogger.w("SetupViewModel", "npm install failed", "exit=${installResult.exitCode}")
+
+                    // Try installing from pre-bundled tarball (offline, no network needed)
+                    val tarballCopied = copyAssetToRootfs(termuxRuntime, "openclaude.tgz", "/tmp/openclaude.tgz")
+                    if (tarballCopied) {
+                        emitLog("SetupViewModel", "Installing agent from bundled tarball", "tarball=/tmp/openclaude.tgz")
+                        val installResult = termuxRuntime.executeInTermux(
+                            "npm install -g /tmp/openclaude.tgz 2>&1",
+                            ""
+                        )
+                        emitLog("SetupViewModel", "npm install (tarball) result", "exit=${installResult.exitCode} output=${installResult.output.take(500)}")
+                        if (installResult.exitCode != 0) {
+                            FileLogger.w("SetupViewModel", "npm install from tarball failed, trying registry", "exit=${installResult.exitCode}")
+                            // Fall back to registry download
+                            emitLog("SetupViewModel", "Falling back to npm registry", "package=$npmPackage")
+                            val registryResult = termuxRuntime.executeInTermux(
+                                "npm install -g $npmPackage 2>&1",
+                                ""
+                            )
+                            emitLog("SetupViewModel", "npm install (registry) result", "exit=${registryResult.exitCode} output=${registryResult.output.take(500)}")
+                        }
+                    } else {
+                        // No tarball in assets — download from npm registry
+                        emitLog("SetupViewModel", "Installing agent from npm registry", "package=$npmPackage")
+                        val installResult = termuxRuntime.executeInTermux(
+                            "npm install -g $npmPackage 2>&1",
+                            ""
+                        )
+                        emitLog("SetupViewModel", "npm install result", "exit=${installResult.exitCode} output=${installResult.output.take(500)}")
                     }
                 } else {
                     emitLog("SetupViewModel", "No npm package for agent, skipping", "agent=$agentName")
@@ -647,6 +666,34 @@ class SetupViewModel(
         // Last resort: just use the binary name
         emitLog("SetupViewModel", "Could not determine entry point, using binary name", "name=$binaryName")
         return binaryName
+    }
+
+    /**
+     * Copy an asset file from the APK into the rootfs so PRoot can access it.
+     * Used to copy the pre-bundled openclaude.tgz into /tmp for offline npm install.
+     * Returns true if the file was copied successfully, false if the asset doesn't exist.
+     */
+    private suspend fun copyAssetToRootfs(
+        termuxRuntime: com.omniclaw.data.local.runtime.TermuxRuntime,
+        assetName: String,
+        destPath: String
+    ): Boolean = withContext(kotlinx.coroutines.Dispatchers.IO) {
+        try {
+            val inputStream = runtimeManager.context.assets.open(assetName)
+            // Write to the rootfs's /tmp directory (bind-mounted from runtimeDir/tmp)
+            val destFile = File(termuxRuntime.runtimeDir, "tmp/${assetName}")
+            destFile.parentFile?.mkdirs()
+            inputStream.use { input ->
+                java.io.FileOutputStream(destFile).use { output ->
+                    input.copyTo(output)
+                }
+            }
+            FileLogger.i("SetupViewModel", "Asset copied to rootfs", "asset=$assetName size=${destFile.length()} dest=$destFile")
+            true
+        } catch (e: Exception) {
+            FileLogger.d("SetupViewModel", "Asset not found or copy failed", "asset=$assetName reason=${e.message}")
+            false
+        }
     }
 
     private fun updateInstallState(agentName: String, progress: Float? = null, status: String? = null, isInstalled: Boolean? = null) {
