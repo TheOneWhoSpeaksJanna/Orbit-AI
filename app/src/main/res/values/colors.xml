@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- OmniClaw Base Palette -->
+    <color name="omniclaw_bg_dark">#FF0A0E1A</color>
+    <color name="omniclaw_surface">#FF141A2E</color>
+    <color name="omniclaw_surface_elevated">#FF1C2340</color>
+
+    <!-- OmniClaw Accents (Orbit-inspired cosmic palette) -->
+    <color name="omniclaw_accent_primary">#FF6C63FF</color>
+    <color name="omniclaw_accent_secondary">#FF38BDF8</color>
+    <color name="omniclaw_accent_tertiary">#FFD946EF</color>
+    <color name="omniclaw_accent_success">#FF22C55E</color>
+
+    <!-- Icon / Logo Palette -->
+    <color name="ic_omniclaw_bg">#FF0A0E1A</color>
+    <color name="ic_omniclaw_ring">#FF6C63FF</color>
+    <color name="ic_omniclaw_ring_outer">#FF38BDF8</color>
+    <color name="ic_omniclaw_core">#FF6C63FF</color>
+    <color name="ic_omniclaw_core_glow">#FF8B85FF</color>
+    <color name="ic_omniclaw_glow">#FF38BDF8</color>
+    <color name="ic_omniclaw_node">#FFD946EF</color>
+    <color name="ic_omniclaw_accent">#FF22C55E</color>
+
+    <!-- Standard -->
+    <color name="black">#FF000000</color>
+    <color name="white">#FFFFFFFF</color>
+</resources>

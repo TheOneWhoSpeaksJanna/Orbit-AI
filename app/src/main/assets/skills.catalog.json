@@ -1,0 +1,167 @@
+{
+  "_comment": "Dynamic skills catalog mirroring OpenClaude's command registry. These are the skills/commands that OpenClaude supports. Loaded at runtime to populate the Skills screen.",
+  "categories": [
+    {
+      "name": "Code & Development",
+      "skills": [
+        {"id": "commit", "name": "Commit", "description": "Create git commits with AI-generated messages", "command": "commit", "enabled": true},
+        {"id": "commit-message", "name": "Commit Message", "description": "Generate commit messages from staged changes", "command": "commit-message", "enabled": true},
+        {"id": "diff", "name": "Diff", "description": "Show and analyze code diffs", "command": "diff", "enabled": true},
+        {"id": "branch", "name": "Branch", "description": "Manage git branches", "command": "branch", "enabled": true},
+        {"id": "review", "name": "Code Review", "description": "AI-powered code review", "command": "review", "enabled": true},
+        {"id": "autofix-pr", "name": "Auto-fix PR", "description": "Automatically fix issues in pull requests", "command": "autofix-pr", "enabled": true},
+        {"id": "lsp", "name": "LSP Integration", "description": "Language Server Protocol diagnostics", "command": "lsp", "enabled": true},
+        {"id": "auto-fix", "name": "Auto Fix", "description": "Automatically fix code errors", "command": "auto-fix", "enabled": true}
+      ]
+    },
+    {
+      "name": "AI & Models",
+      "skills": [
+        {"id": "provider", "name": "Provider Manager", "description": "Switch between 30+ AI providers", "command": "provider", "enabled": true},
+        {"id": "model", "name": "Model Selector", "description": "Switch between AI models", "command": "model", "enabled": true},
+        {"id": "compact", "name": "Compact Context", "description": "Compact conversation context window", "command": "compact", "enabled": true},
+        {"id": "effort", "name": "Effort Level", "description": "Control AI reasoning effort", "command": "effort", "enabled": true},
+        {"id": "mcp", "name": "MCP Server", "description": "Model Context Protocol server management", "command": "mcp", "enabled": true},
+        {"id": "fast", "name": "Fast Mode", "description": "Toggle fast/cheap model mode", "command": "fast", "enabled": true}
+      ]
+    },
+    {
+      "name": "Debugging & Diagnostics",
+      "skills": [
+        {"id": "doctor", "name": "Doctor", "description": "Diagnose configuration issues", "command": "doctor", "enabled": true},
+        {"id": "diagnostics", "name": "Diagnostics", "description": "Show system diagnostics", "command": "diagnostics", "enabled": true},
+        {"id": "debug-tool-call", "name": "Debug Tool Call", "description": "Debug AI tool call failures", "command": "debug-tool-call", "enabled": true},
+        {"id": "cache-probe", "name": "Cache Probe", "description": "Probe prompt cache effectiveness", "command": "cache-probe", "enabled": true},
+        {"id": "break-cache", "name": "Break Cache", "description": "Force break the prompt cache", "command": "break-cache", "enabled": true},
+        {"id": "heapdump", "name": "Heap Dump", "description": "Capture heap dump for debugging", "command": "heapdump", "enabled": true}
+      ]
+    },
+    {
+      "name": "Context & Memory",
+      "skills": [
+        {"id": "context", "name": "Context", "description": "Manage conversation context", "command": "context", "enabled": true},
+        {"id": "memory", "name": "Memory", "description": "Persistent memory management", "command": "memory", "enabled": true},
+        {"id": "knowledge", "name": "Knowledge Base", "description": "Manage knowledge base files", "command": "knowledge", "enabled": true},
+        {"id": "clear", "name": "Clear", "description": "Clear conversation", "command": "clear", "enabled": true},
+        {"id": "clear-context-window", "name": "Clear Context Window", "description": "Reset context window", "command": "clear-context-window", "enabled": true},
+        {"id": "set-context-window", "name": "Set Context Window", "description": "Configure context window size", "command": "set-context-window", "enabled": true},
+        {"id": "ctx_viz", "name": "Context Visualizer", "description": "Visualize context window usage", "command": "ctx_viz", "enabled": true}
+      ]
+    },
+    {
+      "name": "GitHub & CI/CD",
+      "skills": [
+        {"id": "issue", "name": "Issue Manager", "description": "Create and manage GitHub issues", "command": "issue", "enabled": true},
+        {"id": "pr_comments", "name": "PR Comments", "description": "Manage pull request comments", "command": "pr_comments", "enabled": true},
+        {"id": "install-github-app", "name": "Install GitHub App", "description": "Install the OpenClaude GitHub App", "command": "install-github-app", "enabled": true},
+        {"id": "onboard-github", "name": "GitHub Onboarding", "description": "Onboard GitHub integration", "command": "onboard-github", "enabled": true},
+        {"id": "release-notes", "name": "Release Notes", "description": "Generate release notes", "command": "release-notes", "enabled": true},
+        {"id": "workflows", "name": "Workflows", "description": "Manage CI/CD workflows", "command": "workflows", "enabled": true}
+      ]
+    },
+    {
+      "name": "Sessions & History",
+      "skills": [
+        {"id": "session", "name": "Session Manager", "description": "Manage conversation sessions", "command": "session", "enabled": true},
+        {"id": "resume", "name": "Resume", "description": "Resume a previous session", "command": "resume", "enabled": true},
+        {"id": "replay", "name": "Replay", "description": "Replay a session", "command": "replay", "enabled": true},
+        {"id": "rewind", "name": "Rewind", "description": "Rewind session to a point", "command": "rewind", "enabled": true},
+        {"id": "export", "name": "Export", "description": "Export session data", "command": "export", "enabled": true},
+        {"id": "summary", "name": "Summary", "description": "Generate session summary", "command": "summary", "enabled": true},
+        {"id": "stats", "name": "Stats", "description": "Show usage statistics", "command": "stats", "enabled": true},
+        {"id": "cost", "name": "Cost Tracker", "description": "Track API costs", "command": "cost", "enabled": true},
+        {"id": "usage", "name": "Usage", "description": "Show token usage", "command": "usage", "enabled": true}
+      ]
+    },
+    {
+      "name": "Productivity",
+      "skills": [
+        {"id": "plan", "name": "Plan", "description": "Create execution plans", "command": "plan", "enabled": true},
+        {"id": "goal", "name": "Goal", "description": "Set and track goals", "command": "goal", "enabled": true},
+        {"id": "tasks", "name": "Tasks", "description": "Manage task lists", "command": "tasks", "enabled": true},
+        {"id": "todo", "name": "Todo", "description": "Quick todo management", "command": "tasks", "enabled": true},
+        {"id": "tag", "name": "Tag", "description": "Tag sessions for organization", "command": "tag", "enabled": true},
+        {"id": "rename", "name": "Rename", "description": "Rename current session", "command": "rename", "enabled": true},
+        {"id": "files", "name": "Files", "description": "File management", "command": "files", "enabled": true},
+        {"id": "copy", "name": "Copy", "description": "Copy output to clipboard", "command": "copy", "enabled": true}
+      ]
+    },
+    {
+      "name": "AI Assistance",
+      "skills": [
+        {"id": "bughunter", "name": "Bug Hunter", "description": "AI-powered bug detection", "command": "bughunter", "enabled": true},
+        {"id": "bughunter-perf", "name": "Bug Hunter (Perf)", "description": "Performance bug detection", "command": "bughunter-perf", "enabled": true},
+        {"id": "bughunter-security", "name": "Bug Hunter (Security)", "description": "Security vulnerability detection", "command": "bughunter-security", "enabled": true},
+        {"id": "advisor", "name": "Advisor", "description": "AI advisory on code decisions", "command": "advisor", "enabled": true},
+        {"id": "buddy", "name": "Buddy", "description": "AI pair programming buddy", "command": "buddy", "enabled": true},
+        {"id": "dream", "name": "Dream", "description": "AI brainstorming mode", "command": "dream", "enabled": true},
+        {"id": "ultraplan", "name": "Ultra Plan", "description": "Deep planning mode", "command": "ultraplan", "enabled": true},
+        {"id": "thinkback", "name": "Thinkback", "description": "Review AI reasoning", "command": "thinkback", "enabled": true}
+      ]
+    },
+    {
+      "name": "Environment & Config",
+      "skills": [
+        {"id": "config", "name": "Config", "description": "Manage OpenClaude configuration", "command": "config", "enabled": true},
+        {"id": "env", "name": "Environment", "description": "View and manage environment variables", "command": "env", "enabled": true},
+        {"id": "permissions", "name": "Permissions", "description": "Manage tool permissions", "command": "permissions", "enabled": true},
+        {"id": "sandbox-toggle", "name": "Sandbox Toggle", "description": "Toggle sandbox mode", "command": "sandbox-toggle", "enabled": true},
+        {"id": "terminalSetup", "name": "Terminal Setup", "description": "Configure terminal integration", "command": "terminalSetup", "enabled": true},
+        {"id": "hooks", "name": "Hooks", "description": "Manage lifecycle hooks", "command": "hooks", "enabled": true},
+        {"id": "keybindings", "name": "Keybindings", "description": "Customize keybindings", "command": "keybindings", "enabled": true},
+        {"id": "theme", "name": "Theme", "description": "Switch UI themes", "command": "theme", "enabled": true},
+        {"id": "color", "name": "Color", "description": "Configure color output", "command": "color", "enabled": true},
+        {"id": "output-style", "name": "Output Style", "description": "Configure output formatting", "command": "output-style", "enabled": true},
+        {"id": "vim", "name": "Vim Mode", "description": "Toggle vim keybindings", "command": "vim", "enabled": true}
+      ]
+    },
+    {
+      "name": "Integrations",
+      "skills": [
+        {"id": "ide", "name": "IDE Integration", "description": "Connect to VS Code / JetBrains", "command": "ide", "enabled": true},
+        {"id": "desktop", "name": "Desktop", "description": "Desktop app integration", "command": "desktop", "enabled": true},
+        {"id": "mobile", "name": "Mobile", "description": "Mobile app integration", "command": "mobile", "enabled": true},
+        {"id": "chrome", "name": "Chrome", "description": "Chrome browser extension", "command": "chrome", "enabled": true},
+        {"id": "voice", "name": "Voice", "description": "Voice input/output", "command": "voice", "enabled": true},
+        {"id": "install-slack-app", "name": "Slack App", "description": "Install Slack integration", "command": "install-slack-app", "enabled": true},
+        {"id": "teleport", "name": "Teleport", "description": "Remote session teleportation", "command": "teleport", "enabled": true},
+        {"id": "remote-setup", "name": "Remote Setup", "description": "Configure remote sessions", "command": "remote-setup", "enabled": true},
+        {"id": "remote-env", "name": "Remote Env", "description": "Manage remote environment", "command": "remote-env", "enabled": true}
+      ]
+    },
+    {
+      "name": "Account & Auth",
+      "skills": [
+        {"id": "login", "name": "Login", "description": "Login to OpenClaude account", "command": "login", "enabled": true},
+        {"id": "logout", "name": "Logout", "description": "Logout from account", "command": "logout", "enabled": true},
+        {"id": "oauth-refresh", "name": "OAuth Refresh", "description": "Refresh OAuth tokens", "command": "oauth-refresh", "enabled": true},
+        {"id": "privacy-settings", "name": "Privacy Settings", "description": "Configure privacy options", "command": "privacy-settings", "enabled": true},
+        {"id": "rate-limit-options", "name": "Rate Limit Options", "description": "Configure rate limiting", "command": "rate-limit-options", "enabled": true},
+        {"id": "reset-limits", "name": "Reset Limits", "description": "Reset rate limits", "command": "reset-limits", "enabled": true},
+        {"id": "extra-usage", "name": "Extra Usage", "description": "Request extra usage", "command": "extra-usage", "enabled": true}
+      ]
+    },
+    {
+      "name": "Plugins & Extensions",
+      "skills": [
+        {"id": "plugin", "name": "Plugin Manager", "description": "Manage plugins", "command": "plugin", "enabled": true},
+        {"id": "reload-plugins", "name": "Reload Plugins", "description": "Reload all plugins", "command": "reload-plugins", "enabled": true},
+        {"id": "skills", "name": "Skills Menu", "description": "Browse all available skills", "command": "skills", "enabled": true},
+        {"id": "stickers", "name": "Stickers", "description": "Custom sticker packs", "command": "stickers", "enabled": true},
+        {"id": "logo", "name": "Logo", "description": "Display ASCII logo", "command": "logo", "enabled": true},
+        {"id": "feedback", "name": "Feedback", "description": "Send feedback", "command": "feedback", "enabled": true},
+        {"id": "update", "name": "Update", "description": "Check for updates", "command": "update", "enabled": true},
+        {"id": "upgrade", "name": "Upgrade", "description": "Upgrade to premium", "command": "upgrade", "enabled": true},
+        {"id": "help", "name": "Help", "description": "Show help", "command": "help", "enabled": true},
+        {"id": "exit", "name": "Exit", "description": "Exit OpenClaude", "command": "exit", "enabled": true}
+      ]
+    },
+    {
+      "name": "Android Environment",
+      "skills": [
+        {"id": "android-environment", "name": "Android Environment", "description": "Built-in skill: tells agents about their Android/PRoot environment, filesystem layout, Shizuku commands, and best practices", "command": "android-env", "enabled": true, "builtIn": true},
+        {"id": "shizuku-phone-control", "name": "Shizuku Phone Control", "description": "Built-in skill: system-level phone control via Shizuku (brightness, WiFi, Bluetooth, app launch, screenshots)", "command": "shizuku", "enabled": true, "builtIn": true}
+      ]
+    }
+  ]
+}
