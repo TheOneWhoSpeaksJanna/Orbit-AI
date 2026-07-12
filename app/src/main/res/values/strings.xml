@@ -1,0 +1,124 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">OmniClaw</string>
+
+    <!-- Common -->
+    <string name="back">Back</string>
+    <string name="next">Next</string>
+    <string name="cancel">Cancel</string>
+    <string name="settings">Settings</string>
+
+    <!-- ChatScreen -->
+    <string name="chat_workspace">Chat Workspace</string>
+    <string name="type_prompt">Type a prompt…</string>
+    <string name="send">Send</string>
+
+    <!-- DashboardScreen -->
+    <string name="omniclaw_workspace">OmniClaw Workspace</string>
+    <string name="local_tools">Local Tools</string>
+    <string name="new_session">New Session</string>
+    <string name="agent">Agent</string>
+    <string name="unknown">Unknown</string>
+    <string name="shizuku_status">Shizuku Status</string>
+    <string name="active">Active</string>
+    <string name="unavailable">Unavailable</string>
+    <string name="recent_sessions">Recent Sessions</string>
+    <string name="no_sessions">No sessions yet. Start a new session!</string>
+    <string name="updated_format">Updated: %1$s</string>
+
+    <!-- SettingsScreen -->
+    <string name="ai_provider_config">AI Provider Configuration</string>
+    <string name="api_key_description">Your API keys are stored securely on your device. You need these to interact with external AI providers.</string>
+    <string name="api_key">API Key</string>
+    <string name="api_key_gemini">Google Gemini API Key</string>
+    <string name="api_key_openai">OpenAI API Key</string>
+    <string name="api_key_claude">Claude API Key</string>
+    <string name="api_key_openrouter">OpenRouter API Key</string>
+    <string name="show">Show</string>
+    <string name="hide">Hide</string>
+    <string name="appearance">Appearance</string>
+    <string name="theme_mode">Theme Mode</string>
+
+    <!-- SetupWizard -->
+    <string name="finish_setup">Finish Setup</string>
+    <string name="omniclaw_ai_title">OmniClaw</string>
+    <string name="omniclaw_ai_subtitle">Your powerful on-device autonomous AI OS. Let\'s get everything configured securely.</string>
+    <string name="step_welcome">Welcome</string>
+    <string name="step_theme">Theme</string>
+    <string name="step_agent">Agent</string>
+    <string name="step_provider">Provider</string>
+    <string name="step_shizuku">Permissions</string>
+    <string name="step_storage">Storage</string>
+    <string name="step_summary">Summary</string>
+    <string name="step_n_of_m">Step %1$d of %2$d</string>
+    <string name="select_agent">Select Agent</string>
+    <string name="select_provider_for">Select Provider for %1$s</string>
+    <string name="test_connection">Test Connection</string>
+    <string name="connection_successful">Connection successful!</string>
+    <string name="connection_failed">Connection failed. Check your API key.</string>
+    <string name="elevated_permissions">Elevated Permissions</string>
+    <string name="shizuku_description">OmniClaw can use Shizuku to perform system-level actions (like securely managing apps). This does not claim root access unless your device is rooted.</string>
+    <string name="request_permission">Request Permission</string>
+    <string name="enable_shizuku">Enable Shizuku Integration</string>
+    <string name="shizuku_required">Requires Shizuku app to be running</string>
+    <string name="shizuku_status_running">Shizuku is running and permission granted.</string>
+    <string name="shizuku_status_no_permission">Shizuku running, but permission denied.</string>
+    <string name="shizuku_status_not_running">Shizuku is installed but NOT running.</string>
+    <string name="shizuku_status_not_installed">Shizuku is not installed on this device.</string>
+    <string name="shizuku_status_checking">Checking…</string>
+    <string name="shizuku_status_format">Status: %1$s</string>
+
+    <!-- Storage Permission -->
+    <string name="storage_title">Log Storage</string>
+    <string name="storage_description">OmniClaw writes logs to your device\'s public storage (/storage/emulated/0/omniclaw_logs/) so you can easily access and share them. Grant file access to enable this feature.</string>
+    <string name="storage_grant_button">Grant File Access</string>
+    <string name="storage_granted">File access granted ✓</string>
+    <string name="storage_skip">Logs will be stored in app-private storage</string>
+    <string name="local_runtime_setup">Local Runtime Setup</string>
+    <string name="runtime_description">OmniClaw uses a companion service to execute local shell commands natively on your device.</string>
+    <string name="runtime_active">Native runtime active.</string>
+    <string name="runtime_ready">No external apps like Termux are required. The internal command runner is ready.</string>
+    <string name="summary">Summary:</string>
+    <string name="summary_ui_configured">- UI configured</string>
+    <string name="summary_agent_selected">- AI Agent and Provider selected</string>
+    <string name="summary_api_keys_active">- API keys active</string>
+    <string name="summary_command_ready">- Command runner ready</string>
+    <string name="ready_enter_workspace">You are ready to enter the workspace.</string>
+
+    <!-- Agent descriptions -->
+    <string name="agent_hermes">General purpose logic and local orchestration.</string>
+    <string name="agent_openclaude">Open-source Claude integration with full tool use.</string>
+    <string name="agent_claude_code">Specialized coding agent with codebase awareness.</string>
+    <string name="agent_opencode">Open-source coding agent for automated code generation.</string>
+    <string name="agent_codex">OpenAI-powered coding agent with strong instruction-following.</string>
+    <string name="agent_default">Expert context handling.</string>
+
+    <!-- TermuxScreen -->
+    <string name="app_workspace">App Workspace &amp; Execution</string>
+    <string name="install_tool">Install %1$s</string>
+    <string name="type_shell_command">Type a shell command…</string>
+    <string name="sudo">Sudo</string>
+    <string name="execute">Execute</string>
+    <string name="execute_privileged">Execute Privileged Command?</string>
+    <string name="execute_normal">Execute Command?</string>
+    <string name="confirm_execute">Are you sure you want to run this command locally?\n\n%1$s\n\n</string>
+    <string name="warning_privileged">WARNING: This will execute via Shizuku with elevated privileges. Destructive actions can occur.</string>
+    <string name="warning_normal">Execution happens directly on your device natively.</string>
+    <string name="speed_format">%1$.1f MB/s</string>
+    <string name="time_remaining">%1$d s remaining</string>
+    <string name="termux_explanation">OmniClaw uses a companion service to execute local shell commands natively on your device.</string>
+
+    <!-- Finalizing Overlay (loading screen after Finish Setup) -->
+    <string name="finalizing_title">Setting up your agent</string>
+    <string name="finalizing_subtitle">Installing %1$s on your device. This may take 2–5 minutes on first run.</string>
+    <string name="finalizing_elapsed">⏱ %1$s elapsed</string>
+    <string name="finalizing_starting">Starting installation…</string>
+    <string name="finalizing_skip">Skip and enter app</string>
+    <string name="finalizing_success_title">Setup complete!</string>
+    <string name="finalizing_success_subtitle">%1$s is ready to use. You can now start chatting.</string>
+    <string name="finalizing_enter_app">Enter Orbit-AI</string>
+    <string name="finalizing_failed_title">Installation failed</string>
+    <string name="finalizing_failed_unknown">The agent could not be installed. Check the logs for details.</string>
+    <string name="finalizing_skip_anyway">Skip anyway</string>
+    <string name="finalizing_retry">Retry</string>
+</resources>

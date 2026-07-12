@@ -1,0 +1,40 @@
+*.iml
+.gradle
+.kotlin
+/local.properties
+/.idea/caches
+/.idea/libraries
+/.idea/modules.xml
+/.idea/workspace.xml
+/.idea/navEditor.xml
+/.idea/assetWizardSettings.xml
+.DS_Store
+/build
+/captures
+.externalNativeBuild
+.cxx
+local.properties
+.env
+aapt2-arm64
+.opencode/
+orbit-ai-apks-*/
+
+# Agent archives are produced by `scripts/prepare-agent.sh` at build time
+# and should not be committed — they bloat the repo and are flavor-specific.
+app/src/*/assets/agent.tar.gz
+app/src/*/assets/agent.meta
+
+# Offline .deb packages are downloaded by the downloadOfflinePackages*
+# Gradle tasks during build. They're ~120MB per flavor and regenerated
+# from packages.termux.dev — don't commit them.
+app/src/*/assets/offline-debs/
+
+# OpenClaude npm tarball is downloaded by downloadOpenclaudeTarball*
+# Gradle task during build. Don't commit it.
+app/src/*/assets/openclaude.tgz
+
+# NOTE: debug.keystore is intentionally NOT gitignored.
+# It must be committed so all builds (CI + local) use the same signing
+# certificate, otherwise update-installs fail with "already existing package"
+# due to signature mismatch.
+service-account.json
