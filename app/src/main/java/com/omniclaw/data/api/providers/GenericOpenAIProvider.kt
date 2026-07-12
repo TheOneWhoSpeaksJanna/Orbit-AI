@@ -110,12 +110,17 @@ class GenericOpenAIProvider(
     override suspend fun createSession(sessionId: String, systemPrompt: String?) { }
     override suspend fun deleteSession(sessionId: String) { }
 
-    override fun getModels(providerName: String): List<String> = emptyList()
+    // Expose the catalog's default model so the model picker shows a valid
+    // option for this provider instead of falling back to unrelated defaults
+    // (e.g. Gemini/Claude names). Providers with a richer live list still get
+    // it via fetchDetailedModels; this is the sensible offline fallback.
+    override fun getModels(providerName: String): List<String> =
+        if (defaultModel.isNotBlank()) listOf(defaultModel) else emptyList()
 
     override val metadata: ProviderMetadata = ProviderMetadata(
         name = providerName,
         displayName = providerName,
-        models = emptyList(),
+        models = if (defaultModel.isNotBlank()) listOf(defaultModel) else emptyList(),
         supportsStreaming = true,
         requiresApiKey = true,
         defaultModel = defaultModel
