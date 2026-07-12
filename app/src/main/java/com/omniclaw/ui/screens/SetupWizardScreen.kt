@@ -439,7 +439,10 @@ fun ProviderSelectionStep(viewModel: SetupViewModel) {
     // Load providers dynamically from the catalog
     val context = androidx.compose.ui.platform.LocalContext.current
     val providerOptions = remember {
-        com.omniclaw.data.local.runtime.ProviderCatalog.load(context).map { it.name }
+        val all = com.omniclaw.data.local.runtime.ProviderCatalog.load(context).map { it.name }
+        // Surface OpenRouter first so it is always visible (esp. on small / headless displays
+        // where the provider list cannot scroll). Tapping it reveals the API-key field.
+        listOf("OpenRouter") + all.filter { it != "OpenRouter" }
     }
 
     Column(

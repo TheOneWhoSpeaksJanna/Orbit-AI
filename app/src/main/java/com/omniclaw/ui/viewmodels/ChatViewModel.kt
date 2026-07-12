@@ -291,6 +291,29 @@ class ChatViewModel(
                     val apiKey = prefsManager.getApiKeyForProvider(activeProvider).firstOrNull() ?: ""
                     val model = activeModelName.ifBlank { "auto" }
 
+                    // Guard: if no API key is configured for the selected
+                    // provider, the agent would silently fall back to its own
+                    // (often broken) default gateway and emit a confusing
+                    // upstream error. Fail fast with a clear, actionable
+                    // message so the user knows to add their key in Settings.
+                    if (apiKey.isBlank()) {
+                        val errMsg = Message(
+                            id = UUID.randomUUID().toString(),
+                            sessionId = session.id,
+                            role = MessageRole.MODEL,
+                            content = "No API key configured for provider \"$activeProvider\". " +
+                                "Open the Provider tab, tap the pencil on $activeProvider, paste your key, and tap Save.",
+                            timestamp = System.currentTimeMillis()
+                        )
+                        repository.insertMessage(errMsg)
+                        _isLoading.value = false
+                        com.omniclaw.core.logging.FileLogger.w(
+                            "ChatViewModel", "Agent exec skipped",
+                            "reason=no API key for provider=$activeProvider"
+                        )
+                        return@launch
+                    }
+
                     // Build env var exports based on the provider
                     // Most OpenAI-compatible agents accept OPENAI_API_KEY + OPENAI_BASE_URL
                     // OpenRouter specifically uses OPENROUTER_API_KEY
@@ -516,6 +539,14 @@ class ChatViewModel(
             }
             provider.contains("Anthropic", ignoreCase = true) || provider.contains("Claude", ignoreCase = true) -> {
                 exports.append(" && export ANTHROPIC_API_KEY='$apiKey'")
+            }
+            provider.contains("Gemini", ignoreCase = true) -> {
+                // Gemini exposes an OpenAI-compatible endpoint, so the agent
+                // (told to use the OpenAI path via CLAUDE_CODE_USE_OPENAI=1)
+                // can reach it through OPENAI_BASE_URL + OPENAI_API_KEY.
+                exports.append(" && export OPENAI_BASE_URL='https://generativelanguage.googleapis.com/v1beta/openai/'")
+                exports.append(" && export GOOGLE_API_KEY='$apiKey'")
+                exports.append(" && export GEMINI_API_KEY='$apiKey'")
             }
             provider.contains("DeepSeek", ignoreCase = true) -> {
                 exports.append(" && export OPENAI_BASE_URL='https://api.deepseek.com/v1'")

@@ -336,7 +336,9 @@ class SetupViewModel(
                 SetupStep.Theme -> _theme.value.isNotBlank()
                 SetupStep.Agent -> _selectedAgent.value.isNotBlank()
                 // Ollama doesn't require an API key — its key slot is an optional base URL.
-                SetupStep.Provider -> _apiKey.value.isNotBlank() || _selectedProvider.value == "Ollama"
+                // Provider step never blocks advancing — the user can skip the API key /
+                // "Test Connection" step and configure the provider later in the Providers tab.
+                SetupStep.Provider -> true
                 SetupStep.Shizuku -> true
                 SetupStep.Storage -> true
                 SetupStep.Summary -> true
