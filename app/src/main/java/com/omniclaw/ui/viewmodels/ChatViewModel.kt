@@ -35,6 +35,7 @@ private const val DEFAULT_PROVIDER = "Gemini"
 private const val NEW_SESSION_TITLE = "New Session"
 private const val DEFAULT_SYSTEM_PROMPT = "System: You are an expert AI assistant."
 private const val NO_OUTPUT = "(no output)"
+private const val AGENT_FAILED_PREFIX = "⚠️ The agent could not complete this request. Details:"
 private const val ERROR_RUNNING_AGENT = "Error running agent: "
 private const val UNKNOWN_ERROR = "Unknown error"
 private const val ACTION_BLOCKED = "Action blocked by permission rules: "
@@ -329,6 +330,11 @@ class ChatViewModel(
                     var result = termuxRuntime.executeInTermux(fullCmd, "")
                     com.omniclaw.core.logging.FileLogger.i("ChatViewModel", "Agent exec (-p flag)", "exit=${result.exitCode} output=${result.output.take(2000)}")
 
+                    // Remember the first attempt's output so a later, weaker
+                    // fallback that fails with a less useful message doesn't
+                    // clobber the original (often more informative) error.
+                    val firstResult = result
+
                     // If -p flag failed, try stdin pipe
                     if (result.exitCode != 0 || result.output.isBlank()) {
                         fullCmd = "$envExports echo \"$escaped\" | $runCmd -p --dangerously-skip-permissions"
@@ -343,11 +349,30 @@ class ChatViewModel(
                         com.omniclaw.core.logging.FileLogger.i("ChatViewModel", "Agent exec (direct arg)", "exit=${result.exitCode} output=${result.output.take(2000)}")
                     }
 
+                    // Decide what to show the user:
+                    // - success (exit 0) with output -> show it
+                    // - all attempts failed -> show the most informative error we
+                    //   captured (prefer the first attempt's non-blank output),
+                    //   clearly marked as a failure instead of a bare "(no output)".
+                    val allFailed = result.exitCode != 0 || result.output.isBlank()
+                    val displayContent = if (!allFailed) {
+                        result.output
+                    } else {
+                        val bestError = listOf(result.output, firstResult.output)
+                            .firstOrNull { it.isNotBlank() }
+                            ?.trim()
+                        if (bestError != null) {
+                            "$AGENT_FAILED_PREFIX\n\n$bestError"
+                        } else {
+                            "$AGENT_FAILED_PREFIX $NO_OUTPUT"
+                        }
+                    }
+
                     val modelMsg = Message(
                         id = UUID.randomUUID().toString(),
                         sessionId = session.id,
                         role = MessageRole.MODEL,
-                        content = result.output.ifBlank { NO_OUTPUT },
+                        content = displayContent,
                         timestamp = System.currentTimeMillis()
                     )
                     repository.insertMessage(modelMsg)
