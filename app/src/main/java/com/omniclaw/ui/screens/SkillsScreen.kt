@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -38,6 +39,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.omniclaw.data.local.runtime.SkillCategory
 import com.omniclaw.data.local.runtime.SkillEntry
+import com.omniclaw.ui.components.OrbitCard
 import com.omniclaw.ui.theme.OrbitSuccess
 import com.omniclaw.ui.theme.OrbitWarning
 import com.omniclaw.ui.theme.staggeredEntrance
@@ -111,25 +113,22 @@ fun SkillsScreen(
             }
         }
 
-        // Dynamic skill categories from catalog
-        items(skillCategories, key = { it.name }) { category ->
-            SkillCategorySection(category)
-        }
-    }
-}
-
-@Composable
-private fun SkillCategorySection(category: SkillCategory) {
-    Column {
-        Text(
-            text = category.name,
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.primary,
-            fontWeight = FontWeight.SemiBold
-        )
-        Spacer(modifier = Modifier.height(8.dp))
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            category.skills.forEachIndexed { index, skill ->
+        // Dynamic skill categories from catalog — each skill is a real
+        // LazyColumn item so staggeredEntrance fires per item.
+        skillCategories.forEach { category ->
+            item(key = "category_header_${category.name}") {
+                Text(
+                    text = category.name,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+            }
+            itemsIndexed(
+                items = category.skills,
+                key = { _, skill -> "${category.name}_${skill.id}" }
+            ) { index, skill ->
                 SkillCard(
                     skill = skill,
                     icon = getSkillIcon(skill.id, category.name),
@@ -149,15 +148,12 @@ private fun SkillCard(
     val statusColor = if (skill.enabled) OrbitSuccess else OrbitWarning
     val statusText = if (skill.builtIn) "Built-in" else if (skill.enabled) "Available" else "Disabled"
 
-    Surface(
+    OrbitCard(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant,
+        tonal = true
     ) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
+            modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Box(
@@ -213,19 +209,17 @@ private fun AgentCard(
     description: String,
     icon: ImageVector,
     accentColor: androidx.compose.ui.graphics.Color,
-    status: String
+    status: String,
+    modifier: Modifier = Modifier
 ) {
     val statusColor = if (status == "Active") OrbitSuccess else OrbitWarning
 
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant,
+    OrbitCard(
+        modifier = modifier.fillMaxWidth(),
+        tonal = true
     ) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
+            modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Box(
