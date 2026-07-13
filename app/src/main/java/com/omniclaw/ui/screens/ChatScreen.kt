@@ -17,6 +17,7 @@ import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -32,12 +33,13 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.omniclaw.domain.models.MessageRole
 import com.omniclaw.ui.components.ModelBrowserSheet
+import com.omniclaw.ui.theme.staggeredEntrance
 import com.omniclaw.ui.viewmodels.ChatViewModel
 
 private const val DEFAULT_TITLE = "Chat"
 private const val MESSAGE_PLACEHOLDER = "Message..."
 private const val WELCOME_TITLE = "What can I help with?"
-private const val WELCOME_SUBTITLE = "Ask anything \u2014 research, code, writing, or just a question."
+private const val WELCOME_SUBTITLE = "Ask anything — research, code, writing, or just a question."
 private const val NO_AGENT_TITLE = "No Agent Selected"
 private const val NO_AGENT_SUBTITLE = "Install an agent from Skills to start chatting."
 private const val CD_BACK = "Back"
@@ -83,14 +85,20 @@ fun ChatScreen(
         }
     }
 
-    LaunchedEffect(messages.size) {
-        if (messages.isNotEmpty()) {
-            // Use the non-animated scroll for long lists. animateScrollToItem
-            // runs a smooth spring animation that triggers recomposition on
-            // every frame for the entire list duration — that's the source of
-            // the visible "scroll stutter" when the agent streams a response.
-            // scrollToItem jumps instantly, which feels responsive because the
-            // new message is already visible by the time the user looks down.
+    // Stick-to-bottom: only auto-scroll when the user is already near the
+    // bottom. Keyed on the LAST message id (not messages.size) so a streamed
+    // token that changes content but not id doesn't re-trigger a scroll, and
+    // scrolling up to read history is never yanked back down. scrollToItem
+    // (not animateScrollToItem) avoids a per-frame spring recomposition
+    // while the agent streams — the main source of chat jank.
+    val lastMessageId = messages.lastOrNull()?.id
+    val isNearBottom by remember {
+        derivedStateOf {
+            listState.firstVisibleItemIndex >= listState.layoutInfo.totalItemsCount - 3
+        }
+    }
+    LaunchedEffect(lastMessageId) {
+        if (lastMessageId != null && isNearBottom) {
             listState.scrollToItem(messages.size - 1)
         }
     }
@@ -194,7 +202,8 @@ fun ChatScreen(
                     items(messages, key = { it.id }) { message ->
                         MessageBubble(
                             content = message.content,
-                            isUser = message.role == MessageRole.USER
+                            isUser = message.role == MessageRole.USER,
+                            modifier = Modifier.staggeredEntrance(index = 0, itemId = message.id)
                         )
                     }
                     if (isLoading) {
@@ -232,7 +241,7 @@ fun ChatScreen(
                                 focusedBorderColor = Color.Transparent,
                                 unfocusedBorderColor = Color.Transparent,
                                 focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
-                                unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                                unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
                             ),
                             singleLine = true,
                             maxLines = 1,
@@ -253,8 +262,6 @@ fun ChatScreen(
                                         inputText = ""
                                     }
                                 },
-                                // Disable while loading to prevent concurrent
-                                // AI loop coroutines from corrupting chat state.
                                 enabled = inputText.isNotBlank() && !isLoading
                             ) {
                                 Icon(
@@ -340,12 +347,12 @@ fun ChatScreen(
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun MessageBubble(content: String, isUser: Boolean) {
+private fun MessageBubble(content: String, isUser: Boolean, modifier: Modifier = Modifier) {
     val clipboardManager = LocalClipboardManager.current
     val context = LocalContext.current
 
     Column(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 2.dp),
         horizontalAlignment = if (isUser) Alignment.End else Alignment.Start
@@ -405,9 +412,6 @@ private fun MessageBubble(content: String, isUser: Boolean) {
 @Composable
 private fun LoadingBubble() {
     val infiniteTransition = rememberInfiniteTransition(label = "loadingDots")
-    // Single shared animation spec — each dot just reads it at a different
-    // phase offset. The previous version called animateFloat() three times
-    // with three identical keyframes, which tripled the animation overhead.
     val baseAlpha by infiniteTransition.animateFloat(
         initialValue = 0.3f,
         targetValue = 1.0f,
@@ -436,9 +440,6 @@ private fun LoadingBubble() {
                 horizontalArrangement = Arrangement.spacedBy(5.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Phase-shift the shared alpha value per dot — visually
-                // identical to the old version but with 1/3 the animation
-                // overhead.
                 ANIMATION_DELAYS.forEachIndexed { i, _ ->
                     val phase = (i + 1) / 3f
                     val alpha = (baseAlpha - 0.3f) * phase + 0.3f
@@ -446,7 +447,9 @@ private fun LoadingBubble() {
                         modifier = Modifier
                             .size(8.dp)
                             .clip(RoundedCornerShape(4.dp))
-                            .background(MaterialTheme.colorScheme.onSurface.copy(alpha = alpha.coerceIn(0.3f, 1f)))
+                            .background(
+                                MaterialTheme.colorScheme.onSurface.copy(alpha = alpha.coerceIn(0.3f, 1f))
+                            )
                     )
                 }
             }
