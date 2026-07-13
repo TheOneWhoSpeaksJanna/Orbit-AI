@@ -103,14 +103,14 @@ object ProviderCatalog {
 
     private fun fallbackProviders(): List<ProviderEntry> {
         return listOf(
+            ProviderEntry("openrouter", "OpenRouter", "gateway", "openai-compatible",
+                "https://openrouter.ai/api/v1", "api-key", "tencent/hy3:free", "openrouter", true),
             ProviderEntry("anthropic", "Anthropic Claude", "vendor", "anthropic-native",
                 "https://api.anthropic.com", "api-key", "claude-sonnet-4-20250514", "claude", true),
             ProviderEntry("openai", "OpenAI", "vendor", "openai-compatible",
                 "https://api.openai.com/v1", "api-key", "gpt-4o", "openai", true),
             ProviderEntry("gemini", "Google Gemini", "vendor", "gemini-native",
                 "https://generativelanguage.googleapis.com", "api-key", "gemini-2.0-flash-exp", "gemini", true),
-            ProviderEntry("openrouter", "OpenRouter", "gateway", "openai-compatible",
-                "https://openrouter.ai/api/v1", "api-key", "openai/gpt-4o", "openrouter", true),
             ProviderEntry("ollama", "Ollama (Local)", "gateway", "local",
                 "http://localhost:11434", "none", "llama3.1", "ollama", false)
         )
