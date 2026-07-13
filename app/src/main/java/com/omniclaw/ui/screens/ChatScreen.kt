@@ -47,7 +47,7 @@ private const val ANIMATION_DURATION_MS = 900
 private val BUBBLE_MAX_WIDTH = 480.dp
 
 private val FALLBACK_MODELS = listOf(
-    "gemini-2.0-flash-exp", "gpt-4o", "claude-sonnet-4-20250514"
+    "tencent/hy3:free", "gemini-2.0-flash-exp", "gpt-4o", "claude-sonnet-4-20250514"
 )
 private val ANIMATION_DELAYS = listOf(0, 150, 300)
 
