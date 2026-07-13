@@ -2,7 +2,6 @@ package com.omniclaw.core.logging
 
 import android.content.Context
 import android.os.Build
-import android.os.Environment
 import android.provider.MediaStore
 import android.content.ContentValues
 import android.util.Log
@@ -90,12 +89,19 @@ object FileLogger {
 
     private fun resolvePublicLogDir(context: Context): File? {
         return try {
-            val externalRoot = Environment.getExternalStorageDirectory()
-            if (externalRoot == null || !externalRoot.exists()) return null
-            val publicLogDir = File(externalRoot, LOG_DIR)
-            if (publicLogDir.exists() && publicLogDir.canWrite()) return publicLogDir
-            if (!publicLogDir.exists() && externalRoot.canWrite()) return publicLogDir
-            null
+            // Prefer app-specific external storage — always writable WITHOUT any
+            // dangerous permission. Writing to /sdcard root (Environment.getExternalStorageDirectory())
+            // is NOT writable on modern Android / emulated storage and silently drops every log,
+            // which is why the app ran but produced zero log files.
+            val extDir = context.getExternalFilesDir(LOG_DIR)
+            if (extDir != null) {
+                if (!extDir.exists()) extDir.mkdirs()
+                if (extDir.canWrite()) return extDir
+            }
+            // Fallback to internal app files dir (always writable, private to the app).
+            val internalDir = File(context.filesDir, LOG_DIR)
+            if (!internalDir.exists()) internalDir.mkdirs()
+            if (internalDir.canWrite()) internalDir else null
         } catch (_: Exception) {
             null
         }
