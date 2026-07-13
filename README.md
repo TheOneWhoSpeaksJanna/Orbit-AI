@@ -89,7 +89,7 @@ When you send a message to an agent:
 
 ## Building
 
-Prerequisites: Android SDK (platform + build-tools), JDK 11 (the project compiles against Java 11 / `compileSdk 36`).
+Prerequisites: Android SDK (platform + build-tools), **JDK 17+** to run the Android Gradle plugin (CI uses JDK 21; app source is Java 11-compatible).
 
 ```bash
 git clone https://github.com/TheOneWhoSpeaksJanna/Orbit-AI.git
