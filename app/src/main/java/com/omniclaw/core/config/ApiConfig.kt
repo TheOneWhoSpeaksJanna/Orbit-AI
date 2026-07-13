@@ -38,7 +38,7 @@ object ApiConfig {
     const val OPENROUTER_CHAT_URL = "https://openrouter.ai/api/v1/chat/completions"
     const val OPENROUTER_MODELS_URL = "https://openrouter.ai/api/v1/models"
     const val OPENROUTER_KEY_CHECK_URL = "https://openrouter.ai/api/v1/auth/key"
-    const val OPENROUTER_DEFAULT_MODEL = "openai/gpt-4o"
+    const val OPENROUTER_DEFAULT_MODEL = "tencent/hy3:free"
 
     /**
      * Referrer + app title sent with every OpenRouter request.
