@@ -31,7 +31,7 @@ interface AiProvider {
     suspend fun fetchDetailedModels(providerName: String, apiKey: String): List<DetailedModelInfo> = emptyList()
 
     companion object {
-        const val DEFAULT_PROVIDER = "Gemini"
+        const val DEFAULT_PROVIDER = "OpenRouter"
     }
 }
 
