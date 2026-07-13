@@ -24,7 +24,7 @@ import kotlinx.coroutines.launch
 import java.util.UUID
 
 private const val DEFAULT_AGENT = "OpenClaude"
-private const val DEFAULT_PROVIDER = "Claude"
+private const val DEFAULT_PROVIDER = "OpenRouter"
 
 class DashboardViewModel(
     private val repository: OmniClawRepository,

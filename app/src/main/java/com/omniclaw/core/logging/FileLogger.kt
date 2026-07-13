@@ -2,8 +2,6 @@ package com.omniclaw.core.logging
 
 import android.content.Context
 import android.os.Build
-import android.provider.MediaStore
-import android.content.ContentValues
 import android.util.Log
 import com.omniclaw.BuildConfig
 import java.io.File
