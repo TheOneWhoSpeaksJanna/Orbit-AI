@@ -45,6 +45,8 @@ class PreferencesManager(private val context: Context) {
         val GEMINI_API_KEY = stringPreferencesKey("gemini_api_key")
         val OPENAI_API_KEY = stringPreferencesKey("openai_api_key")
         val CLAUDE_API_KEY = stringPreferencesKey("claude_api_key")
+        val CLAUDE_AUTH_MODE = stringPreferencesKey("claude_auth_mode")
+        val CLAUDE_SUBSCRIPTION_TOKEN = stringPreferencesKey("claude_subscription_token")
         val OPENROUTER_API_KEY = stringPreferencesKey("openrouter_api_key")
         val DEEPSEEK_API_KEY = stringPreferencesKey("deepseek_api_key")
         val GROQ_API_KEY = stringPreferencesKey("groq_api_key")
@@ -253,6 +255,22 @@ class PreferencesManager(private val context: Context) {
     suspend fun setClaudeApiKey(key: String) {
         context.dataStore.edit { prefs -> prefs[CLAUDE_API_KEY] = key }
     }
+
+    // Claude auth mode: "api-key" or "subscription" (Claude Max). The
+    // subscription path uses ANTHROPIC_AUTH_TOKEN instead of ANTHROPIC_API_KEY.
+    suspend fun setClaudeAuthMode(mode: String) {
+        context.dataStore.edit { prefs -> prefs[CLAUDE_AUTH_MODE] = mode }
+    }
+
+    fun getClaudeAuthMode(): Flow<String> =
+        context.dataStore.data.map { prefs -> prefs[CLAUDE_AUTH_MODE] ?: "api-key" }
+
+    suspend fun setClaudeSubscriptionToken(token: String) {
+        context.dataStore.edit { prefs -> prefs[CLAUDE_SUBSCRIPTION_TOKEN] = token }
+    }
+
+    fun getClaudeSubscriptionToken(): Flow<String> =
+        context.dataStore.data.map { prefs -> prefs[CLAUDE_SUBSCRIPTION_TOKEN] ?: "" }
 
     suspend fun setOpenRouterApiKey(key: String) {
         context.dataStore.edit { prefs -> prefs[OPENROUTER_API_KEY] = key }
