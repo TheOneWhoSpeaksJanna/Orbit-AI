@@ -1,6 +1,9 @@
 package com.omniclaw.ui.screens
 
 import android.content.pm.PackageManager
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -13,12 +16,12 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Terminal
+import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -27,7 +30,8 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.omniclaw.core.di.AppContainer
 import com.omniclaw.BuildConfig
-import com.omniclaw.ui.theme.pressScale
+import com.omniclaw.ui.components.OrbitButton
+import com.omniclaw.ui.components.OrbitCard
 import com.omniclaw.ui.theme.staggeredEntrance
 import com.omniclaw.ui.viewmodels.DashboardViewModel
 import rikka.shizuku.Shizuku
@@ -36,7 +40,6 @@ import java.util.Date
 import java.util.Locale
 import kotlinx.coroutines.launch
 import android.widget.Toast
-import androidx.compose.material.icons.filled.SystemUpdate
 import com.omniclaw.data.local.updater.SilentUpdater
 
 private val DATE_SESSION_FORMAT = SimpleDateFormat("MMM dd, HH:mm", Locale.getDefault())
@@ -53,6 +56,7 @@ private const val CD_NEW_SESSION = "New Session"
 private const val CD_LOCAL_TOOLS = "Local Tools"
 private const val CD_SETTINGS = "Settings"
 private const val CD_SESSION_ICON = "Session"
+private const val CD_UPDATE = "Silent update"
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -132,12 +136,12 @@ fun DashboardScreen(
                             }
                         ) {
                             if (isUpdating) {
-                                androidx.compose.material3.CircularProgressIndicator(
+                                CircularProgressIndicator(
                                     modifier = Modifier.size(20.dp),
                                     strokeWidth = 2.dp
                                 )
                             } else {
-                                Icon(Icons.Default.SystemUpdate, contentDescription = "Silent update")
+                                Icon(Icons.Default.SystemUpdate, contentDescription = CD_UPDATE)
                             }
                         }
                     }
@@ -148,8 +152,6 @@ fun DashboardScreen(
             )
         },
         floatingActionButton = {
-            // FloatingActionButton is already a Surface — don't wrap it in another
-            // Surface, that just adds an extra layout pass and a redundant draw layer.
             FloatingActionButton(
                 onClick = onNavigateToNewSession,
                 containerColor = MaterialTheme.colorScheme.primary,
@@ -173,70 +175,54 @@ fun DashboardScreen(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    GlassCard(
+                    OrbitCard(
                         modifier = Modifier.weight(1f),
-                        gradientColors = listOf(
-                            MaterialTheme.colorScheme.primaryContainer,
-                            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
-                        )
+                        tonal = true
                     ) {
-                        Column(modifier = Modifier.padding(16.dp)) {
-                            StatusDot(color = MaterialTheme.colorScheme.primary)
-                            Spacer(Modifier.height(8.dp))
+                        StatusDot(color = MaterialTheme.colorScheme.primary)
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            "Active Agent",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            activeAgent ?: ACTIVE_AGENT_DEFAULT,
+                            fontWeight = FontWeight.Bold,
+                            style = MaterialTheme.typography.titleLarge,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        activeProvider?.let {
                             Text(
-                                "Active Agent",
-                                style = MaterialTheme.typography.labelSmall,
+                                it,
+                                style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
-                            Text(
-                                activeAgent ?: ACTIVE_AGENT_DEFAULT,
-                                fontWeight = FontWeight.Bold,
-                                style = MaterialTheme.typography.titleLarge,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                            activeProvider?.let {
-                                Text(
-                                    it,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
                         }
                     }
 
-                    GlassCard(
+                    OrbitCard(
                         modifier = Modifier.weight(1f),
-                        gradientColors = if (isShizukuActive)
-                            listOf(
-                                MaterialTheme.colorScheme.tertiaryContainer,
-                                MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.3f)
-                            )
-                        else
-                            listOf(
-                                MaterialTheme.colorScheme.surfaceVariant,
-                                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
-                            )
+                        tonal = true
                     ) {
-                        Column(modifier = Modifier.padding(16.dp)) {
-                            StatusDot(
-                                color = if (isShizukuActive)
-                                    MaterialTheme.colorScheme.tertiary
-                                else
-                                    MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Spacer(Modifier.height(8.dp))
-                            Text(
-                                SHIZUKU_LABEL,
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Text(
-                                if (isShizukuActive) STATUS_ACTIVE else STATUS_INACTIVE,
-                                fontWeight = FontWeight.Bold,
-                                style = MaterialTheme.typography.titleLarge
-                            )
-                        }
+                        StatusDot(
+                            color = if (isShizukuActive)
+                                MaterialTheme.colorScheme.tertiary
+                            else
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            SHIZUKU_LABEL,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            if (isShizukuActive) STATUS_ACTIVE else STATUS_INACTIVE,
+                            fontWeight = FontWeight.Bold,
+                            style = MaterialTheme.typography.titleLarge
+                        )
                     }
                 }
             }
@@ -275,7 +261,6 @@ fun DashboardScreen(
                         title = session.title,
                         updatedAt = session.updatedAt,
                         onClick = { onNavigateToSession(session.id) },
-                        // Pass item id so staggeredEntrance doesn't re-fire on index shift.
                         itemId = session.id,
                         modifier = Modifier.staggeredEntrance(index, itemId = session.id)
                     )
@@ -298,56 +283,10 @@ private fun StatusDot(color: Color) {
 }
 
 @Composable
-private fun GlassCard(
-    modifier: Modifier = Modifier,
-    gradientColors: List<Color>,
-    content: @Composable ColumnScope.() -> Unit
-) {
-    val shape = MaterialTheme.shapes.large
-    // Build the Brush instances once per (color list) and cache them.
-    // Previously every recomposition built a fresh Brush.linearGradient,
-    // which invalidates the draw cache and forces a re-layout of the card.
-    val baseBrush = remember(gradientColors) { Brush.linearGradient(gradientColors) }
-    val overlayBrush = remember {
-        Brush.linearGradient(
-            colors = listOf(
-                Color.White.copy(alpha = 0.08f),
-                Color.White.copy(alpha = 0.02f)
-            )
-        )
-    }
-
-    Surface(
-        modifier = modifier,
-        shape = shape,
-        color = Color.Transparent,
-        tonalElevation = 0.dp
-    ) {
-        Box(
-            modifier = Modifier
-                .background(brush = baseBrush, shape = shape)
-        ) {
-            Box(
-                modifier = Modifier
-                    .matchParentSize()
-                    .background(brush = overlayBrush, shape = shape)
-            )
-            Column(modifier = Modifier, content = content)
-        }
-    }
-}
-
-@Composable
 private fun EmptySessionsPlaceholder(onNewSession: () -> Unit) {
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.large,
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-    ) {
+    OrbitCard(modifier = Modifier.fillMaxWidth()) {
         Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(48.dp),
+            modifier = Modifier.fillMaxWidth(),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Icon(
@@ -371,7 +310,10 @@ private fun EmptySessionsPlaceholder(onNewSession: () -> Unit) {
                 modifier = Modifier.padding(horizontal = 16.dp)
             )
             Spacer(Modifier.height(20.dp))
-            FilledTonalButton(onClick = onNewSession) {
+            OrbitButton(
+                onClick = onNewSession,
+                modifier = Modifier.fillMaxWidth()
+            ) {
                 Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.width(8.dp))
                 Text(CD_NEW_SESSION)
@@ -389,23 +331,16 @@ private fun SessionCard(
     itemId: Any? = null
 ) {
     val interactionSource = remember { MutableInteractionSource() }
-    // Format the date once per updatedAt change, not once per recomposition.
-    // SimpleDateFormat.format() allocates a Date + a StringBuilder every call,
-    // and these SessionCards can re-compose frequently during list scroll.
     val dateStr = remember(updatedAt) {
         DATE_SESSION_FORMAT.format(Date(updatedAt))
     }
-    Surface(
-        modifier = modifier
-            .fillMaxWidth()
-            .pressScale(interactionSource)
-            .clickable(interactionSource = interactionSource, indication = null, onClick = onClick),
-        shape = MaterialTheme.shapes.medium,
-        color = MaterialTheme.colorScheme.surface,
-        tonalElevation = 1.dp
+    OrbitCard(
+        modifier = modifier.fillMaxWidth(),
+        interactive = true,
+        onClick = onClick
     ) {
         Row(
-            modifier = Modifier.padding(16.dp),
+            modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Surface(
@@ -470,7 +405,7 @@ private suspend fun runSilentUpdate(
             return SilentUpdater.UpdateResult.Failure("GitHub API error: ${apiResp.code}")
         }
         val bodyStr = apiResp.body?.string().orEmpty()
-        val assetRegex = Regex("\"browser_download_url\"\\s*:\\s*\"(https://[^\"]*orbit-ai-$flavor-debug[^\"]*\\.apk)\"")
+        val assetRegex = Regex("\"browser_download_url\"\\s*:\\s*\"(https://[^\\\"]*orbit-ai-$flavor-debug[^\\\"]*\\.apk)\"")
         val apkUrl = assetRegex.find(bodyStr)?.groupValues?.getOrNull(1)
             ?: return SilentUpdater.UpdateResult.Failure("No APK asset found for flavor '$flavor'.")
         if (apkUrl.contains(BuildConfig.VERSION_NAME)) {
