@@ -551,7 +551,7 @@ class ChatViewModel(
      * from environment variables. Without this, the agent doesn't know
      * which provider/API key to use and asks the user to log in.
      */
-    private fun buildEnvExports(provider: String, apiKey: *** model: String, useSubscription: Boolean = false): String {
+    private fun buildEnvExports(provider: String, apiKey: String, model: String, useSubscription: Boolean = false): String {
         if (apiKey.isBlank()) return ""
 
         val exports = StringBuilder()
