@@ -19,6 +19,10 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.omniclaw.ui.viewmodels.SettingsViewModel
 import com.omniclaw.domain.models.AgentPermissionLevel
 import com.omniclaw.domain.models.Skill
+import com.omniclaw.ui.components.OrbitCard
+import com.omniclaw.ui.components.OrbitButton
+import com.omniclaw.ui.components.OrbitButtonVariant
+import com.omniclaw.ui.theme.staggeredEntrance
 
 private const val THEME_SYSTEM = "System"
 private const val THEME_DARK = "Dark"
@@ -85,11 +89,11 @@ fun SettingsScreen(
                 .padding(top = 8.dp, bottom = 16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            Card(
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-                shape = MaterialTheme.shapes.extraLarge
+            OrbitCard(
+                tonal = true,
+                modifier = Modifier.fillMaxWidth()
             ) {
-                Column(modifier = Modifier.padding(20.dp).fillMaxWidth()) {
+                Column(modifier = Modifier.fillMaxWidth()) {
                     Text(stringResource(R.string.appearance), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
                     Spacer(modifier = Modifier.height(16.dp))
 
@@ -125,11 +129,11 @@ fun SettingsScreen(
                 }
             }
 
-            Card(
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-                shape = MaterialTheme.shapes.extraLarge
+            OrbitCard(
+                tonal = true,
+                modifier = Modifier.fillMaxWidth()
             ) {
-                Column(modifier = Modifier.padding(20.dp).fillMaxWidth()) {
+                Column(modifier = Modifier.fillMaxWidth()) {
                     Text(SECTION_PERMISSION, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
                     Spacer(modifier = Modifier.height(16.dp))
 
@@ -211,15 +215,15 @@ fun SettingsScreen(
 
             // Skills Card
             if (skills.isNotEmpty()) {
-                Card(
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-                    shape = MaterialTheme.shapes.extraLarge
+                OrbitCard(
+                    tonal = true,
+                    modifier = Modifier.fillMaxWidth()
                 ) {
-                    Column(modifier = Modifier.padding(20.dp).fillMaxWidth()) {
+                    Column(modifier = Modifier.fillMaxWidth()) {
                         Text(SECTION_SKILLS, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
                         Spacer(modifier = Modifier.height(12.dp))
 
-                        skills.forEach { skill ->
+                        skills.forEachIndexed { index, skill ->
                             SkillCard(
                                 skill = skill,
                                 isExpanded = expandedSkillId == skill.id,
@@ -232,7 +236,8 @@ fun SettingsScreen(
                                 onEdit = {
                                     editSkill = skill
                                     editContent = skill.content
-                                }
+                                },
+                                modifier = Modifier.staggeredEntrance(index, itemId = skill.id)
                             )
                             if (skill != skills.last()) {
                                 Spacer(modifier = Modifier.height(12.dp))
@@ -247,14 +252,14 @@ fun SettingsScreen(
             // (previously, logs went to an app-private dir that was effectively
             // invisible without root — users reported "the log system doesn't
             // work"). The path is also copyable to clipboard.
-            Card(
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-                shape = MaterialTheme.shapes.extraLarge
+            OrbitCard(
+                tonal = true,
+                modifier = Modifier.fillMaxWidth()
             ) {
                 val logPath = remember { com.omniclaw.core.logging.FileLogger.getLogDirPath() }
                 val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
                 val ctx = androidx.compose.ui.platform.LocalContext.current
-                Column(modifier = Modifier.padding(20.dp).fillMaxWidth()) {
+                Column(modifier = Modifier.fillMaxWidth()) {
                     Text("Diagnostics", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
@@ -277,14 +282,15 @@ fun SettingsScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Spacer(modifier = Modifier.height(12.dp))
-                    OutlinedButton(
+                    OrbitButton(
                         onClick = {
                             logPath?.let {
                                 clipboard.setText(androidx.compose.ui.text.AnnotatedString(it))
                                 android.widget.Toast.makeText(ctx, "Log path copied", android.widget.Toast.LENGTH_SHORT).show()
                             }
                         },
-                        enabled = logPath != null
+                        enabled = logPath != null,
+                        variant = OrbitButtonVariant.Outlined
                     ) {
                         Icon(
                             Icons.Default.ContentCopy,
@@ -319,10 +325,15 @@ fun SettingsScreen(
                     }
                 },
                 confirmButton = {
-                    Button(onClick = {
-                        editSkill?.let { viewModel.updateSkillContent(it.id, editContent) }
-                        editSkill = null
-                    }) { Text(SAVE) }
+                    OrbitButton(
+                        onClick = {
+                            editSkill?.let { viewModel.updateSkillContent(it.id, editContent) }
+                            editSkill = null
+                        },
+                        variant = OrbitButtonVariant.Primary
+                    ) {
+                        Text(SAVE)
+                    }
                 },
                 dismissButton = {
                     TextButton(onClick = { editSkill = null }) { Text(CANCEL) }
@@ -338,54 +349,47 @@ private fun SkillCard(
     isExpanded: Boolean,
     onToggleExpanded: () -> Unit,
     onToggleEnabled: (Boolean) -> Unit,
-    onEdit: () -> Unit
+    onEdit: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
-    Card(
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        shape = MaterialTheme.shapes.medium,
-        modifier = Modifier.fillMaxWidth()
+    OrbitCard(
+        modifier = modifier.fillMaxWidth()
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(skill.name, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Medium)
-                    Text(
-                        if (skill.enabled) ENABLED else DISABLED,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = if (skill.enabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                Switch(
-                    checked = skill.enabled,
-                    onCheckedChange = onToggleEnabled
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(skill.name, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Medium)
+                Text(
+                    if (skill.enabled) ENABLED else DISABLED,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (skill.enabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-            Spacer(Modifier.height(8.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.End
-            ) {
-                TextButton(onClick = onEdit) { Text(EDIT_SKILL) }
-                TextButton(onClick = onToggleExpanded) {
-                    Text(if (isExpanded) "Hide Content" else "View Content")
-                }
+            Switch(
+                checked = skill.enabled,
+                onCheckedChange = onToggleEnabled
+            )
+        }
+        Spacer(Modifier.height(8.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.End
+        ) {
+            TextButton(onClick = onEdit) { Text(EDIT_SKILL) }
+            TextButton(onClick = onToggleExpanded) {
+                Text(if (isExpanded) "Hide Content" else "View Content")
             }
-            if (isExpanded) {
-                Spacer(Modifier.height(8.dp))
-                Surface(
-                    color = MaterialTheme.colorScheme.surfaceVariant,
-                    shape = MaterialTheme.shapes.small,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text(
-                        text = skill.content,
-                        style = MaterialTheme.typography.bodySmall,
-                        modifier = Modifier.padding(12.dp)
-                    )
-                }
+        }
+        if (isExpanded) {
+            Spacer(Modifier.height(8.dp))
+            OrbitCard(tonal = true) {
+                Text(
+                    text = skill.content,
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.padding(12.dp)
+                )
             }
         }
     }
