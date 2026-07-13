@@ -33,6 +33,17 @@ import java.io.File
 private const val DEFAULT_THEME = "System"
 private const val DEFAULT_AGENT = "OpenClaude"
 private const val DEFAULT_PROVIDER = "OpenRouter"
+// Per-edition default provider so the bundled agent gets a usable key.
+// Codex needs an OpenAI key (it reads OPENAI_API_KEY); Claude Code should
+// start on Anthropic Claude. OpenCode/OpenClaude support any provider, so
+// they keep the OpenRouter default.
+private val FLAVOR_DEFAULT_PROVIDER = mapOf(
+    "Codex" to "OpenAI",
+    "Claude Code" to "Anthropic Claude"
+)
+// Auth modes for the Anthropic provider — API key OR Claude Max subscription.
+private const val CLAUDE_AUTH_API_KEY = "api-key"
+private const val CLAUDE_AUTH_SUBSCRIPTION = "subscription"
 private const val AGENT_HERMES = "Hermes"
 private const val AGENT_OPENCLAUDE = "OpenClaude"
 private const val AGENT_CLAUDE_CODE = "Claude Code"
@@ -268,14 +279,25 @@ class SetupViewModel(
         get() = if (_hasFlavorPreset.value) SetupStep.entries.filter { it != SetupStep.Agent }
         else SetupStep.entries
 
-    private val _selectedProvider = MutableStateFlow(DEFAULT_PROVIDER)
+    private val _selectedProvider = MutableStateFlow(
+        FLAVOR_DEFAULT_PROVIDER[FlavorConfig.presetAgentName] ?: DEFAULT_PROVIDER
+    )
     val selectedProvider: StateFlow<String> = _selectedProvider.asStateFlow()
+
+    // Claude (Anthropic) auth mode: API key OR Claude Max subscription token.
+    // Only meaningful when selectedProvider resolves to Anthropic Claude.
+    private val _claudeAuthMode = MutableStateFlow(CLAUDE_AUTH_API_KEY)
+    val claudeAuthMode: StateFlow<String> = _claudeAuthMode.asStateFlow()
 
     private val _selectedModel = MutableStateFlow("")
     val selectedModel: StateFlow<String> = _selectedModel.asStateFlow()
 
     private val _apiKey = MutableStateFlow("")
     val apiKey: StateFlow<String> = _apiKey.asStateFlow()
+
+    // Holds either the API key (api-key mode) or the subscription token
+    // (subscription mode). completeSetup() routes it to the right store.
+    val claudeSubscriptionToken: StateFlow<String> = _apiKey.asStateFlow()
 
     private val _isTestingConnection = MutableStateFlow(false)
     val isTestingConnection: StateFlow<Boolean> = _isTestingConnection.asStateFlow()
@@ -357,7 +379,16 @@ class SetupViewModel(
     }
     fun setShizukuEnabled(enabled: Boolean) { _shizukuEnabled.value = enabled }
     fun setSelectedAgent(agent: String) { _selectedAgent.value = agent }
-    fun setSelectedProvider(provider: String) { _selectedProvider.value = provider }
+    fun setSelectedProvider(provider: String) {
+        _selectedProvider.value = provider
+        // Leaving Anthropic resets the auth mode to API key.
+        if (!provider.contains("Anthropic", ignoreCase = true) &&
+            !provider.contains("Claude", ignoreCase = true)
+        ) {
+            _claudeAuthMode.value = CLAUDE_AUTH_API_KEY
+        }
+    }
+    fun setClaudeAuthMode(mode: String) { _claudeAuthMode.value = mode }
     fun setSelectedModel(model: String) { _selectedModel.value = model }
     fun setApiKey(key: String) { _apiKey.value = key }
 
@@ -733,6 +764,20 @@ class SetupViewModel(
             prefsManager.setSelectedAgent(_selectedAgent.value)
             prefsManager.setSelectedProvider(_selectedProvider.value)
             prefsManager.setSelectedModel(_selectedModel.value)
+
+            // Claude (Anthropic) auth: persist API key OR subscription token
+            // based on the chosen auth mode. ChatViewModel reads both to
+            // export the correct env var (ANTHROPIC_API_KEY vs ANTHROPIC_AUTH_TOKEN).
+            val isAnthropic = _selectedProvider.value.contains("Anthropic", ignoreCase = true) ||
+                _selectedProvider.value.contains("Claude", ignoreCase = true)
+            if (isAnthropic) {
+                prefsManager.setClaudeAuthMode(_claudeAuthMode.value)
+                if (_claudeAuthMode.value == CLAUDE_AUTH_SUBSCRIPTION) {
+                    prefsManager.setClaudeSubscriptionToken(_apiKey.value)
+                } else {
+                    prefsManager.setClaudeSubscriptionToken("")
+                }
+            }
 
             prefsManager.setApiKeyForProvider(_selectedProvider.value, _apiKey.value)
 

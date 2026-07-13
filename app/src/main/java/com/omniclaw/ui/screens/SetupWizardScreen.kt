@@ -432,9 +432,16 @@ fun ProviderSelectionStep(viewModel: SetupViewModel) {
     val selectedProvider by viewModel.selectedProvider.collectAsState()
     val agent by viewModel.selectedAgent.collectAsState()
     val apiKey by viewModel.apiKey.collectAsState()
+    val claudeAuthMode by viewModel.claudeAuthMode.collectAsState()
     val isTesting by viewModel.isTestingConnection.collectAsState()
     val success by viewModel.testConnectionSuccess.collectAsState()
     val testError by viewModel.testConnectionError.collectAsState()
+
+    // Claude (Anthropic) supports BOTH an API key and a Claude Max subscription.
+    // Surface a toggle so the user can pick which auth method to use.
+    val isAnthropic = selectedProvider.contains("Anthropic", ignoreCase = true) ||
+        selectedProvider.contains("Claude", ignoreCase = true)
+    val useSubscription = isAnthropic && claudeAuthMode == "subscription"
 
     // Load providers dynamically from the catalog
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -495,6 +502,30 @@ fun ProviderSelectionStep(viewModel: SetupViewModel) {
         }
 
         Spacer(modifier = Modifier.height(28.dp))
+
+        // Claude (Anthropic) auth mode toggle: API key vs Claude Max subscription.
+        if (isAnthropic) {
+            Text(
+                stringResource(R.string.claude_auth_mode),
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FilterChip(
+                    selected = !useSubscription,
+                    onClick = { viewModel.setClaudeAuthMode("api-key") },
+                    label = { Text(stringResource(R.string.claude_auth_api_key)) }
+                )
+                FilterChip(
+                    selected = useSubscription,
+                    onClick = { viewModel.setClaudeAuthMode("subscription") },
+                    label = { Text(stringResource(R.string.claude_auth_subscription)) }
+                )
+            }
+            Spacer(modifier = Modifier.height(16.dp))
+        }
+
         Text(
             stringResource(R.string.api_key),
             style = MaterialTheme.typography.titleMedium,
@@ -508,6 +539,7 @@ fun ProviderSelectionStep(viewModel: SetupViewModel) {
             label = {
                 Text(
                     if (selectedProvider == "Ollama") "Ollama server URL (optional)"
+                    else if (useSubscription) stringResource(R.string.claude_subscription_token)
                     else stringResource(R.string.api_key)
                 )
             },
@@ -515,6 +547,12 @@ fun ProviderSelectionStep(viewModel: SetupViewModel) {
                 if (selectedProvider == "Ollama") {
                     Text(
                         text = OLLAMA_HINT,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                } else if (useSubscription) {
+                    Text(
+                        text = stringResource(R.string.claude_subscription_token_hint),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )

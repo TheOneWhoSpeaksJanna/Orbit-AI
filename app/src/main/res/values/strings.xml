@@ -34,6 +34,11 @@
     <string name="api_key_openai">OpenAI API Key</string>
     <string name="api_key_claude">Claude API Key</string>
     <string name="api_key_openrouter">OpenRouter API Key</string>
+    <string name="claude_auth_mode">Claude Authentication</string>
+    <string name="claude_auth_api_key">API Key</string>
+    <string name="claude_auth_subscription">Claude Max Subscription</string>
+    <string name="claude_subscription_token">Subscription Token</string>
+    <string name="claude_subscription_token_hint">Paste your Claude Max token (from claude.ai/subscribe or `claude` login). Used as ANTHROPIC_AUTH_TOKEN.</string>
     <string name="show">Show</string>
     <string name="hide">Hide</string>
     <string name="appearance">Appearance</string>

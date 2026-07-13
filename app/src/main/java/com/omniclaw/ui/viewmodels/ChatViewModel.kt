@@ -289,7 +289,17 @@ class ChatViewModel(
                     // to the agent via environment variables. Most CLI agents
                     // (openclaude, claude, codex, opencode) read API keys from
                     // env vars, not from the app's DataStore.
-                    val apiKey = prefsManager.getApiKeyForProvider(activeProvider).firstOrNull() ?: ""
+                    val isAnthropic = activeProvider.contains("Anthropic", ignoreCase = true) ||
+                        activeProvider.contains("Claude", ignoreCase = true)
+                    val claudeAuthMode = if (isAnthropic)
+                        prefsManager.getClaudeAuthMode().firstOrNull() ?: "api-key" else "api-key"
+                    val claudeSubscriptionToken = if (isAnthropic)
+                        prefsManager.getClaudeSubscriptionToken().firstOrNull() ?: "" else ""
+                    // In subscription mode the "key" the agent needs is the
+                    // Claude Max token (ANTHROPIC_AUTH_TOKEN), not ANTHROPIC_API_KEY.
+                    val useSubscription = isAnthropic && claudeAuthMode == "subscription"
+                    val apiKey = if (useSubscription) claudeSubscriptionToken
+                        else prefsManager.getApiKeyForProvider(activeProvider).firstOrNull() ?: ""
                     val model = activeModelName.ifBlank { "auto" }
 
                     // Guard: if no API key is configured for the selected
@@ -318,7 +328,7 @@ class ChatViewModel(
                     // Build env var exports based on the provider
                     // Most OpenAI-compatible agents accept OPENAI_API_KEY + OPENAI_BASE_URL
                     // OpenRouter specifically uses OPENROUTER_API_KEY
-                    val envExports = buildEnvExports(activeProvider, apiKey, model)
+                    val envExports = buildEnvExports(activeProvider, apiKey, model, useSubscription)
                     com.omniclaw.core.logging.FileLogger.i("ChatViewModel", "Agent env", "provider=$activeProvider model=$model keyLen=${apiKey.length}")
 
                     com.omniclaw.core.logging.FileLogger.i("ChatViewModel", "Agent exec start (PRoot)", "cmd=$runCmd content=${content.take(80)}")
@@ -541,7 +551,7 @@ class ChatViewModel(
      * from environment variables. Without this, the agent doesn't know
      * which provider/API key to use and asks the user to log in.
      */
-    private fun buildEnvExports(provider: String, apiKey: String, model: String): String {
+    private fun buildEnvExports(provider: String, apiKey: *** model: String, useSubscription: Boolean = false): String {
         if (apiKey.isBlank()) return ""
 
         val exports = StringBuilder()
@@ -565,7 +575,14 @@ class ChatViewModel(
                 baseUrlSet = true
             }
             provider.contains("Anthropic", ignoreCase = true) || provider.contains("Claude", ignoreCase = true) -> {
-                exports.append(" && export ANTHROPIC_API_KEY='$apiKey'")
+                // Claude Code supports TWO auth methods:
+                //  - api-key:      ANTHROPIC_API_KEY (standard API key)
+                //  - subscription: ANTHROPIC_AUTH_TOKEN (Claude Max / claude.ai login)
+                if (useSubscription) {
+                    exports.append(" && export ANTHROPIC_AUTH_TOKEN='$apiKey'")
+                } else {
+                    exports.append(" && export ANTHROPIC_API_KEY='$apiKey'")
+                }
             }
             provider.contains("Gemini", ignoreCase = true) -> {
                 // Gemini exposes an OpenAI-compatible endpoint, so the agent
