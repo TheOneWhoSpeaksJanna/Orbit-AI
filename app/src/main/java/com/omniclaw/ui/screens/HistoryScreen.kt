@@ -47,7 +47,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.omniclaw.ui.components.AnimatedGlassCard
+import com.omniclaw.ui.components.OrbitCard
 
 import com.omniclaw.ui.theme.staggeredEntrance
 import com.omniclaw.ui.viewmodels.HistoryViewModel
@@ -221,10 +221,10 @@ private fun HistorySessionCard(
     // quietly shows up in flame charts during list scroll.
     val relativeTime = remember(timestamp) { formatTimestamp(timestamp) }
 
-    AnimatedGlassCard(
-        onClick = onClick,
+    OrbitCard(
         modifier = modifier.fillMaxWidth(),
-        radius = 14
+        interactive = true,
+        onClick = onClick
     ) {
         Row(
             modifier = Modifier
