@@ -33,17 +33,11 @@ import java.io.File
 private const val DEFAULT_THEME = "System"
 private const val DEFAULT_AGENT = "OpenClaude"
 private const val DEFAULT_PROVIDER = "OpenRouter"
-// Per-edition default provider so the bundled agent gets a usable key.
-// Codex needs an OpenAI key (it reads OPENAI_API_KEY); Claude Code should
-// start on Anthropic Claude. OpenCode/OpenClaude support any provider, so
-// they keep the OpenRouter default.
-private val FLAVOR_DEFAULT_PROVIDER = mapOf(
-    "Codex" to "OpenAI",
-    "Claude Code" to "Anthropic Claude"
-)
+// Per-edition default provider is resolved by EditionAuth.defaultProviderForAgent
+// (Codex -> OpenAI, Claude Code -> Anthropic Claude) so the bundled agent gets a
+// usable key. OpenCode/OpenClaude support any provider, so they keep OpenRouter.
 // Auth modes for the Anthropic provider — API key OR Claude Max subscription.
-private const val CLAUDE_AUTH_API_KEY = "api-key"
-private const val CLAUDE_AUTH_SUBSCRIPTION = "subscription"
+// (Values imported from com.omniclaw.core.auth.)
 private const val AGENT_HERMES = "Hermes"
 private const val AGENT_OPENCLAUDE = "OpenClaude"
 private const val AGENT_CLAUDE_CODE = "Claude Code"
@@ -280,13 +274,13 @@ class SetupViewModel(
         else SetupStep.entries
 
     private val _selectedProvider = MutableStateFlow(
-        FLAVOR_DEFAULT_PROVIDER[FlavorConfig.presetAgentName] ?: DEFAULT_PROVIDER
+        com.omniclaw.core.auth.defaultProviderForAgent(FlavorConfig.presetAgentName) ?: DEFAULT_PROVIDER
     )
     val selectedProvider: StateFlow<String> = _selectedProvider.asStateFlow()
 
     // Claude (Anthropic) auth mode: API key OR Claude Max subscription token.
     // Only meaningful when selectedProvider resolves to Anthropic Claude.
-    private val _claudeAuthMode = MutableStateFlow(CLAUDE_AUTH_API_KEY)
+    private val _claudeAuthMode = MutableStateFlow(com.omniclaw.core.auth.CLAUDE_AUTH_API_KEY)
     val claudeAuthMode: StateFlow<String> = _claudeAuthMode.asStateFlow()
 
     private val _selectedModel = MutableStateFlow("")
@@ -385,7 +379,7 @@ class SetupViewModel(
         if (!provider.contains("Anthropic", ignoreCase = true) &&
             !provider.contains("Claude", ignoreCase = true)
         ) {
-            _claudeAuthMode.value = CLAUDE_AUTH_API_KEY
+            _claudeAuthMode.value = com.omniclaw.core.auth.CLAUDE_AUTH_API_KEY
         }
     }
     fun setClaudeAuthMode(mode: String) { _claudeAuthMode.value = mode }
@@ -772,7 +766,7 @@ class SetupViewModel(
                 _selectedProvider.value.contains("Claude", ignoreCase = true)
             if (isAnthropic) {
                 prefsManager.setClaudeAuthMode(_claudeAuthMode.value)
-                if (_claudeAuthMode.value == CLAUDE_AUTH_SUBSCRIPTION) {
+                if (_claudeAuthMode.value == com.omniclaw.core.auth.CLAUDE_AUTH_SUBSCRIPTION) {
                     prefsManager.setClaudeSubscriptionToken(_apiKey.value)
                 } else {
                     prefsManager.setClaudeSubscriptionToken("")
