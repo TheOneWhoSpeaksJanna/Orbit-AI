@@ -578,10 +578,11 @@ class ChatViewModel(
                 // Claude Code supports TWO auth methods:
                 //  - api-key:      ANTHROPIC_API_KEY (standard API key)
                 //  - subscription: ANTHROPIC_AUTH_TOKEN (Claude Max / claude.ai login)
-                if (useSubscription) {
-                    exports.append(" && export ANTHROPIC_AUTH_TOKEN='$apiKey'")
-                } else {
-                    exports.append(" && export ANTHROPIC_API_KEY='$apiKey'")
+                val (envName, envValue) = com.omniclaw.core.auth.anthropicAuthEnv(
+                    provider, if (useSubscription) "subscription" else "api-key", apiKey
+                )
+                if (envName.isNotBlank()) {
+                    exports.append(" && export $envName='$envValue'")
                 }
             }
             provider.contains("Gemini", ignoreCase = true) -> {
