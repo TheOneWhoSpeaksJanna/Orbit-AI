@@ -11,6 +11,9 @@ import com.orbitai.data.local.prefs.PreferencesManager
 import com.orbitai.domain.models.Skill
 import com.orbitai.BuildConfig
 import com.orbitai.domain.repository.OrbitAiRepository
+import com.orbitai.ui.theme.CustomTheme
+import com.orbitai.ui.theme.ThemeId
+import com.orbitai.ui.theme.OrbitThemeMode
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -27,6 +30,13 @@ class SettingsViewModel(
 
     private val _themeMode = MutableStateFlow(THEME_DEFAULT)
     val themeMode: StateFlow<String> = _themeMode.asStateFlow()
+
+    private val _themeId = MutableStateFlow(ThemeId.NORMAL.key)
+    val themeId: StateFlow<String> = _themeId.asStateFlow()
+
+    // Custom theme editor state (only meaningful when themeId == "custom")
+    private val _custom = MutableStateFlow(CustomTheme())
+    val custom: StateFlow<CustomTheme> = _custom.asStateFlow()
 
     private val _agentPermissionLevel = MutableStateFlow("NORMAL")
     val agentPermissionLevel: StateFlow<String> = _agentPermissionLevel.asStateFlow()
@@ -53,6 +63,8 @@ class SettingsViewModel(
     private fun loadSettings() {
         viewModelScope.launch(exceptionHandler) {
             _themeMode.value = prefsManager.themeMode.firstOrNull() ?: THEME_DEFAULT
+            _themeId.value = prefsManager.themeId.firstOrNull() ?: ThemeId.NORMAL.key
+            _custom.value = CustomTheme.fromStored(prefsManager.customTheme.firstOrNull())
             _agentPermissionLevel.value = prefsManager.agentPermissionLevel.firstOrNull() ?: "NORMAL"
             _agentRulesAllowed.value = prefsManager.agentRulesAllowed.firstOrNull() ?: ""
             _agentRulesAsk.value = prefsManager.agentRulesAsk.firstOrNull() ?: ""
@@ -63,6 +75,29 @@ class SettingsViewModel(
     fun updateThemeMode(mode: String) {
         _themeMode.value = mode
         viewModelScope.launch(exceptionHandler) { prefsManager.setThemeMode(mode) }
+    }
+
+    fun updateThemeId(id: String) {
+        _themeId.value = id
+        viewModelScope.launch(exceptionHandler) { prefsManager.setThemeId(id) }
+    }
+
+    /**
+     * Update a single custom color slot and persist the whole custom theme.
+     * slot: "background" | "surface" | "primary" | "onBackground" | "secondary" | "tertiary"
+     */
+    fun updateCustomColor(slot: String, color: androidx.compose.ui.graphics.Color) {
+        val next = when (slot) {
+            "background" -> _custom.value.copy(background = color)
+            "surface" -> _custom.value.copy(surface = color)
+            "primary" -> _custom.value.copy(primary = color)
+            "onBackground" -> _custom.value.copy(onBackground = color)
+            "secondary" -> _custom.value.copy(secondary = color)
+            "tertiary" -> _custom.value.copy(tertiary = color)
+            else -> _custom.value
+        }
+        _custom.value = next
+        viewModelScope.launch(exceptionHandler) { prefsManager.setCustomTheme(next.toStored()) }
     }
 
     fun updateAgentPermissionLevel(level: String) {

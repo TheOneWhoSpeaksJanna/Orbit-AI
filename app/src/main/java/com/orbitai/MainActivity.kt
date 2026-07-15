@@ -18,6 +18,9 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.graphics.luminance
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.orbitai.core.logging.FileLogger
 import com.orbitai.ui.navigation.AppShell
@@ -48,7 +51,22 @@ class MainActivity : ComponentActivity() {
             setContent {
                 val viewModel: MainViewModel = viewModel(factory = MainViewModel.Factory)
                 val themeMode by viewModel.themeMode.collectAsState()
-                OrbitAiTheme(themeMode = themeMode) {
+                val themeId by viewModel.themeId.collectAsState()
+                val customTheme by viewModel.customTheme.collectAsState()
+                OrbitAiTheme(themeId = themeId, themeMode = themeMode, custom = customTheme) {
+                    // Keep the status/nav bar colors in sync with the theme so
+                    // there is no visible gap or seam between the app content
+                    // and the system notification bar (edge-to-edge mode).
+                    val scheme = MaterialTheme.colorScheme
+                    val window = window
+                    val statusColor = scheme.background
+                    val navColor = scheme.background
+                    window.statusBarColor = statusColor.toArgb()
+                    window.navigationBarColor = navColor.toArgb()
+                    val insetsCtrl = androidx.core.view.WindowCompat.getInsetsController(window, window.decorView)
+                    insetsCtrl.isAppearanceLightStatusBars = scheme.background.luminance() > 0.5f
+                    insetsCtrl.isAppearanceLightNavigationBars = scheme.background.luminance() > 0.5f
+
                     val destination by viewModel.startDestination.collectAsState()
                     // Show a loading spinner while the start destination is
                     // being computed (first ~100-300ms on cold launch).
