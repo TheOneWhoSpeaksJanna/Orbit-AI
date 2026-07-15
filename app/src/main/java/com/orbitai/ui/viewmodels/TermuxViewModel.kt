@@ -11,6 +11,7 @@ import com.orbitai.core.logging.FileLogger
 import com.orbitai.core.logging.CoroutineExceptionHandlerFactory
 import com.orbitai.domain.models.TermuxLog
 import com.orbitai.domain.repository.OrbitAiRepository
+import com.orbitai.core.storage.StorageSetup
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -70,6 +71,10 @@ class TermuxViewModel(
                 termuxRuntime.install { progress, status ->
                     FileLogger.d(TAG, "Rootfs install: $progress — $status")
                 }
+                // Headless equivalent of `termux-setup-storage`: expose
+                // /storage/emulated/0 inside the Termux HOME so the AI can
+                // write outside its sandbox (e.g. /storage/emulated/0/Download).
+                StorageSetup.createStorageSymlinks(termuxRuntime.homeDir)
             }
 
             val executionResult = termuxRuntime.executeInTermux(trimmed, "")
