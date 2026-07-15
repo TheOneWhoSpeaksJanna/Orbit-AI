@@ -7,106 +7,215 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 
-enum class OrbitThemeMode {
-    SYSTEM, LIGHT, DARK
+/**
+ * Theme presets the user can pick in Settings.
+ *  - NORMAL  : the app's "famous AI" orange look
+ *  - CHATGPT : replicates the ChatGPT UI (white/green)
+ *  - CLAUDE  : replicates the Claude UI (warm ivory/clay)
+ *  - CUSTOM  : user-defined colors
+ */
+enum class ThemeId(val key: String, val label: String) {
+    NORMAL("normal", "Normal"),
+    CHATGPT("chatgpt", "ChatGPT"),
+    CLAUDE("claude", "Claude"),
+    CUSTOM("custom", "Custom");
+
+    companion object {
+        fun fromKey(k: String?) = entries.firstOrNull { it.key == k } ?: NORMAL
+    }
 }
 
+/** Light/Dark preference, independent of the preset. */
+enum class OrbitThemeMode { SYSTEM, LIGHT, DARK }
+
 /**
- * Clean Material 3 theme — no glassmorphism, no glow effects, no extended
- * color tokens. Just a standard Material 3 color scheme with one accent
- * color (indigo). Optimized for readability and performance.
- *
- * The old "cosmic glassmorphism" theme had:
- *  - Expensive blur/glass overlays that caused jank on low-end devices
- *  - Extended color tokens (OrbitAiExtendedColors) that added complexity
- *  - Glow effects that were invisible in light mode
- *
- * This theme uses only standard Material 3 color roles, so all components
- * get proper colors automatically with zero custom draw code.
+ * User-defined theme colors. Stored as a compact string in DataStore:
+ *   "bg,surface,primary,onBg,secondary,tertiary"
+ * Any empty/blank field falls back to the Normal palette so a half-finished
+ * custom theme never renders unreadable.
  */
-private val DarkColorScheme = darkColorScheme(
-    primary = OrbitPrimary,
-    onPrimary = OrbitOnPrimary,
-    primaryContainer = OrbitPrimaryContainer,
-    onPrimaryContainer = OrbitOnPrimaryContainer,
-    secondary = OrbitSecondary,
-    onSecondary = OrbitOnSecondary,
-    secondaryContainer = OrbitSecondaryContainer,
-    onSecondaryContainer = OrbitOnSecondaryContainer,
-    tertiary = OrbitTertiary,
-    onTertiary = OrbitOnTertiary,
-    tertiaryContainer = OrbitTertiaryContainer,
-    onTertiaryContainer = OrbitOnTertiaryContainer,
-    error = OrbitError,
-    onError = OrbitOnError,
-    errorContainer = OrbitErrorContainer,
-    onErrorContainer = OrbitOnErrorContainer,
-    background = OrbitDarkBackground,
-    onBackground = OrbitDarkOnSurface,
-    surface = OrbitDarkSurface,
-    onSurface = OrbitDarkOnSurface,
-    surfaceVariant = OrbitDarkSurfaceVariant,
-    onSurfaceVariant = OrbitDarkOnSurfaceVariant,
-    outline = OrbitDarkOutline,
-    outlineVariant = OrbitDarkSurfaceVariant,
-    scrim = Color.Black,
+data class CustomTheme(
+    val background: Color = Color.Unspecified,
+    val surface: Color = Color.Unspecified,
+    val primary: Color = Color.Unspecified,
+    val onBackground: Color = Color.Unspecified,
+    val secondary: Color = Color.Unspecified,
+    val tertiary: Color = Color.Unspecified
+) {
+    fun toStored(): String = listOf(
+        background.toHex(), surface.toHex(), primary.toHex(),
+        onBackground.toHex(), secondary.toHex(), tertiary.toHex()
+    ).joinToString(",")
+
+    companion object {
+        fun fromStored(s: String?): CustomTheme {
+            val parts = (s ?: "").split(",")
+            fun at(i: Int) = parts.getOrNull(i)?.let { Color.fromHex(it) } ?: Color.Unspecified
+            return CustomTheme(at(0), at(1), at(2), at(3), at(4), at(5))
+        }
+    }
+}
+
+private fun Color.toHex(): String =
+    if (this == Color.Unspecified) "" else "#%08X".format(0xFFFFFFFF and this.value.toLong())
+private fun Color.Companion.fromHex(hex: String): Color? {
+    if (hex.length != 7 || hex[0] != '#') return null
+    return try { Color(android.graphics.Color.parseColor(hex)) } catch (_: Exception) { null }
+}
+
+// ── NORMAL ──────────────────────────────────────────────────
+private val NormalDark = darkColorScheme(
+    primary = OrbitPrimary, onPrimary = OrbitOnPrimary,
+    primaryContainer = OrbitPrimaryContainer, onPrimaryContainer = OrbitOnPrimaryContainer,
+    secondary = OrbitSecondary, onSecondary = OrbitOnSecondary,
+    secondaryContainer = OrbitSecondaryContainer, onSecondaryContainer = OrbitOnSecondaryContainer,
+    tertiary = OrbitTertiary, onTertiary = OrbitOnTertiary,
+    tertiaryContainer = OrbitTertiaryContainer, onTertiaryContainer = OrbitOnTertiaryContainer,
+    error = OrbitError, onError = OrbitOnError, errorContainer = OrbitErrorContainer, onErrorContainer = OrbitOnErrorContainer,
+    background = OrbitDarkBackground, onBackground = OrbitDarkOnSurface,
+    surface = OrbitDarkSurface, onSurface = OrbitDarkOnSurface,
+    surfaceVariant = OrbitDarkSurfaceVariant, onSurfaceVariant = OrbitDarkOnSurfaceVariant,
+    outline = OrbitDarkOutline, outlineVariant = OrbitDarkSurfaceVariant, scrim = Color.Black
+)
+private val NormalLight = lightColorScheme(
+    primary = OrbitPrimary, onPrimary = OrbitOnPrimary,
+    primaryContainer = OrbitPrimaryContainer, onPrimaryContainer = OrbitOnPrimaryContainer,
+    secondary = OrbitSecondary, onSecondary = OrbitOnSecondary,
+    secondaryContainer = OrbitSecondaryContainer, onSecondaryContainer = OrbitOnSecondaryContainer,
+    tertiary = OrbitTertiary, onTertiary = OrbitOnTertiary,
+    tertiaryContainer = OrbitTertiaryContainer, onTertiaryContainer = OrbitOnTertiaryContainer,
+    error = OrbitError, onError = OrbitOnError, errorContainer = OrbitErrorContainer, onErrorContainer = OrbitOnErrorContainer,
+    background = OrbitLightBackground, onBackground = OrbitLightOnSurface,
+    surface = OrbitLightSurface, onSurface = OrbitLightOnSurface,
+    surfaceVariant = OrbitLightSurfaceVariant, onSurfaceVariant = OrbitLightOnSurfaceVariant,
+    outline = OrbitLightOutline, outlineVariant = OrbitLightSurfaceVariant, scrim = Color.Black
 )
 
-private val LightColorScheme = lightColorScheme(
-    primary = OrbitPrimary,
-    onPrimary = OrbitOnPrimary,
-    primaryContainer = OrbitPrimaryContainer,
-    onPrimaryContainer = OrbitOnPrimaryContainer,
-    secondary = OrbitSecondary,
-    onSecondary = OrbitOnSecondary,
-    secondaryContainer = OrbitSecondaryContainer,
-    onSecondaryContainer = OrbitOnSecondaryContainer,
-    tertiary = OrbitTertiary,
-    onTertiary = OrbitOnTertiary,
-    tertiaryContainer = OrbitTertiaryContainer,
-    onTertiaryContainer = OrbitOnTertiaryContainer,
-    error = OrbitError,
-    onError = OrbitOnError,
-    errorContainer = OrbitErrorContainer,
-    onErrorContainer = OrbitOnErrorContainer,
-    background = OrbitLightBackground,
-    onBackground = OrbitLightOnSurface,
-    surface = OrbitLightSurface,
-    onSurface = OrbitLightOnSurface,
-    surfaceVariant = OrbitLightSurfaceVariant,
-    onSurfaceVariant = OrbitLightOnSurfaceVariant,
-    outline = OrbitLightOutline,
-    outlineVariant = OrbitLightSurfaceVariant,
-    scrim = Color.Black,
+// ── CHATGPT ─────────────────────────────────────────────────
+private val ChatGptDark = darkColorScheme(
+    primary = ChatGptAccentDark, onPrimary = Color.White,
+    primaryContainer = ChatGptAccentDark.copy(alpha = 0.25f), onPrimaryContainer = ChatGptAccentDark,
+    secondary = ChatGptDarkOnSurfaceVariant, onSecondary = ChatGptDarkBackground,
+    secondaryContainer = ChatGptDarkSurfaceVariant, onSecondaryContainer = ChatGptDarkOnSurface,
+    tertiary = ChatGptAccentDark, onTertiary = Color.White,
+    tertiaryContainer = ChatGptAccentDark.copy(alpha = 0.2f), onTertiaryContainer = ChatGptAccentDark,
+    error = OrbitError, onError = Color.White, errorContainer = OrbitErrorContainer, onErrorContainer = OrbitOnErrorContainer,
+    background = ChatGptDarkBackground, onBackground = ChatGptDarkOnSurface,
+    surface = ChatGptDarkSurface, onSurface = ChatGptDarkOnSurface,
+    surfaceVariant = ChatGptDarkSurfaceVariant, onSurfaceVariant = ChatGptDarkOnSurfaceVariant,
+    outline = ChatGptDarkOutline, outlineVariant = ChatGptDarkSurfaceVariant, scrim = Color.Black
 )
+private val ChatGptLight = lightColorScheme(
+    primary = ChatGptAccent, onPrimary = Color.White,
+    primaryContainer = ChatGptAccent.copy(alpha = 0.16f), onPrimaryContainer = ChatGptAccent,
+    secondary = ChatGptLightOnSurfaceVariant, onSecondary = ChatGptLightBackground,
+    secondaryContainer = ChatGptLightSurfaceVariant, onSecondaryContainer = ChatGptLightOnSurface,
+    tertiary = ChatGptAccent, onTertiary = Color.White,
+    tertiaryContainer = ChatGptAccent.copy(alpha = 0.16f), onTertiaryContainer = ChatGptAccent,
+    error = OrbitError, onError = Color.White, errorContainer = OrbitErrorContainer, onErrorContainer = OrbitOnErrorContainer,
+    background = ChatGptLightBackground, onBackground = ChatGptLightOnSurface,
+    surface = ChatGptLightSurface, onSurface = ChatGptLightOnSurface,
+    surfaceVariant = ChatGptLightSurfaceVariant, onSurfaceVariant = ChatGptLightOnSurfaceVariant,
+    outline = ChatGptLightOutline, outlineVariant = ChatGptLightSurfaceVariant, scrim = Color.Black
+)
+
+// ── CLAUDE ──────────────────────────────────────────────────
+private val ClaudeDark = darkColorScheme(
+    primary = ClaudeAccentDark, onPrimary = Color.White,
+    primaryContainer = ClaudeAccentDark.copy(alpha = 0.25f), onPrimaryContainer = ClaudeAccentDark,
+    secondary = ClaudeDarkOnSurfaceVariant, onSecondary = ClaudeDarkBackground,
+    secondaryContainer = ClaudeDarkSurfaceVariant, onSecondaryContainer = ClaudeDarkOnSurface,
+    tertiary = ClaudeAccentDark, onTertiary = Color.White,
+    tertiaryContainer = ClaudeAccentDark.copy(alpha = 0.2f), onTertiaryContainer = ClaudeAccentDark,
+    error = OrbitError, onError = Color.White, errorContainer = OrbitErrorContainer, onErrorContainer = OrbitOnErrorContainer,
+    background = ClaudeDarkBackground, onBackground = ClaudeDarkOnSurface,
+    surface = ClaudeDarkSurface, onSurface = ClaudeDarkOnSurface,
+    surfaceVariant = ClaudeDarkSurfaceVariant, onSurfaceVariant = ClaudeDarkOnSurfaceVariant,
+    outline = ClaudeDarkOutline, outlineVariant = ClaudeDarkSurfaceVariant, scrim = Color.Black
+)
+private val ClaudeLight = lightColorScheme(
+    primary = ClaudeAccent, onPrimary = Color.White,
+    primaryContainer = ClaudeAccent.copy(alpha = 0.18f), onPrimaryContainer = ClaudeAccent,
+    secondary = ClaudeLightOnSurfaceVariant, onSecondary = ClaudeLightBackground,
+    secondaryContainer = ClaudeLightSurfaceVariant, onSecondaryContainer = ClaudeLightOnSurface,
+    tertiary = ClaudeAccent, onTertiary = Color.White,
+    tertiaryContainer = ClaudeAccent.copy(alpha = 0.18f), onTertiaryContainer = ClaudeAccent,
+    error = OrbitError, onError = Color.White, errorContainer = OrbitErrorContainer, onErrorContainer = OrbitOnErrorContainer,
+    background = ClaudeLightBackground, onBackground = ClaudeLightOnSurface,
+    surface = ClaudeLightSurface, onSurface = ClaudeLightOnSurface,
+    surfaceVariant = ClaudeLightSurfaceVariant, onSurfaceVariant = ClaudeLightOnSurfaceVariant,
+    outline = ClaudeLightOutline, outlineVariant = ClaudeLightSurfaceVariant, scrim = Color.Black
+)
+
+// ── CUSTOM ──────────────────────────────────────────────────
+private fun customScheme(dark: Boolean, c: CustomTheme) = if (dark) darkColorScheme(
+    primary = c.primary.takeOr(OrbitPrimary), onPrimary = c.onBackground.takeOr(Color.White),
+    primaryContainer = c.primary.takeOr(OrbitPrimaryContainer), onPrimaryContainer = c.onBackground.takeOr(OrbitOnPrimaryContainer),
+    secondary = c.secondary.takeOr(OrbitSecondary), onSecondary = c.onBackground.takeOr(Color.White),
+    secondaryContainer = c.surface.takeOr(OrbitSecondaryContainer), onSecondaryContainer = c.onBackground.takeOr(OrbitOnSecondaryContainer),
+    tertiary = c.tertiary.takeOr(OrbitTertiary), onTertiary = c.onBackground.takeOr(Color.White),
+    error = OrbitError, onError = Color.White, errorContainer = OrbitErrorContainer, onErrorContainer = OrbitOnErrorContainer,
+    background = c.background.takeOr(if (dark) OrbitDarkBackground else OrbitLightBackground),
+    onBackground = c.onBackground.takeOr(if (dark) OrbitDarkOnSurface else OrbitLightOnSurface),
+    surface = c.surface.takeOr(if (dark) OrbitDarkSurface else OrbitLightSurface),
+    onSurface = c.onBackground.takeOr(if (dark) OrbitDarkOnSurface else OrbitLightOnSurface),
+    surfaceVariant = c.surface.takeOr(if (dark) OrbitDarkSurfaceVariant else OrbitLightSurfaceVariant),
+    onSurfaceVariant = c.onBackground.takeOr(if (dark) OrbitDarkOnSurfaceVariant else OrbitLightOnSurfaceVariant),
+    outline = c.surface.takeOr(if (dark) OrbitDarkOutline else OrbitLightOutline),
+    outlineVariant = c.surface.takeOr(if (dark) OrbitDarkSurfaceVariant else OrbitLightSurfaceVariant),
+    scrim = Color.Black
+) else lightColorScheme(
+    primary = c.primary.takeOr(OrbitPrimary), onPrimary = c.onBackground.takeOr(Color.White),
+    primaryContainer = c.primary.takeOr(OrbitPrimaryContainer), onPrimaryContainer = c.onBackground.takeOr(OrbitOnPrimaryContainer),
+    secondary = c.secondary.takeOr(OrbitSecondary), onSecondary = c.onBackground.takeOr(Color.White),
+    secondaryContainer = c.surface.takeOr(OrbitSecondaryContainer), onSecondaryContainer = c.onBackground.takeOr(OrbitOnSecondaryContainer),
+    tertiary = c.tertiary.takeOr(OrbitTertiary), onTertiary = c.onBackground.takeOr(Color.White),
+    error = OrbitError, onError = Color.White, errorContainer = OrbitErrorContainer, onErrorContainer = OrbitOnErrorContainer,
+    background = c.background.takeOr(if (dark) OrbitDarkBackground else OrbitLightBackground),
+    onBackground = c.onBackground.takeOr(if (dark) OrbitDarkOnSurface else OrbitLightOnSurface),
+    surface = c.surface.takeOr(if (dark) OrbitDarkSurface else OrbitLightSurface),
+    onSurface = c.onBackground.takeOr(if (dark) OrbitDarkOnSurface else OrbitLightOnSurface),
+    surfaceVariant = c.surface.takeOr(if (dark) OrbitDarkSurfaceVariant else OrbitLightSurfaceVariant),
+    onSurfaceVariant = c.onBackground.takeOr(if (dark) OrbitDarkOnSurfaceVariant else OrbitLightOnSurfaceVariant),
+    outline = c.surface.takeOr(if (dark) OrbitDarkOutline else OrbitLightOutline),
+    outlineVariant = c.surface.takeOr(if (dark) OrbitDarkSurfaceVariant else OrbitLightSurfaceVariant),
+    scrim = Color.Black
+)
+private fun Color.takeOr(fallback: Color): Color = if (this == Color.Unspecified) fallback else this
 
 @Composable
 fun OrbitTheme(
-    themeMode: OrbitThemeMode = OrbitThemeMode.SYSTEM,
+    themeId: ThemeId = ThemeId.NORMAL,
+    darkMode: OrbitThemeMode = OrbitThemeMode.SYSTEM,
+    custom: CustomTheme = CustomTheme(),
     content: @Composable () -> Unit
 ) {
-    val useDarkTheme = when (themeMode) {
+    val useDarkTheme = when (darkMode) {
         OrbitThemeMode.SYSTEM -> isSystemInDarkTheme()
         OrbitThemeMode.LIGHT -> false
         OrbitThemeMode.DARK -> true
     }
-
-    val colorScheme = if (useDarkTheme) DarkColorScheme else LightColorScheme
-
-    MaterialTheme(
-        colorScheme = colorScheme,
-        typography = Typography,
-        shapes = Shapes,
-        content = content
-    )
+    val scheme = when (themeId) {
+        ThemeId.NORMAL -> if (useDarkTheme) NormalDark else NormalLight
+        ThemeId.CHATGPT -> if (useDarkTheme) ChatGptDark else ChatGptLight
+        ThemeId.CLAUDE -> if (useDarkTheme) ClaudeDark else ClaudeLight
+        ThemeId.CUSTOM -> customScheme(useDarkTheme, custom)
+    }
+    MaterialTheme(colorScheme = scheme, typography = Typography, shapes = Shapes, content = content)
 }
 
-/**
- * Compatibility alias — old code calls OrbitAiTheme. This redirects
- * to the new OrbitTheme so existing code works without changes.
- */
+/** Compatibility alias — old code passes an OrbitThemeMode only. */
 @Composable
 fun OrbitAiTheme(
     themeMode: OrbitThemeMode = OrbitThemeMode.SYSTEM,
     content: @Composable () -> Unit
-) = OrbitTheme(themeMode, content)
+) = OrbitTheme(ThemeId.NORMAL, themeMode, CustomTheme(), content)
+
+/** Full form used by MainActivity with a stored theme id. */
+@Composable
+fun OrbitAiTheme(
+    themeId: ThemeId = ThemeId.NORMAL,
+    themeMode: OrbitThemeMode = OrbitThemeMode.SYSTEM,
+    custom: CustomTheme = CustomTheme(),
+    content: @Composable () -> Unit
+) = OrbitTheme(themeId, themeMode, custom, content)

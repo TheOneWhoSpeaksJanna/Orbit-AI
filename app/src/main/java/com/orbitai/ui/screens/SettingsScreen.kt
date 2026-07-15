@@ -22,6 +22,18 @@ import com.orbitai.domain.models.Skill
 import com.orbitai.ui.components.OrbitCard
 import com.orbitai.ui.components.OrbitButton
 import com.orbitai.ui.components.OrbitButtonVariant
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
+import com.orbitai.ui.theme.ThemeId
+import com.orbitai.ui.theme.CustomTheme
+import androidx.compose.ui.graphics.Color
+import androidx.compose.material.icons.filled.Palette
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import com.orbitai.ui.theme.staggeredEntrance
 
 private const val THEME_SYSTEM = "System"
@@ -89,41 +101,75 @@ fun SettingsScreen(
                 .padding(top = 8.dp, bottom = 16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+            // ── Appearance card ─────────────────────────────────────────
             OrbitCard(
                 tonal = true,
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(modifier = Modifier.fillMaxWidth()) {
-                    Text(stringResource(R.string.appearance), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
-                    Spacer(modifier = Modifier.height(16.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Palette, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                        Spacer(Modifier.width(8.dp))
+                        Text(stringResource(R.string.appearance), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                    }
+                    Spacer(modifier = Modifier.height(12.dp))
 
-                    var expanded by remember { mutableStateOf(false) }
+                    // Theme preset selector (Normal / ChatGPT / Claude / Custom)
+                    val themeOptions = ThemeId.entries.toList()
+                    val currentThemeId = viewModel.themeId.collectAsState().value
+                    themeOptions.forEach { tid ->
+                        val selected = currentThemeId == tid.key
+                        ThemePreviewRow(
+                            themeId = tid,
+                            selected = selected,
+                            onClick = { viewModel.updateThemeId(tid.key) }
+                        )
+                        if (tid != themeOptions.last()) Spacer(Modifier.height(8.dp))
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    // Light/Dark mode
+                    var modeExpanded by remember { mutableStateOf(false) }
                     ExposedDropdownMenuBox(
-                        expanded = expanded,
-                        onExpandedChange = { expanded = !expanded }
+                        expanded = modeExpanded,
+                        onExpandedChange = { modeExpanded = !modeExpanded }
                     ) {
                         OutlinedTextField(
                             value = themeMode,
                             onValueChange = {},
                             readOnly = true,
                             label = { Text(stringResource(R.string.theme_mode)) },
-                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = modeExpanded) },
                             modifier = Modifier.menuAnchor().fillMaxWidth(),
                             shape = MaterialTheme.shapes.medium
                         )
                         ExposedDropdownMenu(
-                            expanded = expanded,
-                            onDismissRequest = { expanded = false }
+                            expanded = modeExpanded,
+                            onDismissRequest = { modeExpanded = false }
                         ) {
                             THEME_OPTIONS.forEach { selection ->
                                 DropdownMenuItem(
                                     text = { Text(selection) },
                                     onClick = {
                                         viewModel.updateThemeMode(selection)
-                                        expanded = false
+                                        modeExpanded = false
                                     }
                                 )
                             }
+                        }
+                    }
+
+                    // Custom theme editor
+                    if (currentThemeId == ThemeId.CUSTOM.key) {
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text("Custom colors", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Spacer(modifier = Modifier.height(8.dp))
+                        val custom = viewModel.custom.collectAsState().value
+                        CustomColorEditor(custom = custom) { slot, color ->
+                            viewModel.updateCustomColor(slot, color)
                         }
                     }
                 }
@@ -390,6 +436,108 @@ private fun SkillCard(
                     style = MaterialTheme.typography.bodySmall,
                     modifier = Modifier.padding(12.dp)
                 )
+            }
+        }
+    }
+}
+
+/** A selectable row showing a theme name + a 3-swatch preview of its palette. */
+@Composable
+private fun ThemePreviewRow(
+    themeId: ThemeId,
+    selected: Boolean,
+    onClick: () -> Unit
+) {
+    val (bg, surface, accent) = when (themeId) {
+        ThemeId.NORMAL -> listOf(Color(0xFF16110F), Color(0xFF241C19), Color(0xFFD97757))
+        ThemeId.CHATGPT -> listOf(Color(0xFFFFFFFF), Color(0xFFF9F9F9), Color(0xFF10A37F))
+        ThemeId.CLAUDE -> listOf(Color(0xFFF5F1EA), Color(0xFFFBF8F4), Color(0xFFCC785C))
+        ThemeId.CUSTOM -> listOf(Color(0xFF202020), Color(0xFF2A2A2A), Color(0xFF9C6ADE))
+    }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .clickable { onClick() }
+            .then(if (selected) Modifier.border(2.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(12.dp)) else Modifier)
+            .padding(12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // Preview swatches
+        Row {
+            listOf(bg, surface, accent).forEach { c ->
+                Box(
+                    modifier = Modifier
+                        .size(26.dp)
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(c)
+                        .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(6.dp))
+                )
+                Spacer(Modifier.width(4.dp))
+            }
+        }
+        Spacer(Modifier.width(12.dp))
+        Text(
+            themeId.label,
+            style = MaterialTheme.typography.bodyLarge,
+            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+            color = MaterialTheme.colorScheme.onSurface
+        )
+        Spacer(Modifier.weight(1f))
+        if (selected) {
+            Icon(
+                Icons.Default.Palette,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(18.dp)
+            )
+        }
+    }
+}
+
+/** Color picker for a custom theme: one row of preset swatches per slot. */
+@Composable
+private fun CustomColorEditor(
+    custom: CustomTheme,
+    onPick: (String, Color) -> Unit
+) {
+    val slots = listOf(
+        "background" to "Background",
+        "surface" to "Surface",
+        "primary" to "Accent",
+        "onBackground" to "Text",
+        "secondary" to "Secondary",
+        "tertiary" to "Tertiary"
+    )
+    val palette = listOf(
+        0xFF16110F, 0xFF241C19, 0xFFFFFFFF, 0xFFF9F9F9, 0xFFF5F1EA, 0xFFFBF8F4,
+        0xFFD97757, 0xFF10A37F, 0xFFCC785C, 0xFF9C6ADE, 0xFF3B82F6, 0xFFEF4444,
+        0xFF22C55E, 0xFFEAB308, 0xFF0EA5E9, 0xFF000000, 0xFF6B7280, 0xFFFFFFFF
+    ).map { Color(it.toLong()) }
+
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        slots.forEach { (slot, label) ->
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(label, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.width(80.dp))
+                LazyVerticalGrid(
+                    columns = GridCells.Adaptive(28.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(36.dp),
+                    userScrollEnabled = false
+                ) {
+                    items(palette) { c ->
+                        Box(
+                            modifier = Modifier
+                                .padding(2.dp)
+                                .size(26.dp)
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(c)
+                                .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(6.dp))
+                                .clickable { onPick(slot, c) }
+                        )
+                    }
+                }
             }
         }
     }

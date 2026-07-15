@@ -38,8 +38,23 @@ class SilentUpdater(
     sealed class UpdateResult {
         data object Success : UpdateResult()
         data class Failure(val reason: String) : UpdateResult()
+        /** Shizuku unavailable — caller should open the system installer for this URI. */
+        data class NeedsManualInstall(val apkUri: android.net.Uri) : UpdateResult()
     }
 
+    /**
+     * Returns true if a silent (Shizuku) install is possible right now.
+     */
+    fun canSilentInstall(): Boolean {
+        return Shizuku.pingBinder() &&
+            Shizuku.checkSelfPermission() == android.content.pm.PackageManager.PERMISSION_GRANTED
+    }
+
+    /**
+     * Attempt a silent install via Shizuku (`cmd package install -r`).
+     * Uses `cmd package install` (not the deprecated `pm install`) so it
+     * works across Android 7–15. Returns a descriptive result.
+     */
     suspend fun installApk(apkFile: File): UpdateResult = withContext(Dispatchers.IO) {
         if (!Shizuku.pingBinder()) {
             return@withContext UpdateResult.Failure("Shizuku is not running.")
@@ -56,7 +71,9 @@ class SilentUpdater(
             // UID) can open it.
             apkFile.setReadable(true, false)
 
-            val command = "pm install -r -t \"${apkFile.absolutePath}\""
+            // `cmd package install -r` is the modern, ROM-agnostic path.
+            // -r = keep data, -i = installer package id.
+            val command = "cmd package install -r -i ${context.packageName} \"${apkFile.absolutePath}\""
             val newProcessMethod = Shizuku::class.java.getDeclaredMethod(
                 "newProcess",
                 Array<String>::class.java,
@@ -83,18 +100,13 @@ class SilentUpdater(
             val exit = process.exitValue()
             FileLogger.i(TAG, "pm install result", "exit=$exit output=${output.take(500)}")
 
-            if (exit == 0 && output.contains("Success", ignoreCase = true)) {
+            val lower = output.lowercase()
+            if (exit == 0 && ("success" in lower || lower.isBlank())) {
                 UpdateResult.Success
-            } else if (exit == 0) {
-                // Some pm versions print "Success" to stderr or nothing; treat
-                // exit 0 as success unless the output explicitly says failure.
-                if (output.contains("Failure", ignoreCase = true)) {
-                    UpdateResult.Failure(output.trim().ifBlank { "pm exited 0 but reported failure" })
-                } else {
-                    UpdateResult.Success
-                }
+            } else if ("failure" in lower || "error" in lower || exit != 0) {
+                UpdateResult.Failure(output.trim().ifBlank { "Install failed (exit $exit)" })
             } else {
-                UpdateResult.Failure(output.trim().ifBlank { "pm install failed (exit $exit)" })
+                UpdateResult.Success
             }
         } catch (e: NoSuchMethodException) {
             FileLogger.e(TAG, "Shizuku API error", e, "reason=${e.message}")

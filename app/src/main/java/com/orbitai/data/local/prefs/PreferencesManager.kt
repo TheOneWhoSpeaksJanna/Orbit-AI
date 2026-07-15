@@ -2,6 +2,7 @@ package com.orbitai.data.local.prefs
 
 import android.content.Context
 import androidx.datastore.core.handlers.ReplaceFileCorruptionHandler
+import com.orbitai.ui.theme.ThemeId
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.emptyPreferences
@@ -31,6 +32,8 @@ class PreferencesManager(private val context: Context) {
 
     companion object {
         val THEME_MODE = stringPreferencesKey("theme_mode")
+        val THEME_ID = stringPreferencesKey("theme_id")
+        val THEME_CUSTOM = stringPreferencesKey("theme_custom")
         val IS_ONBOARDING_COMPLETE = booleanPreferencesKey("is_onboarding_complete")
         val SHIZUKU_ENABLED = booleanPreferencesKey("shizuku_enabled")
         val SELECTED_AGENT = stringPreferencesKey("selected_agent")
@@ -100,6 +103,14 @@ class PreferencesManager(private val context: Context) {
 
     val themeMode: Flow<String?> = context.dataStore.data.map { prefs ->
         prefs[THEME_MODE]
+    }
+
+    val themeId: Flow<String> = context.dataStore.data.map { prefs ->
+        prefs[THEME_ID] ?: ThemeId.NORMAL.key
+    }
+
+    val customTheme: Flow<String?> = context.dataStore.data.map { prefs ->
+        prefs[THEME_CUSTOM]
     }
 
     val isOnboardingComplete: Flow<Boolean> = context.dataStore.data.map { prefs ->
@@ -206,6 +217,14 @@ class PreferencesManager(private val context: Context) {
 
     suspend fun setThemeMode(mode: String) {
         context.dataStore.edit { prefs -> prefs[THEME_MODE] = mode }
+    }
+
+    suspend fun setThemeId(id: String) {
+        context.dataStore.edit { prefs -> prefs[THEME_ID] = id }
+    }
+
+    suspend fun setCustomTheme(stored: String) {
+        context.dataStore.edit { prefs -> prefs[THEME_CUSTOM] = stored }
     }
 
     suspend fun setOnboardingComplete(complete: Boolean) {
