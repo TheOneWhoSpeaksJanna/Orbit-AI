@@ -75,6 +75,9 @@ class TermuxRuntime(private val context: Context) {
     val workspaceDir = File(runtimeDir, "workspace")
     val tmpDir = File(runtimeDir, "tmp")
 
+    /** Termux HOME directory (host path), used for storage symlinks. */
+    val homeDir = File(rootfsDir, "data/data/com.termux/files/home")
+
     /**
      * Directory where Android extracts jniLibs at install time.
      * SELinux label `apk_data_file` allows execve() here.

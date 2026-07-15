@@ -1,9 +1,14 @@
 package com.orbitai
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.CircularProgressIndicator
@@ -24,9 +29,20 @@ import com.orbitai.ui.theme.OrbitAiTheme
 private const val TAG = "MainActivity"
 
 class MainActivity : ComponentActivity() {
+
+    // On Android < 11 the app needs the legacy storage permission so the
+    // emulated volume is visible inside the Termux PRoot (the headless
+    // equivalent of `termux-setup-storage`). On Android 11+ scoped storage
+    // means we instead request all-files access via the wizard's settings
+    // intent, so this launcher is a no-op there.
+    private val storagePermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { _ -> FileLogger.i(TAG, "storage permission result received") }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         FileLogger.i(TAG, "onCreate start")
+        requestStoragePermissionIfNeeded()
         try {
             enableEdgeToEdge()
             setContent {
@@ -65,6 +81,20 @@ class MainActivity : ComponentActivity() {
         } catch (e: Exception) {
             FileLogger.e(TAG, "onCreate failed", e)
             throw e
+        }
+    }
+
+    private fun requestStoragePermissionIfNeeded() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) return // handled via all-files intent in wizard
+        val needed = arrayOf(
+            Manifest.permission.READ_EXTERNAL_STORAGE,
+            Manifest.permission.WRITE_EXTERNAL_STORAGE
+        ).filter {
+            ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
+        }
+        if (needed.isNotEmpty()) {
+            storagePermissionLauncher.launch(needed.toTypedArray())
+            FileLogger.i(TAG, "requesting storage permission")
         }
     }
 }
