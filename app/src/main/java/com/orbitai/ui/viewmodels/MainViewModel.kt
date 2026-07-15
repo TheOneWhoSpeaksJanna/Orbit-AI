@@ -8,6 +8,8 @@ import androidx.lifecycle.viewmodel.CreationExtras
 import com.orbitai.OrbitAiApplication
 import com.orbitai.data.local.prefs.PreferencesManager
 import com.orbitai.ui.theme.OrbitThemeMode
+import com.orbitai.ui.theme.ThemeId
+import com.orbitai.ui.theme.CustomTheme
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
@@ -44,6 +46,22 @@ class MainViewModel(
             scope = viewModelScope,
             started = SharingStarted.Eagerly,
             initialValue = OrbitThemeMode.SYSTEM
+        )
+
+    val themeId: StateFlow<ThemeId> = prefsManager.themeId
+        .map { ThemeId.fromKey(it) }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.Eagerly,
+            initialValue = ThemeId.NORMAL
+        )
+
+    val customTheme: StateFlow<CustomTheme> = prefsManager.customTheme
+        .map { CustomTheme.fromStored(it) }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.Eagerly,
+            initialValue = CustomTheme()
         )
 
     companion object {

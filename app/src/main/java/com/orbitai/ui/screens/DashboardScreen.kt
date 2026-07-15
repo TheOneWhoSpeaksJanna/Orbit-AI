@@ -127,6 +127,20 @@ fun DashboardScreen(
                                                 "Updated successfully (silent install)."
                                             is SilentUpdater.UpdateResult.Failure ->
                                                 "Update failed: ${result.reason}"
+                                            is SilentUpdater.UpdateResult.NeedsManualInstall -> {
+                                                // No Shizuku: open the system installer.
+                                                val intent = android.content.Intent(android.content.Intent.ACTION_VIEW).apply {
+                                                    setDataAndType(result.apkUri, "application/vnd.android.package-archive")
+                                                    addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                                    addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                                                }
+                                                try {
+                                                    context.startActivity(intent)
+                                                    "New version downloaded — tap Install to update."
+                                                } catch (e: Exception) {
+                                                    "Could not open installer: ${e.message}"
+                                                }
+                                            }
                                         }
                                         Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
                                     } finally {
@@ -377,12 +391,12 @@ private fun SessionCard(
 }
 
 /**
- * Fetch the latest GitHub release APK for THIS app's flavor and silently
- * install it via Shizuku (no system "install?" prompt).
+ * Fetch the latest GitHub release APK for THIS app's flavor, download it, and
+ * install it. Uses Shizuku for a silent install when available; otherwise
+ * falls back to the system installer (a normal "install?" prompt) so the
+ * update still works without Shizuku — no more cryptic failures.
  *
- * The release artifacts are named orbit-ai-<flavor>-debug-<run>.apk (see the
- * repo's build.yml). We resolve the current flavor from the package suffix and
- * download the latest matching asset from the GitHub Releases API.
+ * Release artifacts are named orbit-ai-<flavor>-debug-<run>.apk (see build.yml).
  */
 private suspend fun runSilentUpdate(
     context: android.content.Context,
@@ -405,11 +419,30 @@ private suspend fun runSilentUpdate(
             return SilentUpdater.UpdateResult.Failure("GitHub API error: ${apiResp.code}")
         }
         val bodyStr = apiResp.body?.string().orEmpty()
-        val assetRegex = Regex("\"browser_download_url\"\\s*:\\s*\"(https://[^\\\"]*orbit-ai-$flavor-debug[^\\\"]*\\.apk)\"")
-        val apkUrl = assetRegex.find(bodyStr)?.groupValues?.getOrNull(1)
+
+        // Parse the JSON properly (was a brittle regex before).
+        val json = org.json.JSONObject(bodyStr)
+        val tag = json.optString("tag_name", "")
+        val assets = json.optJSONArray("assets") ?: org.json.JSONArray()
+        var apkUrl: String? = null
+        for (i in 0 until assets.length()) {
+            val a = assets.optJSONObject(i) ?: continue
+            val name = a.optString("name", "")
+            if (name.contains("orbit-ai-$flavor-debug", ignoreCase = true) &&
+                name.endsWith(".apk", ignoreCase = true)
+            ) {
+                apkUrl = a.optString("browser_download_url", "")
+                break
+            }
+        }
+        apkUrl = apkUrl?.takeIf { it.isNotBlank() }
             ?: return SilentUpdater.UpdateResult.Failure("No APK asset found for flavor '$flavor'.")
-        if (apkUrl.contains(BuildConfig.VERSION_NAME)) {
-            return SilentUpdater.UpdateResult.Failure("Already on the latest version (${BuildConfig.VERSION_NAME}).")
+
+        // Already on the latest published version? Compare run-number tag.
+        val currentRun = BuildConfig.VERSION_NAME.substringAfterLast('-').toIntOrNull()
+        val latestRun = tag.substringAfter('v').toIntOrNull()
+        if (latestRun != null && currentRun != null && latestRun <= currentRun) {
+            return SilentUpdater.UpdateResult.Failure("Already on the latest version ($tag).")
         }
 
         val dlReq = okhttp3.Request.Builder().url(apkUrl).build()
@@ -417,11 +450,24 @@ private suspend fun runSilentUpdate(
         if (!dlResp.isSuccessful) {
             return SilentUpdater.UpdateResult.Failure("Download failed: ${dlResp.code}")
         }
-        val apkFile = java.io.File(context.cacheDir, "orbit_update.apk")
+
+        // Stage in the FileProvider-shared cache dir (file_paths.xml: updates/).
+        val outDir = java.io.File(context.cacheDir, "updates")
+        outDir.mkdirs()
+        val apkFile = java.io.File(outDir, "orbit_update.apk")
         dlResp.body?.byteStream()?.use { input ->
             apkFile.outputStream().use { out -> input.copyTo(out) }
         }
 
+        if (!container.silentUpdater.canSilentInstall()) {
+            // No Shizuku — hand off to the system installer via FileProvider.
+            val uri = androidx.core.content.FileProvider.getUriForFile(
+                context,
+                "${context.packageName}.fileprovider",
+                apkFile
+            )
+            return SilentUpdater.UpdateResult.NeedsManualInstall(uri)
+        }
         container.silentUpdater.installApk(apkFile)
     } catch (e: Exception) {
         SilentUpdater.UpdateResult.Failure("Update error: ${e.message}")
