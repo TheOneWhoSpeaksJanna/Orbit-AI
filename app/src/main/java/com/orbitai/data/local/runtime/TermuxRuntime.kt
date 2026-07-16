@@ -545,9 +545,25 @@ class TermuxRuntime(private val context: Context) {
             stdoutThread.start()
             stderrThread.start()
 
-            process.waitFor()
-            stdoutThread.join()
-            stderrThread.join()
+            // HARD WATCHDOG: process.waitFor() + the stream-pump
+            // threads are native-blocking and CANNOT be interrupted by
+            // coroutine cancellation. A hanging command (e.g. `while true`,
+            // a stuck build, `cat` on a FIFO) would otherwise dead-lock
+            // this thread — and the caller's coroutine — forever.
+            // Bound the whole exec with a watchdog that destroys the
+            // process (and its PRoot children) if it overstays.
+            val maxMillis = 5 * 60 * 1000L // 5 minutes
+            val waited = process.waitFor(maxMillis, java.util.concurrent.TimeUnit.MILLISECONDS)
+            if (!waited) {
+                FileLogger.w(TAG, "Termux exec watchdog", "cmd=${command.take(200)} killed after ${maxMillis}ms (hung)")
+                try { process.destroyForcibly() } catch (_: Exception) {}
+            }
+            // Bound the stream pumps too (forEachLine blocks on EOF,
+            // which a half-dead process may never send).
+            stdoutThread.join(2000)
+            if (stdoutThread.isAlive) stdoutThread.interrupt()
+            stderrThread.join(2000)
+            if (stderrThread.isAlive) stderrThread.interrupt()
 
             val exitCode = process.exitValue()
             val output = stdoutText.toString().trim()
