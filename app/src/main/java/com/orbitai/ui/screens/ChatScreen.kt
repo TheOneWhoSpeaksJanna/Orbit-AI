@@ -58,6 +58,7 @@ private val ANIMATION_DELAYS = listOf(0, 150, 300)
 fun ChatScreen(
     sessionId: String?,
     onNavigateBack: () -> Unit,
+    onSessionIdResolved: (String?) -> Unit = {},
     viewModel: ChatViewModel = viewModel(factory = ChatViewModel.Factory)
 ) {
     val currentSession by viewModel.currentSession.collectAsState()
@@ -79,10 +80,24 @@ fun ChatScreen(
         viewModel.loadModelsForCurrentProvider()
         viewModel.fetchDetailedModels()
         if (sessionId.isNullOrEmpty()) {
-            viewModel.startNewSession(null)
+            // No session requested from outside. If we already have a live
+            // session in memory (e.g. returning to the Chat tab after a
+            // Crossfade disposal), RESUME it instead of creating a new one —
+            // otherwise every tab re-entry would spawn a fresh chat and lose
+            // the previous conversation. Only start a new session when there
+            // truly is no current session.
+            if (viewModel.currentSession.value == null) {
+                viewModel.startNewSession(null)
+            } else {
+                viewModel.loadSession(viewModel.currentSession.value!!.id)
+            }
         } else {
             viewModel.loadSession(sessionId)
         }
+        // Report the actual session id back up so AppShell can remember it
+        // and resume this same chat on the next re-entry (rather than
+        // passing null again and starting a new one).
+        onSessionIdResolved(viewModel.currentSession.value?.id)
     }
 
     // Stick-to-bottom: only auto-scroll when the user is already near the
