@@ -30,6 +30,7 @@ import androidx.compose.material.icons.filled.Terminal
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.SmartToy
+import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material3.*
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.runtime.*
@@ -86,6 +87,7 @@ fun ChatScreen(
     val isLoading by viewModel.isLoading.collectAsState()
     val availableModels by viewModel.availableModels.collectAsState()
     val selectedModel by viewModel.selectedModel.collectAsState()
+    val thinkingModel by viewModel.thinkingModel.collectAsState()
     val useLocalMode by viewModel.useLocalMode.collectAsState()
     val detailedModels by viewModel.detailedModels.collectAsState()
     val isFetchingModels by viewModel.isFetchingModels.collectAsState()
@@ -97,6 +99,7 @@ fun ChatScreen(
     var inputText by remember { mutableStateOf("") }
     var showModelDropdown by remember { mutableStateOf(false) }
     var showModelBrowser by remember { mutableStateOf(false) }
+    var showThinkingBrowser by remember { mutableStateOf(false) }
     var showAttachMenu by remember { mutableStateOf(false) }
     var showSkillsSheet by remember { mutableStateOf(false) }
     var expandedTranscript by remember { mutableStateOf(true) }
@@ -105,17 +108,24 @@ fun ChatScreen(
     // Wire the slash-command /skills navigation.
     LaunchedEffect(Unit) { viewModel.onNavigateToSkills = onNavigateToSkills }
 
-    // Attachment launchers
+    // Attachment launchers — multi-select so several files/images can be
+    // attached to one message (not one at a time).
     val imagePicker = rememberLauncherForActivityResult(
-        ActivityResultContracts.GetContent()
-    ) { uri: Uri? -> uri?.let { viewModel.attachFile(it) } }
+        ActivityResultContracts.PickMultipleVisualMedia(10)
+    ) { uris: List<Uri> -> uris.forEach { viewModel.attachFile(it) } }
     val filePicker = rememberLauncherForActivityResult(
-        ActivityResultContracts.GetContent()
-    ) { uri: Uri? -> uri?.let { viewModel.attachFile(it) } }
+        ActivityResultContracts.GetMultipleContents()
+    ) { uris: List<Uri> -> uris.forEach { viewModel.attachFile(it) } }
 
     val attachItems = listOf(
-        AttachOption("Images", Icons.Default.Image) { imagePicker.launch("image/*") },
-        AttachOption("Photos", Icons.Default.PhotoLibrary) { imagePicker.launch("image/*") },
+        AttachOption("Images", Icons.Default.Image) {
+            imagePicker.launch(androidx.activity.result.PickVisualMediaRequest(
+                ActivityResultContracts.PickVisualMedia.ImageOnly))
+        },
+        AttachOption("Photos", Icons.Default.PhotoLibrary) {
+            imagePicker.launch(androidx.activity.result.PickVisualMediaRequest(
+                ActivityResultContracts.PickVisualMedia.ImageAndVideo))
+        },
         AttachOption("Files", Icons.Default.AttachFile) { filePicker.launch("*/*") },
         AttachOption("Plugins / Skills", Icons.Default.Extension) { showSkillsSheet = true; showAttachMenu = false }
     )
@@ -216,6 +226,31 @@ fun ChatScreen(
                                     }
                                 }
                             }
+                        }
+                        Spacer(Modifier.width(6.dp))
+                        // Thinking-model bar: pick the reasoning model. Sits right
+                        // next to the change-model bar.
+                        Row(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f))
+                                .clickable { showThinkingBrowser = true }
+                                .padding(horizontal = 6.dp, vertical = 2.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                Icons.Default.Bolt,
+                                contentDescription = "Thinking model",
+                                modifier = Modifier.size(13.dp),
+                                tint = MaterialTheme.colorScheme.secondary
+                            )
+                            Spacer(Modifier.width(2.dp))
+                            Text(
+                                text = thinkingModel.ifBlank { "Thinking" }
+                                    .substringAfterLast('/').take(14),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.secondary
+                            )
                         }
                     }
                 },
@@ -408,6 +443,24 @@ fun ChatScreen(
                     showModelBrowser = false
                 },
                 onDismiss = { showModelBrowser = false }
+            )
+        }
+    }
+
+    if (showThinkingBrowser) {
+        Dialog(
+            onDismissRequest = { showThinkingBrowser = false },
+            properties = DialogProperties(usePlatformDefaultWidth = false)
+        ) {
+            ModelBrowserSheet(
+                models = detailedModels,
+                selectedModelId = thinkingModel,
+                isLoading = isFetchingModels,
+                onModelSelected = { modelId ->
+                    viewModel.setThinkingModel(modelId)
+                    showThinkingBrowser = false
+                },
+                onDismiss = { showThinkingBrowser = false }
             )
         }
     }

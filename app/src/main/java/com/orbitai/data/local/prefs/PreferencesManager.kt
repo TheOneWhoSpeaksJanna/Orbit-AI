@@ -39,6 +39,7 @@ class PreferencesManager(private val context: Context) {
         val SELECTED_AGENT = stringPreferencesKey("selected_agent")
         val SELECTED_PROVIDER = stringPreferencesKey("selected_provider")
         val SELECTED_MODEL = stringPreferencesKey("selected_model")
+        val THINKING_MODEL = stringPreferencesKey("thinking_model")
 
         val AGENT_PERMISSION_LEVEL = stringPreferencesKey("agent_permission_level")
         val AGENT_RULES_ALLOWED = stringPreferencesKey("agent_rules_allowed")
@@ -131,6 +132,10 @@ class PreferencesManager(private val context: Context) {
 
     val selectedModel: Flow<String?> = context.dataStore.data.map { prefs ->
         prefs[SELECTED_MODEL]
+    }
+
+    val thinkingModel: Flow<String?> = context.dataStore.data.map { prefs ->
+        prefs[THINKING_MODEL]
     }
 
     val agentPermissionLevel: Flow<String> = context.dataStore.data.map { prefs ->
@@ -245,6 +250,10 @@ class PreferencesManager(private val context: Context) {
 
     suspend fun setSelectedModel(model: String) {
         context.dataStore.edit { prefs -> prefs[SELECTED_MODEL] = model }
+    }
+
+    suspend fun setThinkingModel(model: String) {
+        context.dataStore.edit { prefs -> prefs[THINKING_MODEL] = model }
     }
 
     suspend fun setAgentPermissionLevel(level: String) {

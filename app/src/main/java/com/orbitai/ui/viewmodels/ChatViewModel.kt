@@ -89,6 +89,49 @@ class ChatViewModel(
         _attachments.value = emptyList()
     }
 
+    /**
+     * Copy the queued attachments into a PRoot-visible directory
+     * (HOME/attachments) so the CLI agent can actually open and read them,
+     * and return a prompt suffix that tells the agent where they are + their
+     * type. This is the real multimodal ingestion path: the agent reads the
+     * file bytes (images, text, PDFs) from disk itself.
+     *
+     * Returns "" when there are no attachments.
+     */
+    private fun prepareAttachmentsForAgent(): String {
+        val items = _attachments.value
+        if (items.isEmpty()) return ""
+        val ctx = termuxRuntime.appContext
+        // Inside-rootfs path the agent sees; host path we copy into.
+        val hostDir = java.io.File(termuxRuntime.homeDir, "attachments")
+        hostDir.mkdirs()
+        val insideBase = "/data/data/com.termux/files/home/attachments"
+        val lines = StringBuilder("\n\n--- Attached files (read them from disk) ---\n")
+        for ((idx, item) in items.withIndex()) {
+            try {
+                val uri = android.net.Uri.parse(item.uri)
+                // sanitise name, keep extension
+                val safe = item.displayName.replace(Regex("[^A-Za-z0-9._-]"), "_")
+                val outName = "${idx}_$safe"
+                val outFile = java.io.File(hostDir, outName)
+                ctx.contentResolver.openInputStream(uri)?.use { input ->
+                    outFile.outputStream().use { output -> input.copyTo(output) }
+                }
+                outFile.setReadable(true, false)
+                val kind = when {
+                    safe.matches(Regex(".*\\.(png|jpe?g|webp|gif|bmp)$", RegexOption.IGNORE_CASE)) -> "image"
+                    safe.matches(Regex(".*\\.(pdf)$", RegexOption.IGNORE_CASE)) -> "PDF"
+                    else -> "file"
+                }
+                lines.append("- $kind: $insideBase/$outName\n")
+            } catch (e: Exception) {
+                com.orbitai.core.logging.FileLogger.w("ChatViewModel", "Attachment copy failed", "name=${item.displayName} err=${e.message}")
+            }
+        }
+        lines.append("--- end attachments ---\n")
+        return lines.toString()
+    }
+
     private val _currentSession = MutableStateFlow<ChatSession?>(null)
     val currentSession: StateFlow<ChatSession?> = _currentSession.asStateFlow()
 
@@ -197,6 +240,10 @@ class ChatViewModel(
         .map { it ?: "" }
         .stateIn(viewModelScope, SharingStarted.Eagerly, "")
 
+    val thinkingModel: StateFlow<String> = prefsManager.thinkingModel
+        .map { it ?: "" }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, "")
+
     val selectedAgent: StateFlow<String?> = prefsManager.selectedAgent
         .stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
@@ -236,6 +283,12 @@ class ChatViewModel(
     fun setSelectedModel(model: String) {
         viewModelScope.launch(exceptionHandler) {
             prefsManager.setSelectedModel(model)
+        }
+    }
+
+    fun setThinkingModel(model: String) {
+        viewModelScope.launch(exceptionHandler) {
+            prefsManager.setThinkingModel(model)
         }
     }
 
@@ -292,11 +345,19 @@ class ChatViewModel(
             )
             repository.insertMessage(userMsg)
 
+            // Multimodal / attachments: copy queued files into a PRoot-visible
+            // dir and build a suffix telling the agent where to read them.
+            val attachSuffix = prepareAttachmentsForAgent()
+            val agentContent = if (attachSuffix.isBlank()) content else content + attachSuffix
+            clearAttachments()
+
             val activeProvider = prefsManager.selectedProvider.firstOrNull() ?: DEFAULT_PROVIDER
             val activeModelName = prefsManager.selectedModel.firstOrNull() ?: ""
             val activeAgentId = prefsManager.selectedAgent.firstOrNull()
                 ?.lowercase()?.replace(" ", "-")
                 ?: return@launch
+
+            val thinkingModelName = prefsManager.thinkingModel.firstOrNull() ?: ""
 
             _isLoading.value = true
 
@@ -369,6 +430,12 @@ class ChatViewModel(
                         ""
                     }
 
+                    // Thinking model bar: when the user selects a reasoning model,
+                    // enable the CLI's thinking mode so it emits reasoning (💭 shows
+                    // in the transcript) and export the chosen thinking model so
+                    // config-aware CLIs route reasoning to it.
+                    val thinkingFlag = if (thinkingModelName.isNotBlank()) " --thinking enabled" else ""
+
                     // Guard: if no API key is configured for the selected
                     // provider, the agent would silently fall back to its own
                     // (often broken) default gateway and emit a confusing
@@ -401,31 +468,55 @@ class ChatViewModel(
                     com.orbitai.core.logging.FileLogger.i("ChatViewModel", "Agent exec start (PRoot, streamed)", "cmd=$runCmd content=${content.take(80)}")
                     _streamLines.value = emptyList()
                     _showTranscript.value = true
-                    val escaped = content.replace("\"", "\\\"").replace("`", "\\`").replace("$", "\\$")
+                    val escaped = agentContent.replace("\"", "\\\"").replace("`", "\\`").replace("$", "\\$")
 
-                    // Method 1: -p flag (OpenClaude's non-interactive mode)
-                    var fullCmd = "$envExports $runCmd -p \"$escaped\"$dangerouslySkip"
-                    var result = termuxRuntime.executeInTermuxStreamed(fullCmd, "") { line ->
-                        _streamLines.value = _streamLines.value + line
+                    // Accumulates the final assistant answer parsed out of the
+                    // stream-json events (so the answer bubble shows clean prose,
+                    // while the transcript shows the live tool/thinking events).
+                    val answerAccumulator = StringBuilder()
+                    // Whether the CLI supports the Claude-Code stream-json protocol.
+                    // If the first attempt yields parseable events we trust it;
+                    // otherwise we fall back to plain text streaming below.
+                    var sawStreamEvent = false
+
+                    val onStreamLine: (String) -> Unit = { raw ->
+                        val parsed = parseAgentStreamLine(raw, answerAccumulator)
+                        if (parsed != null) {
+                            sawStreamEvent = true
+                            if (parsed.isNotBlank()) _streamLines.value = _streamLines.value + parsed
+                        } else {
+                            // Not JSON — show the raw line so plain-text CLIs are
+                            // still transparent.
+                            _streamLines.value = _streamLines.value + raw
+                        }
                     }
-                    com.orbitai.core.logging.FileLogger.i("ChatViewModel", "Agent exec (-p flag)", "exit=${result.exitCode} output=${result.output.take(2000)}")
 
-                    // If -p flag failed, try stdin pipe
-                    if (result.exitCode != 0 || result.output.isBlank()) {
+                    // Method 1: stream-json (real transparency — one event per line).
+                    // openclaude / claude / opencode-compatible CLIs emit assistant
+                    // text, tool_use and tool_result events as they work.
+                    var fullCmd = "$envExports $runCmd -p \"$escaped\" --output-format stream-json --verbose$thinkingFlag$dangerouslySkip"
+                    var result = termuxRuntime.executeInTermuxStreamed(fullCmd, "", onStreamLine)
+                    com.orbitai.core.logging.FileLogger.i("ChatViewModel", "Agent exec (stream-json)", "exit=${result.exitCode} events=$sawStreamEvent output=${result.output.take(500)}")
+
+                    // If stream-json wasn't supported (no events parsed) or it
+                    // failed, fall back to plain -p flag.
+                    if (!sawStreamEvent && (result.exitCode != 0 || result.output.isBlank())) {
+                        answerAccumulator.clear()
+                        _streamLines.value = emptyList()
+                        fullCmd = "$envExports $runCmd -p \"$escaped\"$dangerouslySkip"
+                        result = termuxRuntime.executeInTermuxStreamed(fullCmd, "") { line ->
+                            _streamLines.value = _streamLines.value + line
+                        }
+                        com.orbitai.core.logging.FileLogger.i("ChatViewModel", "Agent exec (-p flag)", "exit=${result.exitCode} output=${result.output.take(2000)}")
+                    }
+
+                    // If -p also failed, try stdin pipe
+                    if (!sawStreamEvent && (result.exitCode != 0 || result.output.isBlank())) {
                         fullCmd = "$envExports echo \"$escaped\" | $runCmd -p$dangerouslySkip"
                         result = termuxRuntime.executeInTermuxStreamed(fullCmd, "") { line ->
                             _streamLines.value = _streamLines.value + line
                         }
                         com.orbitai.core.logging.FileLogger.i("ChatViewModel", "Agent exec (stdin+pipe)", "exit=${result.exitCode} output=${result.output.take(2000)}")
-                    }
-
-                    // If stdin also failed, try direct argument (no -p)
-                    if (result.exitCode != 0 || result.output.isBlank()) {
-                        fullCmd = "$envExports $runCmd \"$escaped\"$dangerouslySkip"
-                        result = termuxRuntime.executeInTermuxStreamed(fullCmd, "") { line ->
-                            _streamLines.value = _streamLines.value + line
-                        }
-                        com.orbitai.core.logging.FileLogger.i("ChatViewModel", "Agent exec (direct arg)", "exit=${result.exitCode} output=${result.output.take(2000)}")
                     }
 
                     // Decide what to show the user:
@@ -434,7 +525,12 @@ class ChatViewModel(
                     //   captured (prefer the first attempt's non-blank output),
                     //   clearly marked as a failure instead of a bare "(no output)".
                     val allFailed = result.exitCode != 0 || result.output.isBlank()
-                    val displayContent = if (!allFailed) {
+                    val parsedAnswer = answerAccumulator.toString().trim()
+                    val displayContent = if (sawStreamEvent && parsedAnswer.isNotBlank()) {
+                        // stream-json path: show the clean assistant answer we
+                        // accumulated from the events.
+                        parsedAnswer
+                    } else if (!allFailed) {
                         result.output
                     } else {
                         val bestError = listOf(result.output)
@@ -494,7 +590,7 @@ class ChatViewModel(
             _messages.value.forEach { msg ->
                 promptBuilder.append("${msg.role.name}: ${msg.content}\n")
             }
-            promptBuilder.append("USER: $content\nMODEL: ")
+            promptBuilder.append("USER: $agentContent\nMODEL: ")
 
             loopPromptBuilder = promptBuilder
             loopContinueLooping = true
@@ -765,6 +861,97 @@ class ChatViewModel(
                 }
             }
             _isLoading.value = false
+        }
+    }
+
+    /**
+     * Parse one line of a CLI agent's `--output-format stream-json` output
+     * (the Claude-Code streaming protocol shared by openclaude / claude /
+     * opencode). Returns a short human-readable transcript line describing the
+     * event, and appends any assistant text to [answerAcc] so the final answer
+     * bubble can show clean prose.
+     *
+     * Returns null when the line is not valid stream-json (so the caller can
+     * fall back to showing the raw line for plain-text CLIs).
+     */
+    private fun parseAgentStreamLine(raw: String, answerAcc: StringBuilder): String? {
+        val line = raw.trim()
+        if (line.isEmpty() || !line.startsWith("{")) return null
+        return try {
+            val obj = org.json.JSONObject(line)
+            when (obj.optString("type")) {
+                "system" -> {
+                    val sub = obj.optString("subtype")
+                    if (sub == "init") "• session started" else "• system: $sub"
+                }
+                "assistant" -> {
+                    val msg = obj.optJSONObject("message")
+                    val blocks = msg?.optJSONArray("content")
+                    val sb = StringBuilder()
+                    if (blocks != null) {
+                        for (i in 0 until blocks.length()) {
+                            val b = blocks.optJSONObject(i) ?: continue
+                            when (b.optString("type")) {
+                                "text" -> {
+                                    val t = b.optString("text")
+                                    if (t.isNotBlank()) {
+                                        answerAcc.append(t)
+                                        sb.append(t.trim())
+                                    }
+                                }
+                                "tool_use" -> {
+                                    val name = b.optString("name")
+                                    val input = b.optJSONObject("input")?.toString()?.take(120) ?: ""
+                                    sb.append("🔧 $name $input")
+                                }
+                                "thinking" -> {
+                                    val th = b.optString("thinking").take(200)
+                                    if (th.isNotBlank()) sb.append("💭 $th")
+                                }
+                            }
+                            if (i < blocks.length() - 1 && sb.isNotEmpty()) sb.append("\n")
+                        }
+                    }
+                    sb.toString()
+                }
+                "user" -> {
+                    // tool_result events come back wrapped as a user message
+                    val msg = obj.optJSONObject("message")
+                    val blocks = msg?.optJSONArray("content")
+                    val sb = StringBuilder()
+                    if (blocks != null) {
+                        for (i in 0 until blocks.length()) {
+                            val b = blocks.optJSONObject(i) ?: continue
+                            if (b.optString("type") == "tool_result") {
+                                val c = b.opt("content")
+                                val text = when (c) {
+                                    is org.json.JSONArray -> {
+                                        val t = StringBuilder()
+                                        for (j in 0 until c.length()) {
+                                            t.append(c.optJSONObject(j)?.optString("text") ?: "")
+                                        }
+                                        t.toString()
+                                    }
+                                    else -> c?.toString() ?: ""
+                                }
+                                sb.append("↳ ${text.trim().take(160)}")
+                            }
+                        }
+                    }
+                    sb.toString()
+                }
+                "result" -> {
+                    // Final event. If we never captured assistant text, use the
+                    // result field as the answer.
+                    val res = obj.optString("result")
+                    if (answerAcc.isBlank() && res.isNotBlank()) answerAcc.append(res)
+                    "" // don't add a transcript line; the answer bubble covers it
+                }
+                "error" -> "⚠️ ${obj.optString("error", obj.optString("message", "error"))}"
+                else -> "" // known-but-uninteresting event: consume silently
+            }
+        } catch (e: Exception) {
+            null // not JSON — let caller show the raw line
         }
     }
 
