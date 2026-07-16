@@ -302,6 +302,22 @@ class ChatViewModel(
                         else prefsManager.getApiKeyForProvider(activeProvider).firstOrNull() ?: ""
                     val model = activeModelName.ifBlank { "auto" }
 
+                    // Permission gating: the Settings permission level controls
+                    // whether the agent may run shell/tool commands WITHOUT an
+                    // interactive approval prompt.
+                    //   FULL_ACCESS -> --dangerously-skip-permissions (auto-run all)
+                    //   NORMAL / RULES -> permissions are enforced by the agent;
+                    //     the user is prompted per action instead of everything
+                    //     running blindly. This makes the Settings control real.
+                    val permLevel = AgentPermissionLevel.fromValue(
+                        prefsManager.agentPermissionLevel.firstOrNull() ?: "NORMAL"
+                    )
+                    val dangerouslySkip = if (permLevel == AgentPermissionLevel.FULL_ACCESS) {
+                        " --dangerously-skip-permissions"
+                    } else {
+                        ""
+                    }
+
                     // Guard: if no API key is configured for the selected
                     // provider, the agent would silently fall back to its own
                     // (often broken) default gateway and emit a confusing
@@ -335,8 +351,10 @@ class ChatViewModel(
                     val escaped = content.replace("\"", "\\\"").replace("`", "\\`").replace("$", "\\$")
 
                     // Method 1: -p flag (OpenClaude's non-interactive mode)
-                    // openclaude -p "prompt" is the correct way to send a one-shot prompt
-                    var fullCmd = "$envExports $runCmd -p \"$escaped\" --dangerously-skip-permissions"
+                    // openclaude -p "prompt" is the correct way to send a one-shot prompt.
+                    // --dangerously-skip-permissions is gated on the permission level
+                    // (FULL_ACCESS only) so NORMAL/RULES enforce per-action approval.
+                    var fullCmd = "$envExports $runCmd -p \"$escaped\"$dangerouslySkip"
                     var result = termuxRuntime.executeInTermux(fullCmd, "")
                     com.orbitai.core.logging.FileLogger.i("ChatViewModel", "Agent exec (-p flag)", "exit=${result.exitCode} output=${result.output.take(2000)}")
 
@@ -347,14 +365,14 @@ class ChatViewModel(
 
                     // If -p flag failed, try stdin pipe
                     if (result.exitCode != 0 || result.output.isBlank()) {
-                        fullCmd = "$envExports echo \"$escaped\" | $runCmd -p --dangerously-skip-permissions"
+                        fullCmd = "$envExports echo \"$escaped\" | $runCmd -p$dangerouslySkip"
                         result = termuxRuntime.executeInTermux(fullCmd, "")
                         com.orbitai.core.logging.FileLogger.i("ChatViewModel", "Agent exec (stdin+pipe)", "exit=${result.exitCode} output=${result.output.take(2000)}")
                     }
 
                     // If stdin also failed, try direct argument (no -p)
                     if (result.exitCode != 0 || result.output.isBlank()) {
-                        fullCmd = "$envExports $runCmd \"$escaped\""
+                        fullCmd = "$envExports $runCmd \"$escaped\"$dangerouslySkip"
                         result = termuxRuntime.executeInTermux(fullCmd, "")
                         com.orbitai.core.logging.FileLogger.i("ChatViewModel", "Agent exec (direct arg)", "exit=${result.exitCode} output=${result.output.take(2000)}")
                     }
