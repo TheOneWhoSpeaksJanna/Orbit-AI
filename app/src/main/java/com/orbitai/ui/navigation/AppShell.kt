@@ -136,6 +136,14 @@ fun AppShell() {
                                 onNavigateBack = {
                                     targetSessionId = null
                                     selectedTab = BottomNavTab.HOME
+                                },
+                                onSessionIdResolved = { id ->
+                                    // Remember the session ChatScreen is actually
+                                    // using so re-entering the Chat tab resumes it
+                                    // instead of spawning a new chat (the previous
+                                    // bug: targetSessionId stayed null, so each
+                                    // re-entry called startNewSession again).
+                                    if (id != null) targetSessionId = id
                                 }
                             )
                             BottomNavTab.HISTORY -> HistoryScreen(
