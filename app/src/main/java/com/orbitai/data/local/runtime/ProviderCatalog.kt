@@ -61,7 +61,7 @@ object ProviderCatalog {
      *  - (normal)    : broad unless the user picked a specific agent
      */
     private val AGENT_PROVIDERS = mapOf(
-        "Claude Code" to setOf("anthropic", "bedrock", "vertex"),
+        "Claude Code" to setOf("anthropic", "bedrock", "vertex", "foundry"),
         "Codex" to setOf("openai"),
         // opencode / openclaude / default -> all
     )
