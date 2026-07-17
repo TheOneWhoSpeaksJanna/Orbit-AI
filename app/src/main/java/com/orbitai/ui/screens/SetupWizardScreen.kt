@@ -449,9 +449,15 @@ fun ProviderSelectionStep(viewModel: SetupViewModel) {
         val activeAgent = if (com.orbitai.core.config.FlavorConfig.presetAgentName.isNotBlank())
             com.orbitai.core.config.FlavorConfig.presetAgentName else agent
         val all = com.orbitai.data.local.runtime.ProviderCatalog.loadForAgent(context, activeAgent).map { it.name }
-        // Surface OpenRouter first so it is always visible (esp. on small / headless
-        // displays where the provider list cannot scroll). Tapping it reveals the API-key field.
-        listOf("OpenRouter") + all.filter { it != "OpenRouter" }
+        // OpenRouter is a universal gateway that is NOT an official provider for
+        // Claude Code or Codex. Only surface it first on the broad agents
+        // (OpenClaude / OpenCode / normal-default); for Claude Code / Codex we
+        // respect the agent's own (official) provider list and do not inject it.
+        val forceOpenRouter = com.orbitai.core.config.FlavorConfig.presetAgentName.isBlank() ||
+            activeAgent.equals("OpenClaude", ignoreCase = true) ||
+            activeAgent.equals("OpenCode", ignoreCase = true)
+        if (forceOpenRouter) listOf("OpenRouter") + all.filter { it != "OpenRouter" }
+        else all
     }
 
     Column(
