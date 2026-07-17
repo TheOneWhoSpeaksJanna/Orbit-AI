@@ -47,19 +47,22 @@ object ProviderCatalog {
 
     /**
      * Providers each agent actually supports (per the agent's official docs).
-     * This is what filters the provider list per flavor / per selected agent,
-     * so e.g. Claude Code never shows OpenRouter/Gemini, and Codex never
-     * shows Gemini.
+     * This filters the provider list per flavor / per selected agent, so e.g.
+     * Claude Code never shows Gemini/OpenAI, and Codex never shows Gemini.
      *
      *  - claude-code : Anthropic Claude, AWS Bedrock, Google Vertex AI
-     *  - codex       : OpenAI, Azure OpenAI, GitHub Copilot
-     *  - opencode    : broad (75+ providers via AI SDK)
+     *                  (official Anthropic auth methods; OpenRouter is offered
+     *                   separately as a universal gateway, not an official one)
+     *  - codex       : OpenAI ONLY (ChatGPT subscription OR OpenAI API key).
+     *                  Codex is OpenAI-first-party; GitHub Copilot / Azure are
+     *                  NOT Codex providers. OpenRouter gateway still shown.
+     *  - opencode    : broad (75+ providers via AI SDK / Models.dev)
      *  - openclaude  : broad (any OpenAI-compatible / gateway)
      *  - (normal)    : broad unless the user picked a specific agent
      */
     private val AGENT_PROVIDERS = mapOf(
         "Claude Code" to setOf("anthropic", "bedrock", "vertex"),
-        "Codex" to setOf("openai", "azure-openai", "github"),
+        "Codex" to setOf("openai"),
         // opencode / openclaude / default -> all
     )
 
