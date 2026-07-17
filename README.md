@@ -1,8 +1,8 @@
 # Orbit-AI
 
-A portable Android app that turns AI coding agents (OpenClaude, OpenCode, Claude Code, Codex) into pocket-sized, on-device tools. No Termux, no root, no laptop required.
+A portable Android app that turns AI coding agents (OpenClaude, OpenCode, Claude Code, Codex, Hermes) into pocket-sized, on-device tools. No Termux, no root, no laptop required.
 
-Orbit-AI ships as **five editions**, each bundling one agent (or, for the Normal edition, letting you pick). Every edition runs the agent inside a self-contained Linux runtime via **PRoot** and pipes your chat to it.
+Orbit-AI ships as **six editions**, each bundling one agent (or, for the Normal edition, letting you pick). Every edition runs the agent inside a self-contained Linux runtime via **PRoot** and pipes your chat to it.
 
 ## Editions (product flavors)
 
@@ -13,8 +13,9 @@ Orbit-AI ships as **five editions**, each bundling one agent (or, for the Normal
 | `opencode` | OpenCode (`@opencode-ai/cli`, binary `lildax`) | Orbit + OpenCode | OpenRouter (any provider) |
 | `claudecode` | Claude Code (`@anthropic-ai/claude-code`) | Orbit + Claude Code | Anthropic Claude |
 | `codex` | Codex (`@openai/codex`) | Orbit + Codex | OpenAI |
+| `hermes` | Hermes (Nous Research agent concept) | Orbit + Hermes | OpenRouter (`tencent/hy3:free`) |
 
-Build all five with `./gradlew assembleDebug`, or one with `./gradlew assemble<Flavor>Debug` (e.g. `assembleCodexDebug`).
+Build all six with `./gradlew assembleDebug`, or one with `./gradlew assemble<Flavor>Debug` (e.g. `assembleHermesDebug`).
 
 ## Per-edition authentication
 
@@ -24,6 +25,7 @@ Build all five with `./gradlew assembleDebug`, or one with `./gradlew assemble<F
   - **Claude Max subscription** — paste your subscription token; Orbit exports it as `ANTHROPIC_AUTH_TOKEN`. The setup wizard shows an *API Key / Claude Max Subscription* toggle when Anthropic is the selected provider.
 - **OpenClaude / OpenCode Editions** — work with **any** provider from the bundled catalog (OpenRouter, OpenAI, Anthropic, Gemini, DeepSeek, Groq, xAI, and 25+ more). Orbit passes the selected provider's key + base URL to the agent via environment variables.
 - **Normal Edition** — the setup wizard lets you **choose which agent** you want; after selection the installer automatically downloads, installs (via `npm install -g`), and configures the chosen agent inside the Linux runtime. No manual setup required.
+- **Hermes Edition** — a local-agent edition inspired by the Nous Research **hermes-agent**. Because the upstream Python agent requires Python `<3.14` (and the bundled Termux runtime ships 3.14), Hermes runs in **local-agent mode with its LLM backend served by OpenRouter**: the wizard preselects OpenRouter and the agent's responses are generated through the OpenRouter API using your key (default model `tencent/hy3:free`). A Hermes-only **Gateway** section in Settings lets you register external connectors.
 
 ## How it works
 
@@ -56,7 +58,7 @@ Orbit-AI bundles a **complete Linux runtime** (Debian/Ubuntu rootfs) inside the 
 
 ## Features
 
-- **Five editions** — Normal (agent picker), OpenClaude, OpenCode, Claude Code, Codex.
+- **Six editions** — Normal (agent picker), OpenClaude, OpenCode, Claude Code, Codex, Hermes.
 - **Self-installing agents** — the setup wizard installs the chosen agent via `npm install -g` inside the runtime and writes a launch wrapper. No manual setup.
 - **30+ AI providers** — OpenRouter (default), OpenAI, Anthropic, Gemini, DeepSeek, Groq, xAI, Ollama (local), and more, loaded from a dynamic catalog.
 - **OpenRouter default** — new installs default to OpenRouter with the free `tencent/hy3:free` model, listed first in the wizard.
@@ -94,7 +96,7 @@ Prerequisites: Android SDK (platform + build-tools), **JDK 17+** to run the Andr
 ```bash
 git clone https://github.com/TheOneWhoSpeaksJanna/Orbit-AI.git
 cd Orbit-AI
-./gradlew assembleDebug          # builds all 5 edition APKs
+./gradlew assembleDebug          # builds all 6 edition APKs
 ./gradlew assembleCodexDebug     # build a single edition
 ```
 
@@ -131,7 +133,7 @@ Log levels: `I` (info), `W` (warnings), `E` (errors), `D` (debug). Every command
 
 GitHub Actions (`.github/workflows/build.yml`):
 
-- Builds all 5 flavors on push to `main` and on PRs.
+- Builds all 6 flavors on push to `main` and on PRs.
 - Runs unit tests on PRs.
 - Uploads APKs as artifacts (30-day retention).
 - Auto-creates a GitHub Release on push to `main`.
