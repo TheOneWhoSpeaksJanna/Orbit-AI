@@ -443,12 +443,14 @@ fun ProviderSelectionStep(viewModel: SetupViewModel) {
         selectedProvider.contains("Claude", ignoreCase = true)
     val useSubscription = isAnthropic && claudeAuthMode == "subscription"
 
-    // Load providers dynamically from the catalog
+    // Load providers dynamically, filtered to what the active agent supports.
     val context = androidx.compose.ui.platform.LocalContext.current
-    val providerOptions = remember {
-        val all = com.orbitai.data.local.runtime.ProviderCatalog.load(context).map { it.name }
-        // Surface OpenRouter first so it is always visible (esp. on small / headless displays
-        // where the provider list cannot scroll). Tapping it reveals the API-key field.
+    val providerOptions = remember(agent) {
+        val activeAgent = if (com.orbitai.core.config.FlavorConfig.presetAgentName.isNotBlank())
+            com.orbitai.core.config.FlavorConfig.presetAgentName else agent
+        val all = com.orbitai.data.local.runtime.ProviderCatalog.loadForAgent(context, activeAgent).map { it.name }
+        // Surface OpenRouter first so it is always visible (esp. on small / headless
+        // displays where the provider list cannot scroll). Tapping it reveals the API-key field.
         listOf("OpenRouter") + all.filter { it != "OpenRouter" }
     }
 
