@@ -20,6 +20,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.activity.compose.BackHandler
 import android.app.Activity
 import androidx.compose.ui.platform.LocalContext
@@ -86,7 +87,7 @@ fun AppShell() {
                                     contentDescription = tab.label
                                 )
                             },
-                            label = { Text(tab.label) },
+                            label = { Text(tab.label, fontSize = 10.sp, maxLines = 1, softWrap = false) },
                             colors = NavigationBarItemDefaults.colors(
                                 selectedIconColor = MaterialTheme.colorScheme.secondary,
                                 selectedTextColor = MaterialTheme.colorScheme.secondary,
