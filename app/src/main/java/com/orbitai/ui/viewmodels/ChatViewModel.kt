@@ -984,7 +984,11 @@ class ChatViewModel(
         // send the wrong provider's key there, failing every chat.
         if (!baseUrlSet) {
             try {
-                val catalog = com.orbitai.data.local.runtime.ProviderCatalog.load(termuxRuntime.appContext)
+                val activeAgent = if (com.orbitai.core.config.FlavorConfig.presetAgentName.isNotBlank())
+                    com.orbitai.core.config.FlavorConfig.presetAgentName
+                else selectedAgent.value.orEmpty()
+                val catalog = com.orbitai.data.local.runtime.ProviderCatalog
+                    .loadForAgent(termuxRuntime.appContext, activeAgent)
                 val entry = catalog.find { it.name.equals(provider, ignoreCase = true) }
                 val base = entry?.baseUrl?.trim()?.takeIf { it.isNotBlank() }
                 if (base != null) {

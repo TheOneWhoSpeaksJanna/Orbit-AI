@@ -46,6 +46,46 @@ object ProviderCatalog {
     private var cachedProviders: List<ProviderEntry>? = null
 
     /**
+     * Providers each agent actually supports (per the agent's official docs).
+     * This is what filters the provider list per flavor / per selected agent,
+     * so e.g. Claude Code never shows OpenRouter/Gemini, and Codex never
+     * shows Gemini.
+     *
+     *  - claude-code : Anthropic Claude, AWS Bedrock, Google Vertex AI
+     *  - codex       : OpenAI, Azure OpenAI, GitHub Copilot
+     *  - opencode    : broad (75+ providers via AI SDK)
+     *  - openclaude  : broad (any OpenAI-compatible / gateway)
+     *  - (normal)    : broad unless the user picked a specific agent
+     */
+    private val AGENT_PROVIDERS = mapOf(
+        "Claude Code" to setOf("anthropic", "bedrock", "vertex"),
+        "Codex" to setOf("openai", "azure-openai", "github"),
+        // opencode / openclaude / default -> all
+    )
+
+    private fun providerIdsForAgent(agentName: String): Set<String>? {
+        // Normalize: match on the agent's canonical name (case-insensitive contains).
+        val n = agentName.lowercase()
+        return when {
+            n.contains("claude code") -> AGENT_PROVIDERS["Claude Code"]
+            n.contains("codex") -> AGENT_PROVIDERS["Codex"]
+            else -> null // null => show all providers (opencode / openclaude / default)
+        }
+    }
+
+    /**
+     * Load the provider catalog filtered to the providers the given agent supports.
+     * Pass the active agent name (flavor preset, or the user's selection on the
+     * normal edition). If the agent supports all providers (null allow-list),
+     * returns the full catalog.
+     */
+    fun loadForAgent(context: Context, agentName: String): List<ProviderEntry> {
+        val all = load(context)
+        val allowed = providerIdsForAgent(agentName) ?: return all
+        return all.filter { allowed.contains(it.id) }
+    }
+
+    /**
      * Load the provider catalog from the bundled JSON asset.
      * Results are cached after first load.
      */

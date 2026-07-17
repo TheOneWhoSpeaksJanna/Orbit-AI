@@ -90,7 +90,11 @@ class ProvidersViewModel(
             // by the time the list items compose/animate (avoids a second emission
             // mid-animation that could interrupt item entrance animations).
             _selectedProvider.value = prefsManager.selectedProvider.firstOrNull().orEmpty()
-            val catalog = com.orbitai.data.local.runtime.ProviderCatalog.load(context)
+            val activeAgent = if (com.orbitai.core.config.FlavorConfig.presetAgentName.isNotBlank())
+                com.orbitai.core.config.FlavorConfig.presetAgentName
+            else prefsManager.selectedAgent.firstOrNull().orEmpty()
+            val catalog = com.orbitai.data.local.runtime.ProviderCatalog
+                .loadForAgent(context, activeAgent)
             val configs = catalog.map { entry ->
                 val key = prefsManager.getApiKeyForProvider(entry.id).firstOrNull()
                 ProviderConfig(
