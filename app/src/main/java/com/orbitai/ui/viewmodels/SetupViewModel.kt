@@ -507,6 +507,22 @@ class SetupViewModel(
                     emitLog("SetupViewModel", "Hermes local agent ready — runs on-device via PRoot")
                     updateInstallState(agentName, progress = 1f, status = "Hermes ready (local agent)", isInstalled = true)
                 } else {
+                // CRITICAL: the Termux rootfs must be fully installed BEFORE we
+                // run `npm install` for the agent. The rootfs install is normally
+                // triggered lazily on first Terminal use (TermuxViewModel), but
+                // completeSetup() calls installAgent() during onboarding — before
+                // any Terminal use — so executeInTermux would fail with
+                // "Termux rootfs not installed." and the agent runCommand would be
+                // left as garbage (node "Termux rootfs not installed."), making the
+                // chatbot silently do nothing. Install the rootfs here first.
+                // install() is idempotent (returns early if already installed), so
+                // calling it unconditionally is safe and removes any isInstalled
+                // race between this coroutine and a concurrent Terminal-triggered
+                // install.
+                emitLog("SetupViewModel", "Ensuring Termux rootfs is installed before agent npm install")
+                termuxRuntime.install { progress, status ->
+                    emitLog("SetupViewModel", "Rootfs install progress", "progress=${(progress * 100).toInt()}% status=$status")
+                }
                 // Install the agent. Try local tarball first (pre-bundled in APK
                 // assets), fall back to npm registry download if not available.
                 if (npmPackage != null) {
@@ -621,7 +637,13 @@ class SetupViewModel(
                 .firstOrNull() ?: ""
         }
 
-        // Strategy 1: Try to actually execute the binary. If it works, use it.
+        // Strategy 1: Probe the binary, but NEVER return the bare binary name.
+        // PRoot does NOT translate the shebang interpreter path, so a shebang
+        // like "#!/usr/bin/env node" fails with "bad interpreter" even when the
+        // binary is fine. We only use this probe to decide whether the binary
+        // is fundamentally broken; the runnable command always comes from the
+        // node-path resolution below (Strategies 2-4), which wraps the JS entry
+        // point as `node "<path>"` and sidesteps the shebang entirely.
         if (npmPackage != null) {
             val testExec = termuxRuntime.executeInTermux(
                 "$binaryName --version 2>&1 || $binaryName --help 2>&1 || echo EXEC_FAILED",
@@ -629,12 +651,11 @@ class SetupViewModel(
             )
             val execOutput = cleanOutput(testExec.output)
             emitLog("SetupViewModel", "Binary exec test", "exit=${testExec.exitCode} output=${execOutput.take(200)}")
-
-            if (testExec.exitCode == 0 && execOutput != "EXEC_FAILED" && !execOutput.contains("not found")) {
-                emitLog("SetupViewModel", "Binary executes correctly", "name=$binaryName")
-                return binaryName
+            if (execOutput.contains("not found") || execOutput.contains("bad interpreter") || execOutput == "EXEC_FAILED") {
+                emitLog("SetupViewModel", "Binary can't execute directly (shebang/PRoot issue) — will wrap with node", "name=$binaryName")
+            } else {
+                emitLog("SetupViewModel", "Binary probe OK (will still wrap with node to avoid PRoot shebang bug)", "name=$binaryName")
             }
-            emitLog("SetupViewModel", "Binary can't execute (shebang issue)", "name=$binaryName")
         }
 
         // Strategy 2: Resolve the symlink to find the actual JS file.

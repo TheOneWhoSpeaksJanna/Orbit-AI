@@ -116,6 +116,9 @@ class TermuxRuntime(private val context: Context) {
     ): Boolean = withContext(Dispatchers.IO) {
         if (isInstalled) {
             FileLogger.i(TAG, "Termux rootfs already installed")
+            // Even if rootfs is extracted, the critical symlinks or tools might
+            // be missing (e.g. a partial prior install). Ensure them first.
+            ensureCriticalSymlinks()
             // Even if rootfs is extracted, tools might not be installed
             // (e.g. if apt failed on a previous run). Check and install.
             val toolsOk = ensureToolsInstalled(onProgress)
@@ -214,28 +217,12 @@ class TermuxRuntime(private val context: Context) {
             File(rootfsDir, "data/data/com.termux/files/home").mkdirs()
             File(prefixDir, "tmp").mkdirs()
 
-            // CRITICAL: OpenClaude's Bash tool (and other CLI agents) and the
-            // in-app Terminal expect a real BASH shell. The termux rootfs ships
-            // usr/bin/{sh,bash}; usr/bin/sh is dash (so bash builtins like
-            // `help`, `compgen`, `source` fail with "sh: 1: help: not found",
-            // unlike real Termux where the login shell is bash). Create the
-            // symlinks so both /bin/sh and /bin/bash resolve to bash — this
-            // makes `help`, history, tab-completion and all bash builtins work
-            // exactly like the original Termux. Guest-relative targets
-            // (resolve inside PRoot).
-            val binDir = File(rootfsDir, "bin")
-            binDir.mkdirs()
-            val binShSymlink = File(binDir, "sh")
-            val binBashSymlink = File(binDir, "bash")
-            for (link in listOf(binShSymlink, binBashSymlink)) {
-                if (!link.exists()) {
-                    try {
-                        Runtime.getRuntime().exec(
-                            arrayOf("ln", "-sf", "$termuxPrefix/bin/bash", link.absolutePath)
-                        ).waitFor()
-                    } catch (_: Exception) { /* best-effort */ }
-                }
-            }
+            // CRITICAL: create the symlinks (/bin/sh,/bin/bash -> bash and
+            // /usr/bin/env,/bin/env -> env) that make bash builtins and node-CLI
+            // shebangs work like real Termux. Done via ensureCriticalSymlinks()
+            // (also called on the early-return path so a pre-existing rootfs
+            // still gets correct symlinks).
+            ensureCriticalSymlinks()
 
             // CRITICAL: apt's compiled-in cache path is
             // /data/data/com.termux/cache/apt/archives/partial
@@ -292,6 +279,49 @@ class TermuxRuntime(private val context: Context) {
      * This is called both during initial install and during retries.
      * Returns true if tools are available after this call.
      */
+    /**
+     * Create the critical symlinks that make the agent CLIs and the in-app
+     * Terminal behave like real Termux, regardless of whether the rootfs was
+     * just extracted or already present (install() may early-return when the
+     * rootfs already exists, so this must run on every install() call).
+     *   - /bin/sh and /bin/bash -> $PREFIX/bin/bash  (bash builtins work)
+     *   - /usr/bin/env and /bin/env -> $PREFIX/bin/env  (node-CLI shebangs
+     *     "#!/usr/bin/env node" resolve, so `openclaude`/`claude`/`codex`/
+     *     `opencode` run directly instead of failing with "bad interpreter")
+     */
+    private fun ensureCriticalSymlinks() {
+        try {
+            val binDir = File(rootfsDir, "bin"); binDir.mkdirs()
+            val usrBinDir = File(rootfsDir, "usr/bin"); usrBinDir.mkdirs()
+            for (link in listOf(
+                File(binDir, "sh"),
+                File(binDir, "bash"),
+                File(usrBinDir, "env"),
+                File(binDir, "env")
+            )) {
+                if (!link.exists()) {
+                    try {
+                        Runtime.getRuntime().exec(
+                            arrayOf("ln", "-sf", "$termuxPrefix/bin/bash", link.absolutePath)
+                        ).waitFor()
+                    } catch (_: Exception) { /* best-effort */ }
+                }
+            }
+            // env must point at the env binary, not bash
+            val envTargets = listOf(File(usrBinDir, "env"), File(binDir, "env"))
+            for (envLink in envTargets) {
+                if (envLink.exists()) {
+                    try {
+                        Runtime.getRuntime().exec(arrayOf("rm", "-f", envLink.absolutePath)).waitFor()
+                        Runtime.getRuntime().exec(
+                            arrayOf("ln", "-sf", "$termuxPrefix/bin/env", envLink.absolutePath)
+                        ).waitFor()
+                    } catch (_: Exception) { /* best-effort */ }
+                }
+            }
+        } catch (_: Exception) { /* best-effort */ }
+    }
+
     suspend fun ensureToolsInstalled(
         onProgress: (Float, String) -> Unit = { _, _ -> }
     ): Boolean = withContext(Dispatchers.IO) {
