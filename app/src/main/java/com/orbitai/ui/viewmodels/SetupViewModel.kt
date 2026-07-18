@@ -15,6 +15,7 @@ import com.orbitai.core.logging.CoroutineExceptionHandlerFactory
 import com.orbitai.data.local.prefs.PreferencesManager
 import com.orbitai.data.local.runner.LocalCommandRunner
 import com.orbitai.data.local.runtime.OrbitAiRuntimeManager
+import com.orbitai.data.local.runtime.TermuxRuntime
 import com.orbitai.domain.models.Agent
 import com.orbitai.domain.models.Skill
 import com.orbitai.domain.api.AiProvider
@@ -167,7 +168,7 @@ private val NPM_PACKAGES = mapOf(
 private val AGENT_BINARIES = mapOf(
     AGENT_OPENCLAUDE to "openclaude",
     AGENT_CLAUDE_CODE to "claude",
-    AGENT_OPENCODE to "opencode",
+    AGENT_OPENCODE to "lildax",
     AGENT_CODEX to "codex",
     AGENT_HERMES to "hermes"
 )
@@ -547,21 +548,22 @@ class SetupViewModel(
                         emitLog("SetupViewModel", "npm install (tarball) result", "exit=${installResult.exitCode} output=${installResult.output.take(500)}")
                         if (installResult.exitCode != 0) {
                             FileLogger.w("SetupViewModel", "npm install from tarball failed, trying registry", "exit=${installResult.exitCode}")
-                            // Fall back to registry download
+                            // Fall back to registry download. Use installNpmPackage
+                            // which packs a tarball and installs locally to bypass
+                            // npm's Android platform rejection (EBADPLATFORM/libc).
                             emitLog("SetupViewModel", "Falling back to npm registry", "package=$npmPackage")
-                            val registryResult = termuxRuntime.executeInTermux(
-                                "npm install -g $npmPackage 2>&1",
-                                ""
-                            )
+                            val registryResult = installNpmPackage(termuxRuntime, npmPackage)
                             emitLog("SetupViewModel", "npm install (registry) result", "exit=${registryResult.exitCode} output=${registryResult.output.take(500)}")
                         }
                     } else {
-                        // No tarball in assets — download from npm registry
+                        // No tarball in assets — download from npm registry.
+                        // installNpmPackage() packs a tarball and installs it
+                        // locally, which bypasses npm's Android platform check
+                        // ("EBADPLATFORM": os:android / libc:glibc not satisfied).
+                        // Without this the agent npm package never installs and
+                        // the runCommand points at a non-existent binary.
                         emitLog("SetupViewModel", "Installing agent from npm registry", "package=$npmPackage")
-                        val installResult = termuxRuntime.executeInTermux(
-                            "npm install -g $npmPackage 2>&1",
-                            ""
-                        )
+                        val installResult = installNpmPackage(termuxRuntime, npmPackage)
                         emitLog("SetupViewModel", "npm install result", "exit=${installResult.exitCode} output=${installResult.output.take(500)}")
                     }
                 } else {
@@ -726,6 +728,49 @@ class SetupViewModel(
      * Used to copy the pre-bundled openclaude.tgz into /tmp for offline npm install.
      * Returns true if the file was copied successfully, false if the asset doesn't exist.
      */
+    /**
+     * Install an npm package globally, bypassing npm's platform check.
+     *
+     * npm REFUSES to install on Android: packages declare
+     *   "os": ["darwin","linux","win32"], "cpu": ["arm64","x64"]
+     * and often "libc": ["glibc"], while the device reports
+     *   {os:android, cpu:arm64} with no glibc -> "EBADPLATFORM".
+     * `--force --os=linux --cpu=arm64` is enough for SOME packages but NOT
+     * for ones that also pin `libc` (e.g. @opencode-ai/cli). The bulletproof
+     * bypass is to download the tarball with `npm pack` (no platform check)
+     * and install from the local .tgz — tarball installs skip the
+     * os/cpu/libc check entirely. We capture the packed filename and install
+     * it with --force so the resolved binary ends up on PATH.
+     *
+     * @return the CommandResult of the final install step.
+     */
+    private suspend fun installNpmPackage(
+        termuxRuntime: com.orbitai.data.local.runtime.TermuxRuntime,
+        npmPackage: String
+    ): com.orbitai.data.local.runtime.CommandResult {
+        // /orbit is the rootfs runtimeDir bind-mount (writable). Pack into it.
+        val packCmd = "cd /orbit/tmp && rm -f ./*.tgz 2>/dev/null; npm pack $npmPackage 2>&1"
+        val packResult = termuxRuntime.executeInTermux(packCmd, "")
+        if (packResult.exitCode != 0) {
+            FileLogger.w("SetupViewModel", "npm pack failed, trying direct --force install",
+                "pkg=$npmPackage exit=${packResult.exitCode} out=${packResult.output.take(300)}")
+            // Last-ditch fallback: direct install with platform override.
+            return termuxRuntime.executeInTermux(
+                "npm install -g --force --os=linux --cpu=arm64 $npmPackage 2>&1", ""
+            )
+        }
+        val tgzName = packResult.output.lines().lastOrNull { it.trim().endsWith(".tgz") }
+        if (tgzName.isNullOrBlank()) {
+            FileLogger.w("SetupViewModel", "npm pack produced no .tgz, trying direct --force install",
+                "pkg=$npmPackage out=${packResult.output.take(300)}")
+            return termuxRuntime.executeInTermux(
+                "npm install -g --force --os=linux --cpu=arm64 $npmPackage 2>&1", ""
+            )
+        }
+        val installCmd = "cd /orbit/tmp && npm install -g --force \"$tgzName\" 2>&1"
+        return termuxRuntime.executeInTermux(installCmd, "")
+    }
+
     private suspend fun copyAssetToRootfs(
         termuxRuntime: com.orbitai.data.local.runtime.TermuxRuntime,
         assetName: String,
