@@ -94,6 +94,24 @@ class TermuxRuntime(private val context: Context) {
     private val termuxPrefix = "/data/data/com.termux/files/usr"
     private val termuxHome = "/data/data/com.termux/files/home"
 
+    /**
+     * The Termux binaries run under PRoot cannot read the device's generated
+     * linker configuration, so the Android linker prints a noisy line like:
+     *   WARNING: linker: Warning: failed to find generated linker configuration from "/linkerconfig/ld.config.txt"
+     * on (almost) every command. It has no effect on command behaviour
+     * (confirmed against the live device) but clutters the transcript/logs.
+     * Strip it. Case-insensitive and also covers the "CANNOT LINK EXECUTABLE"
+     * variant that some PRoot/loader setups emit.
+     */
+    private fun stripLinkerNoise(line: String): String =
+        line.lines().filter { raw ->
+            val t = raw.trim()
+            !(t.startsWith("WARNING: linker", ignoreCase = true) ||
+              t.startsWith("CANNOT LINK EXECUTABLE", ignoreCase = true) ||
+              t.contains("linker configuration", ignoreCase = true) ||
+              t.contains("ld.config.txt", ignoreCase = true))
+        }.joinToString("\n")
+
     val isInstalled: Boolean get() = File(binDir, "bash").exists()
 
     private var _installInProgress = false
@@ -632,9 +650,7 @@ class TermuxRuntime(private val context: Context) {
             // (it has no effect on command behaviour — confirmed against the
             // live device).
             val combinedOutput = if (stderr.isNotBlank()) "$output\n$stderr" else output
-            CommandResult(combinedOutput.lines()
-                .filter { !it.trim().startsWith("WARNING: linker:") }
-                .joinToString("\n").trimEnd(), exitCode, command)
+            CommandResult(stripLinkerNoise(combinedOutput).trimEnd(), exitCode, command)
         } catch (e: Exception) {
             FileLogger.e(TAG, "Termux exec exception", e, "cmd=${command.take(100)} reason=${e.message}")
             CommandResult("Error: ${e.message}", -1, command)
@@ -720,7 +736,7 @@ class TermuxRuntime(private val context: Context) {
             val stdoutThread = Thread {
                 process.inputStream.bufferedReader().use { reader ->
                     reader.forEachLine {
-                        if (!it.trim().startsWith("WARNING: linker:")) onLine(it)
+                        if (stripLinkerNoise(it).isNotBlank()) onLine(it)
                     }
                 }
             }
@@ -728,7 +744,7 @@ class TermuxRuntime(private val context: Context) {
                 process.errorStream.bufferedReader().use { reader ->
                     reader.forEachLine {
                         stderrText.appendLine(it)
-                        if (!it.trim().startsWith("WARNING: linker:")) onLine(it)
+                        if (stripLinkerNoise(it).isNotBlank()) onLine(it)
                     }
                 }
             }
@@ -756,9 +772,7 @@ class TermuxRuntime(private val context: Context) {
             }
 
             val combinedOutput = if (stderr.isNotBlank()) "$output\n$stderr" else output
-            CommandResult(combinedOutput.lines()
-                .filter { !it.trim().startsWith("WARNING: linker:") }
-                .joinToString("\n").trimEnd(), exitCode, command)
+            CommandResult(stripLinkerNoise(combinedOutput).trimEnd(), exitCode, command)
         } catch (e: Exception) {
             FileLogger.e(TAG, "Termux exec exception (streamed)", e, "cmd=${command.take(100)} reason=${e.message}")
             onLine("Error: ${e.message}")

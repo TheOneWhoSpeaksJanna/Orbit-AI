@@ -474,7 +474,11 @@ class ChatViewModel(
                     return@launch
                 }
                 val output = hermesRuntime.runAgent(agentContent, apiKey, model) { line ->
-                    _streamLines.value = _streamLines.value + line
+                    val t = line.trim()
+                    val isLinkerNoise = t.startsWith("WARNING: linker", ignoreCase = true) ||
+                        t.startsWith("CANNOT LINK EXECUTABLE", ignoreCase = true) ||
+                        t.contains("ld.config.txt", ignoreCase = true)
+                    if (!isLinkerNoise) _streamLines.value = _streamLines.value + line
                 }
                 com.orbitai.core.logging.FileLogger.i("ChatViewModel", "Hermes agent run done", "outLen=${output.length}")
                 val modelMsg = Message(
@@ -645,14 +649,24 @@ class ChatViewModel(
                     var sawStreamEvent = false
 
                     val onStreamLine: (String) -> Unit = { raw ->
-                        val parsed = parseAgentStreamLine(raw, answerAccumulator)
-                        if (parsed != null) {
-                            sawStreamEvent = true
-                            if (parsed.isNotBlank()) _streamLines.value = _streamLines.value + parsed
-                        } else {
-                            // Not JSON — show the raw line so plain-text CLIs are
-                            // still transparent.
-                            _streamLines.value = _streamLines.value + raw
+                        // Defense-in-depth: never surface PRoot/linker noise in
+                        // the live transcript (e.g. "WARNING: linker: ...
+                        // ld.config.txt"). The runtime already strips it, but a
+                        // stray line must never reach the user's transcript.
+                        val t = raw.trim()
+                        val isLinkerNoise = t.startsWith("WARNING: linker", ignoreCase = true) ||
+                            t.startsWith("CANNOT LINK EXECUTABLE", ignoreCase = true) ||
+                            t.contains("ld.config.txt", ignoreCase = true)
+                        if (!isLinkerNoise) {
+                            val parsed = parseAgentStreamLine(raw, answerAccumulator)
+                            if (parsed != null) {
+                                sawStreamEvent = true
+                                if (parsed.isNotBlank()) _streamLines.value = _streamLines.value + parsed
+                            } else {
+                                // Not JSON — show the raw line so plain-text CLIs are
+                                // still transparent.
+                                _streamLines.value = _streamLines.value + raw
+                            }
                         }
                     }
 
