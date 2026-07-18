@@ -87,8 +87,7 @@ fun ChatScreen(
     val isLoading by viewModel.isLoading.collectAsState()
     val availableModels by viewModel.availableModels.collectAsState()
     val selectedModel by viewModel.selectedModel.collectAsState()
-    val thinkingModel by viewModel.thinkingModel.collectAsState()
-    val useLocalMode by viewModel.useLocalMode.collectAsState()
+    val thinkingLevel by viewModel.thinkingLevel.collectAsState()
     val detailedModels by viewModel.detailedModels.collectAsState()
     val isFetchingModels by viewModel.isFetchingModels.collectAsState()
     val hasAgent by viewModel.hasAgent.collectAsState()
@@ -99,7 +98,7 @@ fun ChatScreen(
     var inputText by remember { mutableStateOf("") }
     var showModelDropdown by remember { mutableStateOf(false) }
     var showModelBrowser by remember { mutableStateOf(false) }
-    var showThinkingBrowser by remember { mutableStateOf(false) }
+    var showThinkingLevel by remember { mutableStateOf(false) }
     var showAttachMenu by remember { mutableStateOf(false) }
     var showSkillsSheet by remember { mutableStateOf(false) }
     var expandedTranscript by remember { mutableStateOf(true) }
@@ -181,18 +180,6 @@ fun ChatScreen(
                             modifier = Modifier.widthIn(max = 96.dp)
                         )
                         Spacer(Modifier.width(4.dp))
-                        SuggestionChip(
-                            onClick = { viewModel.toggleLocalMode() },
-                            label = {
-                                Text(
-                                    if (useLocalMode) "Local" else "Cloud",
-                                    style = MaterialTheme.typography.labelSmall
-                                )
-                            },
-                            modifier = Modifier.height(24.dp),
-                            shape = RoundedCornerShape(12.dp)
-                        )
-                        Spacer(Modifier.width(4.dp))
                         val displayModels = availableModels.ifEmpty { FALLBACK_MODELS }
                         Row(
                             modifier = Modifier
@@ -238,26 +225,25 @@ fun ChatScreen(
                             }
                         }
                         Spacer(Modifier.width(6.dp))
-                        // Thinking-model bar: pick the reasoning model. Sits right
+                        // Thinking-level bar: pick reasoning effort. Sits right
                         // next to the change-model bar.
                         Row(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(12.dp))
                                 .background(MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f))
-                                .clickable { showThinkingBrowser = true }
+                                .clickable { showThinkingLevel = true }
                                 .padding(horizontal = 8.dp, vertical = 2.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Icon(
                                 Icons.Default.Bolt,
-                                contentDescription = "Thinking model",
+                                contentDescription = "Thinking level",
                                 modifier = Modifier.size(13.dp),
                                 tint = MaterialTheme.colorScheme.secondary
                             )
                             Spacer(Modifier.width(3.dp))
                             Text(
-                                text = if (thinkingModel.isBlank()) "Thinking"
-                                else "💭 " + thinkingModel.substringAfterLast('/').take(12),
+                                text = "💭 " + thinkingLevel.replaceFirstChar { it.uppercase() },
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.secondary,
                                 maxLines = 1,
@@ -460,21 +446,82 @@ fun ChatScreen(
         }
     }
 
-    if (showThinkingBrowser) {
+    if (showThinkingLevel) {
         Dialog(
-            onDismissRequest = { showThinkingBrowser = false },
+            onDismissRequest = { showThinkingLevel = false },
             properties = DialogProperties(usePlatformDefaultWidth = false)
         ) {
-            ModelBrowserSheet(
-                models = detailedModels,
-                selectedModelId = thinkingModel,
-                isLoading = isFetchingModels,
-                onModelSelected = { modelId ->
-                    viewModel.setThinkingModel(modelId)
-                    showThinkingBrowser = false
-                },
-                onDismiss = { showThinkingBrowser = false }
-            )
+            Surface(
+                shape = RoundedCornerShape(16.dp),
+                color = MaterialTheme.colorScheme.surface,
+                tonalElevation = 6.dp,
+                modifier = Modifier
+                    .fillMaxWidth(0.92f)
+                    .padding(16.dp)
+            ) {
+                Column(modifier = Modifier.padding(20.dp)) {
+                    Text(
+                        "Thinking effort",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        "How hard the agent reasons before answering. Max is provider-specific (xhigh / max / ultra).",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    val levels = listOf("auto", "low", "medium", "high", "xhigh")
+                    val descriptions = mapOf(
+                        "auto" to "Model default",
+                        "low" to "Fast, less reasoning",
+                        "medium" to "Balanced",
+                        "high" to "More reasoning",
+                        "xhigh" to "Max (max / ultra)"
+                    )
+                    levels.forEach { lvl ->
+                        val selected = thinkingLevel == lvl
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(
+                                    if (selected) MaterialTheme.colorScheme.primaryContainer
+                                    else MaterialTheme.colorScheme.surface
+                                )
+                                .clickable {
+                                    viewModel.setThinkingLevel(lvl)
+                                    showThinkingLevel = false
+                                }
+                                .padding(horizontal = 14.dp, vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            RadioButton(
+                                selected = selected,
+                                onClick = {
+                                    viewModel.setThinkingLevel(lvl)
+                                    showThinkingLevel = false
+                                }
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Column {
+                                Text(
+                                    lvl.replaceFirstChar { it.uppercase() },
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal
+                                )
+                                Text(
+                                    descriptions[lvl].orEmpty(),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                        Spacer(Modifier.height(4.dp))
+                    }
+                }
+            }
         }
     }
 

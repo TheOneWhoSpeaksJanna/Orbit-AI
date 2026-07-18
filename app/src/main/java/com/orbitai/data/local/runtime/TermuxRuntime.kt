@@ -214,19 +214,27 @@ class TermuxRuntime(private val context: Context) {
             File(rootfsDir, "data/data/com.termux/files/home").mkdirs()
             File(prefixDir, "tmp").mkdirs()
 
-            // CRITICAL: OpenClaude's Bash tool (and other CLI agents) probe for a
-            // POSIX shell at /bin/sh. The termux rootfs only ships usr/bin/{sh,bash}
-            // and has no /bin/sh symlink, which makes shell commands fail with
-            // "No suitable shell found". Create /bin/sh -> usr/bin/sh so the agent
-            // can run terminal commands. Guest-relative target (resolves inside PRoot).
-            val binShSymlink = File(rootfsDir, "bin/sh")
-            binShSymlink.parentFile?.mkdirs()
-            if (!binShSymlink.exists()) {
-                try {
-                    Runtime.getRuntime().exec(
-                        arrayOf("ln", "-sf", "$termuxPrefix/bin/sh", binShSymlink.absolutePath)
-                    ).waitFor()
-                } catch (_: Exception) { /* best-effort */ }
+            // CRITICAL: OpenClaude's Bash tool (and other CLI agents) and the
+            // in-app Terminal expect a real BASH shell. The termux rootfs ships
+            // usr/bin/{sh,bash}; usr/bin/sh is dash (so bash builtins like
+            // `help`, `compgen`, `source` fail with "sh: 1: help: not found",
+            // unlike real Termux where the login shell is bash). Create the
+            // symlinks so both /bin/sh and /bin/bash resolve to bash — this
+            // makes `help`, history, tab-completion and all bash builtins work
+            // exactly like the original Termux. Guest-relative targets
+            // (resolve inside PRoot).
+            val binDir = File(rootfsDir, "bin")
+            binDir.mkdirs()
+            val binShSymlink = File(binDir, "sh")
+            val binBashSymlink = File(binDir, "bash")
+            for (link in listOf(binShSymlink, binBashSymlink)) {
+                if (!link.exists()) {
+                    try {
+                        Runtime.getRuntime().exec(
+                            arrayOf("ln", "-sf", "$termuxPrefix/bin/bash", link.absolutePath)
+                        ).waitFor()
+                    } catch (_: Exception) { /* best-effort */ }
+                }
             }
 
             // CRITICAL: apt's compiled-in cache path is
@@ -480,8 +488,11 @@ class TermuxRuntime(private val context: Context) {
                 "-b", "$runtimeDir:/orbit",
                 // Set working directory to Termux HOME
                 "-w", termuxHome,
-                // Exec the shell inside the Termux prefix
-                "$termuxPrefix/bin/sh", "-c", command
+                // Exec BASH inside the Termux prefix so bash builtins (help,
+                // compgen, source, history) work — matches real Termux, where
+                // the login shell is bash, not dash. dash made `help` etc.
+                // fail with "sh: 1: help: not found".
+                "$termuxPrefix/bin/bash", "-c", command
             )
 
             val pb = ProcessBuilder(prootArgs)
@@ -637,7 +648,9 @@ class TermuxRuntime(private val context: Context) {
                 "-b", "/storage",
                 "-b", "$runtimeDir:/orbit",
                 "-w", termuxHome,
-                "$termuxPrefix/bin/sh", "-c", command
+                // Exec BASH so bash builtins (help, compgen, …) work, matching
+                // real Termux (login shell = bash, not dash).
+                "$termuxPrefix/bin/bash", "-c", command
             )
 
             val pb = ProcessBuilder(prootArgs)
@@ -670,8 +683,7 @@ class TermuxRuntime(private val context: Context) {
             val stdoutThread = Thread {
                 process.inputStream.bufferedReader().use { reader ->
                     reader.forEachLine {
-                        stdoutText.appendLine(it)
-                        onLine(it)
+                        if (!it.trim().startsWith("WARNING: linker:")) onLine(it)
                     }
                 }
             }
@@ -679,7 +691,7 @@ class TermuxRuntime(private val context: Context) {
                 process.errorStream.bufferedReader().use { reader ->
                     reader.forEachLine {
                         stderrText.appendLine(it)
-                        onLine(it)
+                        if (!it.trim().startsWith("WARNING: linker:")) onLine(it)
                     }
                 }
             }

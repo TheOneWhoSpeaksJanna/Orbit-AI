@@ -165,19 +165,13 @@ class ChatViewModel(
     private val _availableModels = MutableStateFlow<List<String>>(emptyList())
     val availableModels: StateFlow<List<String>> = _availableModels.asStateFlow()
 
-    // Local mode runs the bundled coding CLI via PRoot. The Hermes edition is a
-    // All editions (including Hermes) run their agent LOCALLY via PRoot by
-    // default. Hermes runs the NousResearch hermes-agent binary the same way
+    // All editions (including Hermes) run their agent LOCALLY via PRoot.
+    // Hermes runs the NousResearch hermes-agent binary the same way
     // openclaude runs openclaude — its LLM backend is supplied via the
     // OPENROUTER_API_KEY env var (set from the provider key in Settings).
-    // "Cloud mode" in this app is the separate OpenRouter *playground*
-    // (generic chat), NOT the Hermes agent.
-    private val _useLocalMode = MutableStateFlow(true)
-    val useLocalMode: StateFlow<Boolean> = _useLocalMode.asStateFlow()
-
-    fun toggleLocalMode() {
-        _useLocalMode.value = !_useLocalMode.value
-    }
+    // There is no separate "cloud mode": the app is for interacting with
+    // the on-device agent directly (per product direction). Hermes's
+    // only network use is fetching its LLM completions from OpenRouter.
 
     /** Hermes default model — a free OpenRouter model that returns HTTP 200 on
      *  both streaming and non-streaming requests with the user's key. Used as
@@ -271,9 +265,14 @@ class ChatViewModel(
         .map { it ?: "" }
         .stateIn(viewModelScope, SharingStarted.Eagerly, "")
 
-    val thinkingModel: StateFlow<String> = prefsManager.thinkingModel
-        .map { it ?: "" }
-        .stateIn(viewModelScope, SharingStarted.Eagerly, "")
+    // Thinking LEVEL (auto/low/medium/high/xhigh) — not a model id. The user
+    // picks how hard the agent reasons; we map it per flavor to the CLI's
+    // reasoning flag (Claude Code -> --effort, Codex -> --reasoning-effort,
+    // OpenRouter-backed flavors -> reasoning.effort). Stored in the same
+    // DataStore key as before (thinking_model) but now holds a level string.
+    val thinkingLevel: StateFlow<String> = prefsManager.thinkingModel
+        .map { it ?: "auto" }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, "auto")
 
     val selectedAgent: StateFlow<String?> = prefsManager.selectedAgent
         .stateIn(viewModelScope, SharingStarted.Eagerly, null)
@@ -317,9 +316,9 @@ class ChatViewModel(
         }
     }
 
-    fun setThinkingModel(model: String) {
+    fun setThinkingLevel(level: String) {
         viewModelScope.launch(exceptionHandler) {
-            prefsManager.setThinkingModel(model)
+            prefsManager.setThinkingModel(level)
         }
     }
 
@@ -503,7 +502,7 @@ class ChatViewModel(
                 ?.lowercase()?.replace(" ", "-")
                 ?: return@launch
 
-            val thinkingModelName = prefsManager.thinkingModel.firstOrNull() ?: ""
+            val thinkingLevel = prefsManager.thinkingModel.firstOrNull() ?: "auto"
 
             _isLoading.value = true
 
@@ -513,7 +512,8 @@ class ChatViewModel(
             // routes its AI through the configured provider (OpenRouter) as its
             // LLM backend — this is the working "local orchestrator + OpenRouter
             // brain" path. All other editions run their local agent binary.
-            if (_useLocalMode.value && !com.orbitai.core.config.FlavorConfig.isHermes) {
+            // All non-Hermes editions run the local agent binary (no cloud mode).
+            if (!com.orbitai.core.config.FlavorConfig.isHermes) {
                 var runCmd: String? = null
                 val agentEntity = repository.getAllAgents().firstOrNull()?.find { it.id == activeAgentId }
                 runCmd = agentEntity?.runCommand
@@ -582,11 +582,16 @@ class ChatViewModel(
                         ""
                     }
 
-                    // Thinking model bar: when the user selects a reasoning model,
-                    // enable the CLI's thinking mode so it emits reasoning (💭 shows
-                    // in the transcript) and export the chosen thinking model so
-                    // config-aware CLIs route reasoning to it.
-                    val thinkingFlag = if (thinkingModelName.isNotBlank()) " --thinking enabled" else ""
+                    // Thinking level → per-flavor CLI reasoning flag.
+                    // Providers name the knob differently (research-backed):
+                    //  - Claude Code (Anthropic): --effort {low|medium|high|max}
+                    //    (xhigh maps to "max"; "auto" = don't pass -> model default)
+                    //  - Codex (OpenAI):         --reasoning-effort {low|medium|high}
+                    //    (xhigh maps to "high")
+                    //  - OpenClaude/OpenCode via OpenRouter: reasoning.effort
+                    //    {low|medium|high|xhigh} (OpenRouter's unified knob),
+                    //    exported as OPENROUTER_REASONING_EFFORT + --thinking enabled.
+                    val thinkingFlag = buildThinkingFlag(activeAgentId, thinkingLevel)
 
                     // Guard: if no API key is configured for the selected
                     // provider, the agent would silently fall back to its own
@@ -1080,6 +1085,35 @@ class ChatViewModel(
      * catalog base-URL fallback (which needs an Android Context) and the
      * PRoot SHELL export.
      */
+    /**
+     * Map the UI thinking LEVEL (auto/low/medium/high/xhigh) to the agent CLI's
+     * reasoning flag, per flavor (each provider names the knob differently):
+     *  - claude-code : --effort {low|medium|high|max}  (Anthropic API effort)
+     *  - codex       : --reasoning-effort {low|medium|high}  (OpenAI)
+     *  - openclaude/opencode (OpenRouter-backed): --thinking enabled + env
+     *    OPENROUTER_REASONING_EFFORT={low|medium|high|xhigh} (OpenRouter unified)
+     * "auto" returns "" (let the model/CLI use its default reasoning).
+     */
+    private fun buildThinkingFlag(agentId: String, level: String): String {
+        if (level.isBlank() || level == "auto") return ""
+        val a = agentId.lowercase()
+        return when {
+            a.contains("claude code") -> {
+                val mapped = if (level == "xhigh") "max" else level
+                " --effort $mapped"
+            }
+            a.contains("codex") -> {
+                val mapped = if (level == "xhigh") "high" else level
+                " --reasoning-effort $mapped"
+            }
+            else -> {
+                // OpenRouter-backed flavors (openclaude, opencode, and any
+                // openai-compatible agent routed via OpenRouter).
+                " --thinking enabled && export OPENROUTER_REASONING_EFFORT='$level'"
+            }
+        }
+    }
+
     private fun buildEnvExports(provider: String, apiKey: String, model: String, useSubscription: Boolean = false): String {
         if (apiKey.isBlank()) return ""
 
