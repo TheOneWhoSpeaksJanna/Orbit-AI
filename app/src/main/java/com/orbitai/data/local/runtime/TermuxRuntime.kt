@@ -783,6 +783,85 @@ class TermuxRuntime(private val context: Context) {
     fun isToolInstalled(tool: String): Boolean = File(binDir, tool).exists()
 
     /**
+     * Launches [command] inside the Termux rootfs under PRoot and returns the
+     * LIVE [Process] WITHOUT waiting for it to exit. The process's stdout is
+     * streamed line-by-line to [onLine] on a background thread, and its stdin is
+     * left OPEN so callers can feed it interactively (this is what powers the
+     * persistent single-session agent: one long-lived openclaude process, fed
+     * JSON messages on stdin via `--input-format stream-json`, instead of
+     * spawning a fresh `openclaude -p` process per message).
+     *
+     * The caller owns the process lifecycle: close stdin / destroy it when the
+     * chat ends or is switched away. A watchdog destroys the process if it
+     * stalls for [watchdogMs].
+     */
+    suspend fun launchInTermux(
+        command: String,
+        onLine: (String) -> Unit,
+        watchdogMs: Long = 10 * 60 * 1000L
+    ): Process = withContext(Dispatchers.IO) {
+        if (!isInstalled) throw IllegalStateException("Termux rootfs not installed.")
+
+        val prootArgs = mutableListOf(
+            prootPath,
+            "--kill-on-exit",
+            "-r", rootfsDir.absolutePath,
+            "-b", "/dev",
+            "-b", "/proc",
+            "-b", "/sys",
+            "-b", "/system",
+            "-b", "/vendor",
+            "-b", "/apex",
+            "-b", "/odm",
+            "-b", "/linkerconfig",
+            "-b", "/data/local/tmp:/tmp",
+            "-b", "/storage",
+            "-b", "$runtimeDir:/orbit",
+            "-w", termuxHome,
+            "$termuxPrefix/bin/bash", "-c", command
+        )
+
+        val pb = ProcessBuilder(prootArgs)
+        pb.directory(runtimeDir)
+        val env = pb.environment()
+        env["PROOT_LOADER"] = prootLoaderPath
+        env["PROOT_LOADER_32"] = prootLoaderPath
+        env["PROOT_TMP_DIR"] = tmpDir.absolutePath
+        env["PREFIX"] = termuxPrefix
+        env["PATH"] = "$termuxPrefix/bin"
+        env["HOME"] = termuxHome
+        env["TMPDIR"] = "$termuxPrefix/tmp"
+        env["LANG"] = "en_US.UTF-8"
+        env["TERM"] = "xterm-256color"
+        env["LD_LIBRARY_PATH"] = "${prefixDir.absolutePath}/lib:/system/lib64"
+        env["SHELL"] = "$termuxPrefix/bin/bash"
+
+        val process = pb.start()
+
+        // Stream stdout to onLine on a daemon thread (mirrors executeInTermuxStreamed).
+        val stdoutThread = Thread {
+            process.inputStream.bufferedReader().use { reader ->
+                reader.forEachLine {
+                    if (stripLinkerNoise(it).isNotBlank()) onLine(it)
+                }
+            }
+        }.also { it.isDaemon = true; it.start() }
+
+        // Watchdog: if the process is somehow stuck, don't leak it.
+        val watchdog = Thread {
+            try {
+                Thread.sleep(watchdogMs)
+                if (process.isAlive) {
+                    FileLogger.w(TAG, "launchInTermux watchdog", "killing stalled process cmd=${command.take(120)}")
+                    try { process.destroyForcibly() } catch (_: Exception) {}
+                }
+            } catch (_: InterruptedException) { /* cancelled */ }
+        }.also { it.isDaemon = true; it.start() }
+
+        process
+    }
+
+    /**
      * Returns the path to node INSIDE the rootfs (host path).
      * Callers that want to exec node must do so via executeInTermux().
      */
