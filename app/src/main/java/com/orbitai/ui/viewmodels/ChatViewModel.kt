@@ -335,6 +335,9 @@ class ChatViewModel(
     private var loadSessionJob: Job? = null
 
     fun loadSession(sessionId: String) {
+        // Close the persistent agent process for the chat we're leaving (openclaude
+        // persists its transcript; the process exits and frees resources).
+        _currentSession.value?.let { prev -> if (prev.id != sessionId) closeLiveSession(prev.id) }
         loadSessionJob?.cancel()
         loadSessionJob = viewModelScope.launch(exceptionHandler) {
             repository.getAllSessions().firstOrNull()?.find { it.id == sessionId }?.let {
@@ -1106,22 +1109,6 @@ class ChatViewModel(
     private val agentSessionCache = mutableMapOf<String, String>()
 
     /**
-     * Live persistent agent processes, keyed by chat session id. Each holds the
-     * long-lived openclaude process (fed messages on stdin via
-     * `--input-format stream-json`) plus the per-turn answer accumulator and the
-     * writer for its stdin. ONE process per chat = real session memory, no
-     * per-message cold start. The process is destroyed (and its transcript
-     * persisted by openclaude) when the chat ends or is switched away.
-     */
-    private data class LiveAgentSession(
-        val process: Process,
-        val stdin: java.io.BufferedWriter,
-        var answerAccumulator: StringBuilder = StringBuilder(),
-        var turnActive: Boolean = false
-    )
-    private val liveSessions = mutableMapOf<String, LiveAgentSession>()
-
-    /**
      * Returns (sessionUUID, isFirstUse). isFirstUse = true ONLY on the call that
      * creates the id (so the caller uses `--session-id` to CREATE). Every later
      * call (same process OR after an app restart, since the id is persisted)
@@ -1158,119 +1145,146 @@ class ChatViewModel(
     }
 
     /**
-     * Builds a plain-text conversation transcript from prior messages so the
-     * stateless agent CLI (invoked fresh as `openclaude -p "<prompt>"` on every
-     * turn) has full memory of the conversation. Without this, each message is
-     * seen by the agent as the very first message. We cap the history so a long
-     * chat never blows past the model's context window.
-     *
-     * NOTE: When the agent supports --session-id (openclaude does), the agent
-     * owns the transcript natively and this preamble becomes a fallback for
-     * agents that ignore the flag (e.g. older codex/opencode builds).
+     * Live persistent agent process for a chat, keyed by chat session id.
+     * Holds the long-lived openclaude process (fed messages on stdin via
+     * `--input-format stream-json`) plus the per-turn answer accumulator and the
+     * writer for its stdin. ONE process per chat = real session memory, no
+     * per-message cold start. The process is destroyed (and its transcript
+     * persisted by openclaude) when the chat ends or is switched away.
      */
-    private fun buildHistoryPreamble(prior: List<Message>): String {
-        // Only real dialogue turns (skip SYSTEM/TOOL bookkeeping rows).
-        val turns = prior.filter {
-            it.role == MessageRole.USER || it.role == MessageRole.MODEL
-        }
-        if (turns.isEmpty()) return ""
-        // Keep the most recent N turns to bound prompt size (context safety).
-        val maxTurns = 40
-        val recent = if (turns.size > maxTurns) turns.takeLast(maxTurns) else turns
-        val sb = StringBuilder()
-        sb.append("The following is the conversation so far. ")
-        sb.append("Use it as context and remember what was already said; ")
-        sb.append("do NOT treat the latest message as the start of a new conversation.\n\n")
-        sb.append("=== CONVERSATION HISTORY ===\n")
-        for (m in recent) {
-            val who = if (m.role == MessageRole.USER) "User" else "Assistant"
-            sb.append(who).append(": ").append(m.content.trim()).append("\n")
-        }
-        sb.append("=== END HISTORY ===\n\n")
-        sb.append("Now respond to the user's newest message below:\n\n")
-        return sb.toString()
-    }
+    private data class LiveAgentSession(
+            val process: Process,
+            val stdin: java.io.BufferedWriter,
+            val sessionUuid: String,
+            var answerAccumulator: StringBuilder = StringBuilder(),
+            var turnActive: Boolean = false
+        )
+        private val liveSessions = mutableMapOf<String, LiveAgentSession>()
 
-    /**
-     * Drives the REAL persistent-session agent: one long-lived openclaude
-     * process per chat, fed messages on stdin via `--input-format stream-json`.
-     * This is how CLI agents natively keep a chat alive (no per-message process
-     * spawn, no re-sent history — openclaude owns the transcript). The first
-     * turn creates the session (--session-id); subsequent turns and app
-     * restarts reuse it via --resume.
-     */
-    private suspend fun runPersistentAgent(
-        sessionId: String,
-        agentSessionId: String,
-        agentSessionIsNew: Boolean,
-        envExports: String,
-        runCmd: String,
-        escaped: String,
-        thinkingFlag: String,
-        dangerouslySkip: String
-    ) {
-        // REAL session memory, the way the CLI stores chats: one stable session
-        // id per chat, persisted on disk. Turn 1 creates it (--session-id); later
-        // turns and app restarts reuse it via --resume, so openclaude loads its
-        // OWN transcript (no re-sent history, no preamble hack). openclaude's
-        // headless mode exits after each turn, so we run one `openclaude -p`
-        // process per message — but it RESUMES the same session, which is exactly
-        // how `openclaude` keeps a chat alive across invocations. --output-format
-        // stream-json gives clean per-event parsing.
-        val sessionFlag = if (agentSessionIsNew) "--session-id \"$agentSessionId\"" else "--resume \"$agentSessionId\""
-        val fullCmd = "$envExports $runCmd $sessionFlag -p \"$escaped\" --output-format stream-json --verbose$thinkingFlag$dangerouslySkip"
-        com.orbitai.core.logging.FileLogger.i("ChatViewModel", "Persistent agent", "sessionId=$sessionId agentSessionIsNew=$agentSessionIsNew cmd=$fullCmd")
-
-        val answerAccumulator = StringBuilder()
-        var sawStreamEvent = false
-        val onStreamLine: (String) -> Unit = { raw ->
-            val t = raw.trim()
-            val isLinkerNoise = t.startsWith("WARNING: linker", ignoreCase = true) ||
-                t.startsWith("CANNOT LINK EXECUTABLE", ignoreCase = true) ||
-                t.contains("ld.config.txt", ignoreCase = true)
-            if (!isLinkerNoise) {
-                val parsed = parseAgentStreamLine(raw, answerAccumulator)
-                if (parsed != null) {
-                    sawStreamEvent = true
-                    if (parsed.isNotBlank()) _streamLines.value = _streamLines.value + parsed
-                } else {
-                    _streamLines.value = _streamLines.value + raw
-                }
-            }
-        }
-
-        viewModelScope.launch(Dispatchers.IO) {
-            try {
-                val result = termuxRuntime.executeInTermuxStreamed(fullCmd, "", onStreamLine)
-                com.orbitai.core.logging.FileLogger.i("ChatViewModel", "Persistent agent done", "exit=${result.exitCode} events=$sawStreamEvent")
-                val parsedAnswer = answerAccumulator.toString().trim()
-                val displayContent = if (sawStreamEvent && parsedAnswer.isNotBlank()) {
-                    parsedAnswer
-                } else if (result.exitCode == 0 && result.output.isNotBlank()) {
-                    result.output
-                } else {
-                    val best = result.output.takeIf { it.isNotBlank() }
-                    best?.let { "$AGENT_FAILED_PREFIX\n\n$it" } ?: "$AGENT_FAILED_PREFIX $NO_OUTPUT"
-                }
-                repository.insertMessage(Message(
-                    id = UUID.randomUUID().toString(), sessionId = sessionId,
-                    role = MessageRole.MODEL, content = displayContent,
-                    timestamp = System.currentTimeMillis()
-                ))
-                _showTranscript.value = false
-                _streamLines.value = emptyList()
-                _isLoading.value = false
+        /**
+         * Starts a persistent stream-json openclaude process for [sessionId] (creating
+         * the session on first use, resuming afterwards) and wires its stdout to
+         * [handleAgentStreamLine]. Returns the live session, or null on launch failure.
+         */
+        private suspend fun startLiveSession(
+            sessionId: String,
+            agentSessionId: String,
+            agentSessionIsNew: Boolean,
+            envExports: String,
+            runCmd: String,
+            thinkingFlag: String,
+            dangerouslySkip: String
+        ): LiveAgentSession? {
+            val sessionFlag = if (agentSessionIsNew) "--session-id \"$agentSessionId\"" else "--resume \"$agentSessionId\""
+            val baseCmd = "$envExports $runCmd --input-format stream-json --output-format stream-json --verbose $thinkingFlag $dangerouslySkip $sessionFlag"
+            com.orbitai.core.logging.FileLogger.i("ChatViewModel", "startLiveSession", "sessionId=$sessionId agentSessionIsNew=$agentSessionIsNew cmd=$baseCmd")
+            val proc = try {
+                termuxRuntime.launchInTermux(baseCmd, onLine = { line -> handleAgentStreamLine(sessionId, line) })
             } catch (e: Exception) {
-                com.orbitai.core.logging.FileLogger.e("ChatViewModel", "Persistent agent failed", e, "reason=${e.message}")
-                repository.insertMessage(Message(
-                    id = UUID.randomUUID().toString(), sessionId = sessionId,
-                    role = MessageRole.MODEL, content = "$ERROR_RUNNING_AGENT${e.message ?: UNKNOWN_ERROR}",
-                    timestamp = System.currentTimeMillis()
-                ))
-                _isLoading.value = false
+                com.orbitai.core.logging.FileLogger.e("ChatViewModel", "startLiveSession failed", e, "reason=${e.message}")
+                return null
+            }
+            val writer = java.io.BufferedWriter(java.io.OutputStreamWriter(proc.outputStream, Charsets.UTF_8))
+            return LiveAgentSession(process = proc, stdin = writer, sessionUuid = agentSessionId).also {
+                liveSessions[sessionId] = it
             }
         }
-    }
+
+        /**
+         * Drives the agent for one user turn. Uses a single long-lived openclaude
+         * process per chat (persistent REPL via `--input-format stream-json`): the
+         * first turn creates the session (--session-id), later turns feed the next
+         * message on the SAME process's stdin (no cold start, no re-sent history —
+         * openclaude owns the transcript natively). If the persistent process is
+         * dead or fails to start, it transparently falls back to `openclaude -p
+         * --resume` (the proven per-turn resume path) so memory is never lost.
+         */
+        private suspend fun runPersistentAgent(
+            sessionId: String,
+            agentSessionId: String,
+            agentSessionIsNew: Boolean,
+            envExports: String,
+            runCmd: String,
+            escaped: String,
+            thinkingFlag: String,
+            dangerouslySkip: String
+        ) {
+            // (Re)use the live persistent process, or start one.
+            var live = liveSessions[sessionId]?.takeIf { it.process.isAlive }
+                ?: startLiveSession(sessionId, agentSessionId, agentSessionIsNew, envExports, runCmd, thinkingFlag, dangerouslySkip)
+
+            if (live != null) {
+                // Feed this turn's message as a stream-json line on stdin.
+                // NOTE: openclaude's stream-json resume ignores the CLI --resume on a
+                // 2nd process, so for an existing session we pass session_id IN the
+                // stdin JSON instead (and keep --session-id only for the first turn).
+                val sid = if (agentSessionIsNew) "" else ", \"session_id\": \"$agentSessionId\""
+                val userLine = "{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":\"$escaped\"}$sid}\n"
+                live.answerAccumulator = StringBuilder()
+                live.turnActive = true
+                try {
+                    live.stdin.write(userLine)
+                    live.stdin.flush()
+                    return
+                } catch (e: Exception) {
+                    com.orbitai.core.logging.FileLogger.e("ChatViewModel", "stdin write failed, falling back", e, "reason=${e.message}")
+                    closeLiveSession(sessionId)
+                    live = null
+                }
+            }
+
+            // Fallback: per-turn `openclaude -p --resume` (proven reliable path).
+            val sessionFlag = if (agentSessionIsNew) "--session-id \"$agentSessionId\"" else "--resume \"$agentSessionId\""
+            val fullCmd = "$envExports $runCmd $sessionFlag -p \"$escaped\" --output-format stream-json --verbose$thinkingFlag$dangerouslySkip"
+            com.orbitai.core.logging.FileLogger.i("ChatViewModel", "Persistent agent (fallback -p)", "sessionId=$sessionId agentSessionIsNew=$agentSessionIsNew cmd=$fullCmd")
+            val answerAccumulator = StringBuilder()
+            var sawStreamEvent = false
+            val onStreamLine: (String) -> Unit = { raw ->
+                val t = raw.trim()
+                val isLinkerNoise = t.startsWith("WARNING: linker", ignoreCase = true) ||
+                    t.startsWith("CANNOT LINK EXECUTABLE", ignoreCase = true) || t.contains("ld.config.txt", ignoreCase = true)
+                if (!isLinkerNoise) {
+                    val parsed = parseAgentStreamLine(raw, answerAccumulator)
+                    if (parsed != null) {
+                        sawStreamEvent = true
+                        if (parsed.isNotBlank()) _streamLines.value = _streamLines.value + parsed
+                    } else {
+                        _streamLines.value = _streamLines.value + raw
+                    }
+                }
+            }
+            viewModelScope.launch(Dispatchers.IO) {
+                try {
+                    val result = termuxRuntime.executeInTermuxStreamed(fullCmd, "", onStreamLine)
+                    com.orbitai.core.logging.FileLogger.i("ChatViewModel", "Persistent agent done", "exit=${result.exitCode} events=$sawStreamEvent")
+                    val parsedAnswer = answerAccumulator.toString().trim()
+                    val displayContent = if (sawStreamEvent && parsedAnswer.isNotBlank()) {
+                        parsedAnswer
+                    } else if (result.exitCode == 0 && result.output.isNotBlank()) {
+                        result.output
+                    } else {
+                        val best = result.output.takeIf { it.isNotBlank() }
+                        best?.let { "$AGENT_FAILED_PREFIX\n\n$it" } ?: "$AGENT_FAILED_PREFIX $NO_OUTPUT"
+                    }
+                    repository.insertMessage(Message(
+                        id = UUID.randomUUID().toString(), sessionId = sessionId,
+                        role = MessageRole.MODEL, content = displayContent,
+                        timestamp = System.currentTimeMillis()
+                    ))
+                    _showTranscript.value = false
+                    _streamLines.value = emptyList()
+                    _isLoading.value = false
+                } catch (e: Exception) {
+                    com.orbitai.core.logging.FileLogger.e("ChatViewModel", "Persistent agent failed", e, "reason=${e.message}")
+                    repository.insertMessage(Message(
+                        id = UUID.randomUUID().toString(), sessionId = sessionId,
+                        role = MessageRole.MODEL, content = "$ERROR_RUNNING_AGENT${e.message ?: UNKNOWN_ERROR}",
+                        timestamp = System.currentTimeMillis()
+                    ))
+                    _isLoading.value = false
+                }
+            }
+        }
 
     /**
      * Parses one stream-json stdout line from the persistent agent and updates
