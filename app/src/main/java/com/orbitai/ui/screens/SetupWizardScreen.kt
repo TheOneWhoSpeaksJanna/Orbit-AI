@@ -240,9 +240,9 @@ fun ThemeSelectionStep(viewModel: SetupViewModel) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(24.dp)
+            .padding(horizontal = 24.dp, vertical = 16.dp)
             .verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.Center
+        verticalArrangement = Arrangement.Top
     ) {
         Text(
             stringResource(R.string.appearance),
@@ -297,9 +297,9 @@ fun AgentSelectionStep(viewModel: SetupViewModel) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(24.dp)
+            .padding(horizontal = 24.dp, vertical = 16.dp)
             .verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.Center
+        verticalArrangement = Arrangement.Top
     ) {
         Text(
             stringResource(R.string.select_agent),
@@ -466,7 +466,7 @@ fun ProviderSelectionStep(viewModel: SetupViewModel) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(24.dp)
+            .padding(horizontal = 24.dp, vertical = 16.dp)
             .verticalScroll(rememberScrollState())
     ) {
         Column(

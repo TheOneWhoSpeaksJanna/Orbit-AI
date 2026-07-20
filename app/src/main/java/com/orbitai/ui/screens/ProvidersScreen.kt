@@ -136,7 +136,7 @@ fun ProvidersScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
-            .padding(horizontal = 20.dp).padding(top = 16.dp),
+            .padding(horizontal = 20.dp).padding(top = 16.dp, bottom = 16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         item {

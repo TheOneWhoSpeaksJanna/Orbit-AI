@@ -350,8 +350,7 @@ fun ChatScreen(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 12.dp, vertical = 10.dp)
-                            .padding(bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding().coerceAtMost(8.dp)),
+                            .padding(horizontal = 12.dp, vertical = 10.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         // + attach button
@@ -464,6 +463,7 @@ fun ChatScreen(
                 tonalElevation = 6.dp,
                 modifier = Modifier
                     .fillMaxWidth(0.92f)
+                    .fillMaxHeight(0.85f)
                     .padding(16.dp)
             ) {
                 Column(modifier = Modifier.padding(20.dp)) {
