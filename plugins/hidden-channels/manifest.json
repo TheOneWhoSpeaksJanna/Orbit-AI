@@ -6,7 +6,7 @@
     {"name": "Training Dummy", "id": "0"},
     {"name": "Lioncat6", "id": "0"}
   ],
-  "main": "dist/index.js",
+  "main": "index.js",
   "vendetta": {
     "icon": "ic_eye",
     "original": "https://c10udburst-discord.github.io/vendetta-plugins/hidden-channels"
