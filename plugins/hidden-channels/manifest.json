@@ -1,0 +1,24 @@
+{
+  "name": "Hidden Channels",
+  "description": "View the name, description, and topic of channels you can't normally access.",
+  "authors": [
+    {
+      "name": "cloudburst",
+      "id": "0"
+    },
+    {
+      "name": "Training Dummy",
+      "id": "0"
+    },
+    {
+      "name": "Lioncat6",
+      "id": "0"
+    }
+  ],
+  "main": "dist/index.js",
+  "vendetta": {
+    "icon": "ic_eye",
+    "original": "https://c10udburst-discord.github.io/vendetta-plugins/hidden-channels"
+  },
+  "version": "2.0.0"
+}
