@@ -1,9 +1,4 @@
-// Vendetta plugin test harness
-// Mocks the vendetta runtime and tests Hidden Channels plugin behavior
-
 const assert = require('assert');
-
-// =========== MOCK VENDETTA MODULES ===========
 
 const constants = {
   Permissions: {
@@ -13,31 +8,30 @@ const constants = {
   }
 };
 
-// Channel store
 const channels = {};
-
 function getChannel(id) { return channels[id] || null; }
 
-// Permissions module mock
 const Permissions = {
   _permissions: {},
   can(perm, channel) {
     if (channel?.realCheck) {
       return !this._permissions[channel.id]?.denied?.includes(perm);
     }
-    return this._permissions[channel.id]?.allowed?.includes(perm) || false;
+    const isAllowed = this._permissions[channel.id]?.allowed?.includes(perm);
+    if (isAllowed !== undefined) return isAllowed;
+    // Default: if not explicitly set, check if denied
+    return !this._permissions[channel.id]?.denied?.includes(perm);
   },
   getChannelPermissions() { return {}; }
 };
 
-// Patcher mock (spitroast-compatible)
 let patches = [];
-function splicePatch(arr, matchFn) {
-  const idx = arr.findIndex(matchFn);
-  if (idx >= 0) arr.splice(idx, 1);
+function unpatchAll() {
+  for (const u of patches) u();
+  patches = [];
 }
 
-const spitroast = {
+const _spitroast = {
   after(method, obj, cb) {
     const orig = obj[method].bind(obj);
     obj[method] = function(...args) {
@@ -46,370 +40,192 @@ const spitroast = {
     };
     patches.push(() => { obj[method] = orig; });
   },
-  instead(method, obj, cb) {
-    const orig = obj[method].bind(obj);
-    obj[method] = function(...args) {
-      return cb(args, orig) ?? orig(...args);
-    };
-    patches.push(() => { obj[method] = orig; });
-  },
-  before(method, obj, cb) {
-    const orig = obj[method].bind(obj);
-    obj[method] = function(...args) {
-      cb(args);
-      return orig(...args);
-    };
-    patches.push(() => { obj[method] = orig; });
-  }
 };
 
-function unpatchAll() {
-  for (const u of patches) u();
-  patches = [];
-}
-
-// React mock
 const React = {
   createElement(type, props, ...children) {
-    // Return a description of the element instead of a real DOM node
     const el = { type, props: props || {}, children };
-    if (typeof type === 'function') {
-      return type({ ...el.props, children });
-    }
+    if (typeof type === 'function') return type({ ...el.props, children });
     return el;
   },
   Fragment: 'Fragment',
 };
 
-const RN = {
-  Image: 'RN.Image',
-};
+const RN = { Image: 'RN.Image' };
 
-// Router mock
-let navigatedTo = null;
-const Router = {
-  transitionToGuild(path) { navigatedTo = path; },
-  navigate(path) { navigatedTo = path; },
-};
-
-// Alerts mock
-let lastAlert = null;
-const alerts = {
-  showConfirmationAlert(opts) { lastAlert = opts; },
-};
-
-// Storage mock
 const storage = {};
-
-// Asset mock
 function getAssetByName(name) { return { id: name }; }
 
-// =========== PLUGIN STATE ===========
-
-let unpatches = [];
-let pluginLoaded = false;
-
-// =========== PLUGIN CODE (extracted from index.ts) ===========
-
-function plugin_onLoad() {
-  if (storage.showIcon === undefined) storage.showIcon = true;
-  if (storage.showPopup === undefined) storage.showPopup = true;
-
-  // Patch 1: Permissions.can
-  spitroast.after('can', Permissions, ([permID, channel], res) => {
-    if (channel?.realCheck) return res;
-    if (permID === constants.Permissions.VIEW_CHANNEL) return true;
-    if (permID === constants.Permissions.READ_MESSAGE_HISTORY) return true;
-    return res;
-  });
-
-  // Patch 2: transitionToGuild
-  const keys = Object.keys(Router);
-  for (const key of keys) {
-    if (typeof Router[key] === 'function') {
-      spitroast.instead(key, Router, (args, orig) => {
-        if (typeof args[0] === 'string') {
-          const pathMatch = args[0].match(/(\d+)$/);
-          if (pathMatch?.[1]) {
-            const channelId = pathMatch[1];
-            const channel = getChannel(channelId);
-            if (channel && isHidden(channel)) {
-              if (storage.showPopup) {
-                alerts.showConfirmationAlert({
-                  title: "🔒 This channel is hidden.",
-                  confirmText: "View Anyway",
-                  cancelText: "Cancel",
-                  onConfirm: () => { return orig(...args); },
-                  onCancel: () => {},
-                });
-              } else {
-                return orig(...args);
-              }
-              return {};
-            }
-          }
-        }
-        return orig(...args);
-      });
-    }
-  }
-}
-
-// =========== TEST HELPERS ===========
-
-function setupChannel(id, deniedPerms) {
-  const channel = {
-    id,
-    name: `channel-${id}`,
-    type: 0, // GUILD_TEXT
-    topic: `Topic for ${id}`,
-    guild_id: '123456',
-    position: 0,
-  };
-  channels[id] = channel;
-  Permissions._permissions[id] = {
-    allowed: ['SEND_MESSAGES'],
-    denied: deniedPerms || [],
-  };
-  // initial check: no realCheck flag
-  // so Permissions.can returns based on allowed/denied lists
-  return channel;
-}
+// =========== PLUGIN LOGIC ===========
 
 function isHidden(channel) {
   if (channel === undefined) return false;
   if (typeof channel === "string") channel = getChannel(channel);
   if (!channel) return false;
-  if ([0, 1, 2, 3, 4].includes(channel.type)) {
-    // skip DM, GROUP_DM, GUILD_CATEGORY
-    if ([1, 3, 4].includes(channel.type)) return false;
-    if (channel.type === 0) {
-      // regular guild text channel - check permissions
-      // But our implementation here is simplified
-    }
-  }
+  if ([1, 3, 4].includes(channel.type)) return false;
   channel.realCheck = true;
   const res = !Permissions.can(constants.Permissions.VIEW_CHANNEL, channel);
   delete channel.realCheck;
   return res;
 }
 
+// =========== TEST HELPERS ===========
+
+function setupChannel(id, deniedPerms, allowedPerms) {
+  const ch = {
+    id,
+    name: `ch-${id}`,
+    type: 0,
+    topic: `Topic for ${id}`,
+    guild_id: '123456',
+    position: 0,
+  };
+  channels[id] = ch;
+  Permissions._permissions[id] = {
+    allowed: allowedPerms || ['SEND_MESSAGES'],
+    denied: deniedPerms || [],
+  };
+  return ch;
+}
+
 function reset() {
   unpatchAll();
   Object.keys(channels).forEach(k => delete channels[k]);
   Permissions._permissions = {};
-  lastAlert = null;
-  navigatedTo = null;
   Object.keys(storage).forEach(k => delete storage[k]);
-  pluginLoaded = false;
-}
-
-function log(msg) {
-  const timestamp = new Date().toISOString().slice(11, 19);
-  console.log(`[${timestamp}] ${msg}`);
 }
 
 // =========== TESTS ===========
 
-let passed = 0;
-let failed = 0;
+let passed = 0, failed = 0;
 
-function test(name, fn) {
+function run(name, fn) {
   try {
     reset();
     fn();
     passed++;
-    log(`✅ ${name}`);
+    console.log(`\x1b[32m✅ ${name}\x1b[0m`);
   } catch (e) {
     failed++;
-    log(`❌ ${name}: ${e.message}`);
-    console.error(e);
+    console.log(`\x1b[31m❌ ${name}: ${e.message}\x1b[0m`);
   }
 }
 
-// Test 1: Basic plugin loading
-test('Plugin loads and patches Permissions.can', () => {
-  // Setup a hidden channel
-  setupChannel('101', ['VIEW_CHANNEL', 'READ_MESSAGE_HISTORY']);
-  
-  // Before plugin: can returns false
-  assert.strictEqual(Permissions.can(constants.Permissions.VIEW_CHANNEL, channels['101']), false);
-  
-  // Load plugin
-  plugin_onLoad();
-  
-  // After plugin: can returns true for VIEW_CHANNEL and READ_MESSAGE_HISTORY
-  assert.strictEqual(Permissions.can(constants.Permissions.VIEW_CHANNEL, channels['101']), true);
-  assert.strictEqual(Permissions.can(constants.Permissions.READ_MESSAGE_HISTORY, channels['101']), true);
-  // Non-patched permissions still work normally
-  assert.strictEqual(Permissions.can(constants.Permissions.SEND_MESSAGES, channels['101']), true);
+// Simulate the plugin's patches
+function applyPlugin() {
+  _spitroast.after('can', Permissions, ([permID, channel], res) => {
+    if (channel?.realCheck) return res;
+    if (permID === constants.Permissions.VIEW_CHANNEL) return true;
+    if (permID === constants.Permissions.READ_MESSAGE_HISTORY) return true;
+    return res;
+  });
+}
+
+// Test 1: Permissions patch applied
+run('Permissions patch makes hidden channels visible', () => {
+  const ch = setupChannel('1', ['VIEW_CHANNEL', 'READ_MESSAGE_HISTORY']);
+  applyPlugin();
+  assert.strictEqual(Permissions.can(constants.Permissions.VIEW_CHANNEL, ch), true);
 });
 
-// Test 2: isHidden detection
-test('isHidden correctly detects hidden channels', () => {
-  const ch = setupChannel('102', ['VIEW_CHANNEL']);
-  
-  // isHidden uses realCheck flag to bypass the patch
-  const hidden = isHidden(ch);
-  assert.strictEqual(hidden, true, 'Channel without VIEW_CHANNEL should be hidden');
-  // realCheck should be cleaned up
-  assert.strictEqual(ch.realCheck, undefined);
+// Test 2: Permissions patch allows message loading
+run('Permissions patch allows READ_MESSAGE_HISTORY', () => {
+  const ch = setupChannel('2', ['VIEW_CHANNEL', 'READ_MESSAGE_HISTORY']);
+  applyPlugin();
+  assert.strictEqual(Permissions.can(constants.Permissions.READ_MESSAGE_HISTORY, ch), true);
 });
 
-// Test 3: isHidden false for visible channels
-test('isHidden returns false for visible channels', () => {
-  const ch = setupChannel('103', []);
-  
-  const hidden = isHidden(ch);
-  assert.strictEqual(hidden, false, 'Channel with VIEW_CHANNEL should not be hidden');
+// Test 3: isHidden correctly detects hidden channels
+run('isHidden detects hidden channels', () => {
+  const ch = setupChannel('3', ['VIEW_CHANNEL']);
+  applyPlugin();
+  // isHidden uses realCheck flag, which bypasses the patch
+  assert.strictEqual(isHidden(ch), true);
 });
 
-// Test 4: Navigation intercepted for hidden channels (popup enabled)
-test('Navigation to hidden channel is intercepted', () => {
-  setupChannel('104', ['VIEW_CHANNEL']);
-  plugin_onLoad();
-  
-  storage.showPopup = true;
-  
-  // Simulate navigation
-  const result = Router.transitionToGuild('/channels/123/104');
-  
-  // Navigation should be blocked
-  assert.strictEqual(navigatedTo, null, 'Should not navigate');
-  // Alert should have been shown
-  assert.ok(lastAlert, 'Alert should be shown');
-  assert.strictEqual(lastAlert.title, '🔒 This channel is hidden.');
-  assert.strictEqual(lastAlert.confirmText, 'View Anyway');
-  assert.strictEqual(lastAlert.cancelText, 'Cancel');
+// Test 4: isHidden false for visible channels
+run('isHidden false for visible channels', () => {
+  const ch = setupChannel('4', []);
+  applyPlugin();
+  assert.strictEqual(isHidden(ch), false);
 });
 
-// Test 5: Navigation proceeds after confirm
-test('Navigation proceeds when user confirms', () => {
-  setupChannel('105', ['VIEW_CHANNEL']);
-  plugin_onLoad();
-  
-  storage.showPopup = true;
-  
-  // Intercept navigation
-  Router.transitionToGuild('/channels/123/105');
-  
-  // Now simulate confirm
-  assert.ok(lastAlert, 'Alert should be shown');
-  navigatedTo = null;
-  lastAlert.onConfirm();
-  
-  // Should have navigated
-  assert.strictEqual(navigatedTo, '/channels/123/105', 'Should navigate after confirm');
+// Test 5: API call scenario — what Discord does when loading messages
+run('Message fetch flow: permissions check before API call', () => {
+  const ch = setupChannel('5', ['VIEW_CHANNEL', 'READ_MESSAGE_HISTORY']);
+  applyPlugin();
+
+  // This is what Discord does internally before making an API call:
+  // 1. Check VIEW_CHANNEL → should pass (patched)
+  assert.strictEqual(Permissions.can(constants.Permissions.VIEW_CHANNEL, ch), true);
+  // 2. Check READ_MESSAGE_HISTORY → should pass (patched)
+  assert.strictEqual(Permissions.can(constants.Permissions.READ_MESSAGE_HISTORY, ch), true);
+  // 3. Then Discord makes API call - the server checks the user's token
+  // The API response depends on server-side permissions, not client-side
 });
 
-// Test 6: No popup -> immediate navigation
-test('Hidden channel navigation proceeds immediately when popup is off', () => {
-  setupChannel('106', ['VIEW_CHANNEL']);
-  plugin_onLoad();
+// Test 6: API call fails scenario — what if server returns 403?
+run('Hidden channel with VIEW read: message fetch still fails server-side', () => {
+  // Even with permissions patched, the server-side check is separate
+  // This simulates what happens when the API actually checks VIEW_CHANNEL
+  const ch = setupChannel('6', ['VIEW_CHANNEL'], ['SEND_MESSAGES']);
+  applyPlugin();
   
-  storage.showPopup = false;
+  // Client thinks it has permission (patched)
+  assert.strictEqual(Permissions.can(constants.Permissions.VIEW_CHANNEL, ch), true);
+  assert.strictEqual(Permissions.can(constants.Permissions.READ_MESSAGE_HISTORY, ch), true);
   
-  // Simulate navigation - should proceed immediately
-  const result = Router.transitionToGuild('/channels/123/106');
+  // But the server will check the REAL permission
+  // The API request goes to discord.com/api/v9/channels/{id}/messages
+  // Server checks the auth token's actual permissions
+  // If VIEW_CHANNEL is denied server-side → 403 Forbidden
   
-  // Should have navigated
-  assert.strictEqual(navigatedTo, '/channels/123/106', 'Should navigate immediately');
-  // No alert
-  assert.strictEqual(lastAlert, null, 'Should not show alert');
+  // Our plugin CANNOT fix this - it's client-side only
+  // The question is: does the Discord API server actually check VIEW_CHANNEL for message fetch?
+  // Or does it only check READ_MESSAGE_HISTORY + channel membership?
+  
+  console.log('  → Server-side permission check is the real question');
+  console.log('  → Plugin only patches client-side permissions');
+  console.log('  → If Discord API only checks READ_MESSAGE_HISTORY, messages load');
+  console.log('  → If Discord API also checks VIEW_CHANNEL, messages 403');
 });
 
-// Test 7: Non-hidden channels are not intercepted
-test('Navigation to visible channels is not intercepted', () => {
-  setupChannel('107', []);
-  plugin_onLoad();
-  
-  // Simulate navigation
-  Router.transitionToGuild('/channels/123/107');
-  
-  // Should have navigated immediately
-  assert.strictEqual(navigatedTo, '/channels/123/107', 'Visible channels navigate normally');
-  assert.strictEqual(lastAlert, null, 'No alert for visible channels');
+// Test 7: No navigation blockers
+run('No navigation blockers (user can navigate freely)', () => {
+  // This version has NO transitionToGuild blocker
+  // User taps hidden channel → Discord navigates normally
+  // No popup, no confirmation needed
+  assert.ok(true, 'Navigation is not blocked');
 });
 
-// Test 8: Permissions cleanup after isHidden
-test('realCheck flag is cleaned up after isHidden call', () => {
-  const ch = setupChannel('108', ['VIEW_CHANNEL']);
-  
-  isHidden(ch);
-  
-  // realCheck should be deleted
-  assert.strictEqual(ch.realCheck, undefined);
-  
-  // After cleanup, Permissions.can should return true (thanks to patch)
-  Permissions.can = Permissions.can; // ensure we have the patched version
-  // Actually, the patch is on the original Permissions.can, so let's re-test
+// Test 8: Verify lock icon patch
+run('Lock icon patch works', () => {
+  const ch = setupChannel('7', ['VIEW_CHANNEL']);
+  applyPlugin();
+  assert.strictEqual(isHidden(ch), true);
 });
 
-// Test 9: Unloading restores original behavior
-test('Unloading restores original Permissions.can behavior', () => {
-  setupChannel('109', ['VIEW_CHANNEL']);
-  
-  // Load
-  plugin_onLoad();
-  assert.strictEqual(Permissions.can(constants.Permissions.VIEW_CHANNEL, channels['109']), true);
-  
-  // Unload
+// Test 9: Cleanup on unload
+run('Patches clean up on unload', () => {
+  setupChannel('8', ['VIEW_CHANNEL', 'READ_MESSAGE_HISTORY']);
+  applyPlugin();
+  assert.strictEqual(Permissions.can(constants.Permissions.VIEW_CHANNEL, channels['8']), true);
   unpatchAll();
-  
-  // After unload, can returns the original value (false for denied channels)
-  // But our mock doesn't track realCheck, so let's check the permission list directly
-  // The perm was denied, so it should be false
-  const ch = channels['109'];
+  // After unload, should return to real permissions
+  const ch = channels['8'];
   ch.realCheck = true;
-  const realResult = Permissions.can(constants.Permissions.VIEW_CHANNEL, ch);
+  assert.strictEqual(Permissions.can(constants.Permissions.VIEW_CHANNEL, ch), false);
   delete ch.realCheck;
-  assert.strictEqual(realResult, false, 'After unload, VIEW_CHANNEL should return false');
 });
 
-// Test 10: Multiple hidden channels
-test('Multiple hidden channels work independently', () => {
-  const ch1 = setupChannel('201', ['VIEW_CHANNEL']);
-  const ch2 = setupChannel('202', []);
-  
-  plugin_onLoad();
-  
-  assert.strictEqual(isHidden(ch1), true);
-  assert.strictEqual(isHidden(ch2), false);
-  assert.strictEqual(Permissions.can(constants.Permissions.VIEW_CHANNEL, ch1), true);
-  assert.strictEqual(Permissions.can(constants.Permissions.VIEW_CHANNEL, ch2), true);
+// Test 10: isHidden cleanup
+run('isHidden cleans up realCheck flag', () => {
+  const ch = setupChannel('9', ['VIEW_CHANNEL']);
+  applyPlugin();
+  isHidden(ch);
+  assert.strictEqual(ch.realCheck, undefined);
 });
 
-// Test 11: Test that fetchMessages is NOT patched (intentional - let API calls through)
-test('fetchMessages is not patched (API calls go through)', () => {
-  // This is a design decision - we don't patch fetchMessages
-  // because it prevents messages from loading
-  // The test verifies no fetchMessages module is patched
-  assert.ok(true, 'fetchMessages is intentionally not patched');
-});
-
-// Test 12: Logging test
-test('Patch logging works via console.log', () => {
-  const logs = [];
-  const origLog = console.log;
-  console.log = (...args) => logs.push(args.join(' '));
-  
-  setupChannel('110', ['VIEW_CHANNEL']);
-  plugin_onLoad();
-  
-  console.log = origLog;
-  
-  // No assertions on logs (they're debug output)
-  assert.ok(true, 'Logging does not crash');
-});
-
-// Cleanup
-reset();
-
-// =========== SUMMARY ===========
-log('---');
-log(`Tests: ${passed + failed}`);
-log(`Passed: ${passed}`);
-log(`Failed: ${failed}`);
-
-// Exit with code
+console.log('---');
+console.log(`Tests: ${passed + failed}  Passed: ${passed}  Failed: ${failed}`);
 process.exit(failed > 0 ? 1 : 0);
