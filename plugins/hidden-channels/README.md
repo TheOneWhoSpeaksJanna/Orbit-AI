@@ -24,23 +24,24 @@ based on `Permissions.can(VIEW_CHANNEL)`. This plugin:
 ## Install on ShiggyCord
 
 1. Open Discord → Settings → Plugins
-2. Tap "Add Plugin" / "Install from URL"
-3. Paste either URL:
+2. Tap **"Add Plugin"** / **"Install from URL"**
+3. **Enter this EXACT URL** (base path, NOT the manifest file):
 
-   **Manifest (recommended):**
    ```
-   https://cdn.jsdelivr.net/gh/TheOneWhoSpeaksJanna/Orbit-AI@main/plugins/hidden-channels/manifest.json
+   https://cdn.jsdelivr.net/gh/TheOneWhoSpeaksJanna/Orbit-AI@main/plugins/hidden-channels
    ```
 
-   **Direct bundle (if your mod doesn't support manifest):**
-   ```
-   https://cdn.jsdelivr.net/gh/TheOneWhoSpeaksJanna/Orbit-AI@main/plugins/hidden-channels/dist/index.js
-   ```
+   The mod will auto-append `/manifest.json` and `dist/index.js` from this base.
 
 4. Enable the "Hidden Channels" toggle
 
-> ⚠️ `raw.githubusercontent.com` URLs don't work from mobile mods due to
-> missing CORS headers. Always use jsDelivr (above) for installation.
+If your mod requires a direct manifest URL instead of a base path, use:
+```
+https://cdn.jsdelivr.net/gh/TheOneWhoSpeaksJanna/Orbit-AI@main/plugins/hidden-channels/manifest.json
+```
+
+> ⚠️ Do NOT use `raw.githubusercontent.com` — it returns `text/plain` content-type
+> which most mods reject, even though CORS headers are now present.
 
 ## Manual install (advanced)
 
