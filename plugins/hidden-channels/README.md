@@ -23,44 +23,31 @@ based on `Permissions.can(VIEW_CHANNEL)`. This plugin:
 
 ## Install on ShiggyCord
 
-1. Open Discord → Settings → Plugins
-2. Tap **"Add Plugin"** / **"Install from URL"**
-3. **Enter this EXACT URL** (base path, NOT the manifest file):
+**Step 1:** Enable GitHub Pages on the Orbit-AI repo (one-time, 10 seconds):
+1. Go to https://github.com/TheOneWhoSpeaksJanna/Orbit-AI/settings/pages
+2. Under **Source**, select **GitHub Actions**
+3. Done — a workflow now auto-deploys plugins on every push
+
+**Step 2:** Install the plugin:
+1. Open Discord → Settings → Plugins → Add Plugin
+2. Enter this URL (exactly like how lioncat6's plugin works):
 
    ```
-   https://cdn.jsdelivr.net/gh/TheOneWhoSpeaksJanna/Orbit-AI@main/plugins/hidden-channels
+   https://TheOneWhoSpeaksJanna.github.io/Orbit-AI/hidden-channels
    ```
 
-   The mod will auto-append `/manifest.json` and `dist/index.js` from this base.
+   (The mod auto-appends `/manifest.json` and loads `/index.js`)
 
-4. Enable the "Hidden Channels" toggle
-
-If your mod requires a direct manifest URL instead of a base path, use:
-```
-https://cdn.jsdelivr.net/gh/TheOneWhoSpeaksJanna/Orbit-AI@main/plugins/hidden-channels/manifest.json
-```
-
-> ⚠️ Do NOT use `raw.githubusercontent.com` — it returns `text/plain` content-type
-> which most mods reject, even though CORS headers are now present.
-
-## Manual install (advanced)
-
-If ShiggyCord supports loading plugins from a local HTTP server:
-
-1. Download `dist/index.js` from this repo
-2. Host it on a local HTTP server (`python3 -m http.server 8080`)
-3. In ShiggyCord: Settings → Developer → Load from custom URL →
-   `http://<your-ip>:8080/dist/index.js`
-4. Restart Discord
+3. Enable the "Hidden Channels" toggle
 
 ## Files
 
 ```
 hidden-channels/
-├── manifest.json     # Plugin metadata
-├── src/
-│   ├── index.ts      # Main plugin (patches + lifecycle)
-│   └── HiddenChannel.tsx  # React component for hidden channel view
-└── dist/
-    └── index.js      # Compiled bundle (what you install)
+├── manifest.json     # Plugin metadata (main: index.js)
+├── index.js          # Compiled IIFE bundle (uses vendetta.* globals)
+├── dist/index.js     # Same bundle (backup copy)
+├── src/index.tsx     # TypeScript source
+├── test-plugin.mjs   # Test script (simulates mod fetch + evaluation)
+└── README.md         # This file
 ```
