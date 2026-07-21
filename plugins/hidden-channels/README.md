@@ -30,13 +30,13 @@ based on `Permissions.can(VIEW_CHANNEL)`. This plugin:
 
 **Step 2:** Install the plugin:
 1. Open Discord → Settings → Plugins → Add Plugin
-2. Enter this URL (exactly like how lioncat6's plugin works):
+2. Enter this URL:
 
    ```
-   https://TheOneWhoSpeaksJanna.github.io/Orbit-AI/hidden-channels
+   https://theonewhospeaksjanna.github.io/Orbit-AI
    ```
 
-   (The mod auto-appends `/manifest.json` and loads `/index.js`)
+   The mod auto-appends `manifest.json` and then loads `index.js` from the same location.
 
 3. Enable the "Hidden Channels" toggle
 

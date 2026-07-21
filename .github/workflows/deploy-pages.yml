@@ -3,9 +3,9 @@ name: Deploy plugins to GitHub Pages
 on:
   push:
     branches: [main]
-    paths:
-      - plugins/**
-      - .github/workflows/deploy-pages.yml
+    paths-ignore:
+      - '**.md'
+      - '.github/workflows/build.yml'
 
 jobs:
   deploy:
@@ -24,16 +24,13 @@ jobs:
 
       - name: Prepare plugin dist
         run: |
+          # Copy hidden-channels plugin files to Pages root
           mkdir -p dist
-          for plugin in plugins/*/; do
-            name=$(basename "$plugin")
-            echo "Preparing: $name"
-            mkdir -p "dist/$name"
-            [ -f "$plugin/manifest.json" ] && cp "$plugin/manifest.json" "dist/$name/"
-            [ -f "$plugin/index.js" ] && cp "$plugin/index.js" "dist/$name/"
-            [ -f "$plugin/dist/index.js" ] && cp "$plugin/dist/index.js" "dist/$name/"
-          done
-          find dist -type f | sort
+          cp plugins/hidden-channels/manifest.json dist/
+          cp plugins/hidden-channels/index.js dist/
+          cp plugins/hidden-channels/.nojekyll dist/ 2>/dev/null || true
+          echo "Files at root:"
+          ls -la dist/
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
